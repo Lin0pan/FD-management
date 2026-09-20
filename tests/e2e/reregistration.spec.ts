@@ -8,6 +8,7 @@ import { germanDate } from "@/i18n/format";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated, typedDay } from "./day";
 import { expectCertificateTypeBlank, fillCertificateType } from "./registration-form";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * A household that was archived coming back and being registered again
@@ -250,11 +251,16 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
    */
   const surname = faker.person.lastName();
 
-  test.beforeAll(() => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
+    // RED, because both households below are registered onto RED's lowest free slot.
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });

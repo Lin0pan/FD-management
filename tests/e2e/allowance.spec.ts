@@ -6,6 +6,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * The counts and the price follow the household, driven through the built app.
@@ -69,7 +70,15 @@ function utcMidnight(date: string): Date {
   return new Date(`${date}T00:00:00.000Z`);
 }
 
-test.afterAll(async () => {
+test.beforeAll(async ({ browser, baseURL }) => {
+  // The counter is only built while an afternoon runs (US-34), and the second test reads a
+  // household off it. RED, because 211 is odd and that is the whole of the household's group.
+  await startSessionInHook({ browser, baseURL }, "RED");
+});
+
+test.afterAll(async ({ browser, baseURL }) => {
+  // A session left running is state the file sorting after this one would inherit.
+  await endSessionInHook({ browser, baseURL });
   await prisma.$disconnect();
 });
 

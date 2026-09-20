@@ -14,6 +14,7 @@ import {
   fillCertificateTypeControl,
 } from "./registration-form";
 import { releaseNumbers, seedEndedSession } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /** `CertificateTypeField`'s id on the record's own renewal form (`renewal-form.tsx`). */
 const RENEWAL_TYPE = "renewal-type-field";
@@ -306,12 +307,18 @@ test.describe.configure({ mode: "serial" });
 test.describe("Kundenakte pflegen", () => {
   let id: number;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     id = await seedHousehold();
+    // The counter is only built while an afternoon runs (US-34), and the note written on the record
+    // is read back at it. RED, because 291 is odd and that is the whole of the household's group.
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });

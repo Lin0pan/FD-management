@@ -8,9 +8,11 @@ import { groupOf } from "@/domain/customer/group";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
- * How far through today's group the counter is (`tasks/prd-us-23-group-progress.md` §US-23.5).
+ * How far through the afternoon's group the counter is (`tasks/prd-us-23-group-progress.md`
+ * §US-23.5, US-34.6).
  *
  * The rules are proved below. Neither gate can see the thing the tally *is for*: that the number on
  * the counter's own screen agrees with what just happened at it. So this spec serves a household
@@ -28,8 +30,8 @@ import { releaseNumbers } from "./seeding";
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
-// stays a literal, because which group collects — and therefore what the tally counts — is decided
-// by dates.
+// stays a literal: which group collects is the running session's to say (US-34), but the
+// certificates and birthdates the households are clear to serve on are still dates.
 faker.seed(20260802);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
@@ -38,9 +40,9 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a distribution day, the group collecting is RED,
- * and a RED household with a current certificate is clear to serve.
+ * Which group collects no longer follows from it — that is the RED afternoon this file starts itself
+ * (US-34). The day is what the seeded certificates and birthdates are read against, so the
+ * households are clear to serve on it.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
@@ -48,8 +50,8 @@ const TODAY = "2026-01-08T09:00:00.000Z";
  * The numbers this spec owns — see the note above on why they sit below the walk spec's block.
  *
  * All three are **odd, and therefore RED** (US-31). That is not a decoration on the fixture, it is
- * the fixture: the tally lists the households collecting today, and today is a RED distribution day,
- * so „seeded RED" is now „seeded on an odd slot" and there is nothing else to set.
+ * the fixture: the tally lists the households the running session serves, and this file's session
+ * serves RED, so „seeded RED" is now „seeded on an odd slot" and there is nothing else to set.
  */
 const NUMBERS = {
   /** Served through the UI here: the household the tally must move for. */
@@ -128,19 +130,21 @@ async function seedHousehold(customerNumber: number, blocked: boolean): Promise<
   });
 }
 
-/** One household of today's group, as the two figures on screen count it. */
+/** One household of the session's group, as the two figures on screen count it. */
 interface Member {
   readonly customerNumber: number;
   readonly blocked: boolean;
-  readonly servedToday: boolean;
+  readonly servedInSession: boolean;
 }
 
 /**
- * Today's RED group straight out of the database, lowest customer number first.
+ * The afternoon's RED group straight out of the database, lowest customer number first.
  *
  * The whole register's, not just this spec's block: the specs before this one have registered RED
- * households and recorded hand-outs of their own on this same pinned day, so anything asserted about
- * the tally has to be counted from the register as it stands at that moment.
+ * households of their own, so anything asserted about the tally has to be counted from the register
+ * as it stands at that moment. What they have *not* left behind is a hand-out this session can see —
+ * each of them ends its own afternoon (US-34.10), which is why the served set below is read off the
+ * running session and not off the day.
  */
 async function servedInRunningSession(): Promise<ReadonlyArray<{ customerId: number }>> {
   const running = await prisma.distributionSession.findFirst({
@@ -154,7 +158,7 @@ async function servedInRunningSession(): Promise<ReadonlyArray<{ customerId: num
   });
 }
 
-async function todaysGroup(): Promise<ReadonlyArray<Member>> {
+async function sessionGroup(): Promise<ReadonlyArray<Member>> {
   const [customers, records] = await Promise.all([
     prisma.customer.findMany({
       where: { status: { in: ["ACTIVE", "BLOCKED"] } },
@@ -174,7 +178,7 @@ async function todaysGroup(): Promise<ReadonlyArray<Member>> {
     .map((customer) => ({
       customerNumber: customer.customerNumber,
       blocked: customer.status === "BLOCKED",
-      servedToday: servedIds.has(customer.id),
+      servedInSession: servedIds.has(customer.id),
     }));
 }
 
@@ -186,8 +190,8 @@ async function todaysGroup(): Promise<ReadonlyArray<Member>> {
  * function compared against itself.
  */
 function summaryOf(members: ReadonlyArray<Member>): string {
-  const served = members.filter((member) => member.servedToday).length;
-  const expected = members.filter((member) => !member.blocked || member.servedToday).length;
+  const served = members.filter((member) => member.servedInSession).length;
+  const expected = members.filter((member) => !member.blocked || member.servedInSession).length;
   return de.distribution.progress.summary(RED_GROUP, served, expected);
 }
 
@@ -227,14 +231,20 @@ const RED_GROUP = de.distribution.group(de.distribution.colours.RED);
 test.describe.configure({ mode: "serial" });
 
 test.describe("Gruppenfortschritt", () => {
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     await seedHousehold(NUMBERS.served, false);
     await seedHousehold(NUMBERS.unserved, false);
     await seedHousehold(NUMBERS.blocked, true);
+    // RED: the tally names the group(s) the running session serves, and one group is what makes the
+    // single-group sentence this file asserts the one on screen (US-34.6).
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });
@@ -246,7 +256,7 @@ test.describe("Gruppenfortschritt", () => {
 
     // The summary *is* the tally (§FR-1): the group in words and the two numbers, in one node, on a
     // screen nobody has touched.
-    await expect(page.getByTestId("group-progress")).toHaveText(summaryOf(await todaysGroup()));
+    await expect(page.getByTestId("group-progress")).toHaveText(summaryOf(await sessionGroup()));
     await expect(disclosure(page)).toHaveJSProperty("open", false);
   });
 
@@ -272,7 +282,7 @@ test.describe("Gruppenfortschritt", () => {
       .evaluateAll((rows) =>
         rows.map((row) => Number(row.getAttribute("data-testid")?.replace("group-member-", ""))),
       );
-    expect(rendered).toEqual((await todaysGroup()).map((member) => member.customerNumber));
+    expect(rendered).toEqual((await sessionGroup()).map((member) => member.customerNumber));
 
     // The block is said in the words `/kunden` says it in — one meaning, one treatment.
     await expect(page.getByTestId(`blocked-${NUMBERS.blocked}`)).toHaveText(
@@ -286,11 +296,11 @@ test.describe("Gruppenfortschritt", () => {
   });
 
   test("leaves a blocked household out of the households expected to collect", async ({ page }) => {
-    const members = await todaysGroup();
+    const members = await sessionGroup();
     const walkable = members.length;
     // The households listed but unable to collect (US-08). 305 is one of them, which is what makes
     // the subtraction below a statement about *this* spec's household rather than an identity.
-    const cannotCollect = members.filter((member) => member.blocked && !member.servedToday);
+    const cannotCollect = members.filter((member) => member.blocked && !member.servedInSession);
     expect(cannotCollect.map((member) => member.customerNumber)).toContain(NUMBERS.blocked);
 
     await page.goto("/ausgabe");
@@ -307,7 +317,7 @@ test.describe("Gruppenfortschritt", () => {
   test("raises the tally by exactly one when a household is served at the counter", async ({
     page,
   }) => {
-    const before = await todaysGroup();
+    const before = await sessionGroup();
 
     // Served the way the queue is served: type the number, read the verdict, press the button.
     await page.goto("/ausgabe");
@@ -326,9 +336,9 @@ test.describe("Gruppenfortschritt", () => {
     // household itself is gone from that screen, so this number *is* the evidence the hand-out was
     // recorded (R-11). Fetching the page again would prove the register, which the query below
     // already does, and not the counter.
-    const after = await todaysGroup();
-    expect(after.filter((member) => member.servedToday).length).toBe(
-      before.filter((member) => member.servedToday).length + 1,
+    const after = await sessionGroup();
+    expect(after.filter((member) => member.servedInSession).length).toBe(
+      before.filter((member) => member.servedInSession).length + 1,
     );
     await expect(page.getByTestId("group-progress")).toHaveText(summaryOf(after));
 

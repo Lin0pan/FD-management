@@ -7,6 +7,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated } from "./day";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * The egg allowance from the settings screen to the counter (`tasks/prd-us-28-egg-allowance.md`
@@ -314,10 +315,19 @@ test.afterAll(async () => {
 test.describe.configure({ mode: "serial" });
 
 test.describe("Eier", () => {
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     for (const household of EVERY_HOUSEHOLD) {
       recordIds.set(household.customerNumber, await seedHousehold(household));
     }
+    // The counter is only built while an afternoon runs (US-34). BLUE, because every number this
+    // spec owns is even and that is the whole of the households' group (US-31).
+    await startSessionInHook({ browser, baseURL }, "BLUE");
+  });
+
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
   });
 
   test("the seeded rule states the eggs at the counter and on the record", async ({ page }) => {

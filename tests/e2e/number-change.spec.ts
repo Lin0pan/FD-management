@@ -8,6 +8,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { groupOf } from "@/domain/customer/group";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 import { hydrated } from "./day";
 import { fillPersonalData } from "./registration-form";
 
@@ -40,10 +41,10 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a RED distribution day, which is what lets the
- * moved household reach „Ausgabe frei" under their new number — the point being that the card
- * printed by the move works, and a wrong-colour week would refuse every card here for one reason.
+ * What lets the moved household reach „Ausgabe frei" under their new number is the RED afternoon
+ * this file starts itself (US-34) — the point being that the card printed by the move works, and an
+ * afternoon serving the other group would refuse every card here for one reason. The day is what
+ * the seeded certificates and card dates are read against.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
@@ -337,7 +338,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
   let freeBefore: { red: number; blue: number };
   let dueBefore: number;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
 
     // Idempotent, so a CI retry can re-run this block instead of dying on the unique customer
@@ -377,9 +378,16 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
       childBirthDate: OUTGROWN_BIRTH_DATE,
       cards: [{ index: 1, issuedAt: "2025-04-04", reason: "FIRST_ISSUE" }],
     });
+
+    // RED: every slot this spec owns is odd, so the household is in the same group before and after
+    // the move — which is what lets the counter test read the move and nothing else (US-34).
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });

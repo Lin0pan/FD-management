@@ -9,6 +9,7 @@ import { SHARED } from "./registers";
 import { fillDay } from "./day";
 import { expectCertificateTypeControlValue, fillCertificateTypeControl } from "./registration-form";
 import { releaseNumbers } from "./seeding";
+import { endSession, endSessionInHook, startSession } from "./session";
 
 /** `CertificateTypeField`'s id on the counter's own renewal form (`certificate-controls.tsx`). */
 const RENEWAL_TYPE = "renewal-type";
@@ -18,12 +19,14 @@ const RENEWAL_TYPE = "renewal-type";
  *
  * The pieces are proved separately. What none of them can see is the *trail*: the same household
  * coming back week after week, the count climbing by exactly one per visit, and nothing else moving.
- * So this walks one household through three consecutive distribution days on a pinned clock and
- * asserts the two ends — a count of 3 leaves them as served and as active as a count of 0, and the
- * renewal resets the count while the log keeps all three entries.
+ * So this walks one household through three consecutive afternoons on a pinned clock and asserts the
+ * two ends — a count of 3 leaves them as served and as active as a count of 0, and the renewal
+ * resets the count while the log keeps all three entries.
  *
- * The days follow from the seeded settings alone: a RED household's consecutive distribution days are
- * every second Thursday, the one between belonging to BLUE.
+ * **Three afternoons are three sessions**, each started and ended through the real controls: „einmal
+ * pro Ausgabe" is what the reminder rule reads now (US-34), so a second Thursday on the calendar
+ * would no longer offer the action again. The days are pinned for the dates the certificate and the
+ * card are judged on, and because a fortnight apart is what the trail looks like.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -33,14 +36,18 @@ faker.seed(20260724);
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
 const NOW_FILE = SHARED.now;
 
-/** The household's three consecutive distribution days: RED Thursdays, one BLUE week apart. */
+/** The household's three consecutive visits, a fortnight apart as DF's rhythm has them. */
 const DAYS = [
   "2026-01-08T09:00:00.000Z",
   "2026-01-22T09:00:00.000Z",
   "2026-02-05T09:00:00.000Z",
 ] as const;
-/** The Europe/Berlin day keys of {@link DAYS}, as `berlinDayKey` writes them to the reminder log. */
-const DAY_KEYS = ["2026-01-08", "2026-01-22", "2026-02-05"] as const;
+
+/**
+ * The session each visit was held at, in order — filled by {@link openAfternoon} and read by the
+ * assertions on the log, which records the afternoon a reminder was given at and no longer the day.
+ */
+const afternoons: number[] = [];
 
 /** The number this spec owns — clear of the counter's 201–209/239, allowance's 211, serve's 213–219. */
 const CUSTOMER_NUMBER = 231;
@@ -152,6 +159,28 @@ async function reminderRows(): Promise<
   });
 }
 
+/**
+ * Open the household's next afternoon: end the one running, pin the day, start a RED one.
+ *
+ * One session per visit is the fixture. The reminder action is spent for the afternoon it was given
+ * at (US-34), so this is what offers it again — a new Thursday on its own no longer would.
+ */
+async function openAfternoon(page: Page, index: number): Promise<void> {
+  if (index > 0) {
+    await endSession(page);
+  }
+  pinDay(DAYS[index]);
+  await startSession(page, "RED");
+  const running = await prisma.distributionSession.findFirst({
+    where: { endedAt: null, discardedAt: null },
+    select: { id: true },
+  });
+  if (running === null) {
+    throw new Error("the afternoon that was just started is not running");
+  }
+  afternoons.push(running.id);
+}
+
 /** Type the number at the counter and press Enter, exactly as staff do it. */
 async function lookUp(page: Page): Promise<void> {
   await page.goto("/ausgabe");
@@ -161,8 +190,8 @@ async function lookUp(page: Page): Promise<void> {
 }
 
 /**
- * Record the day's hand-out — the household is *served* on every visit, reminders or not — and come
- * back to them.
+ * Record the afternoon's hand-out — the household is *served* on every visit, reminders or not — and
+ * come back to them.
  *
  * The write clears the counter (US-32.7), so the certificate controls this spec is about are no
  * longer on the screen the click lands on. „Korrigieren“ in the confirmation is the one-click route
@@ -184,9 +213,14 @@ test.describe.configure({ mode: "serial" });
 test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
   test.beforeAll(async () => {
     await seedHousehold();
+    // A CI retry replays this block, and the ids it collected belong to the attempt that failed.
+    afternoons.length = 0;
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze February for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });
@@ -196,7 +230,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
   test("serves the household despite the lapsed certificate and logs the first reminder", async ({
     page,
   }) => {
-    pinDay(DAYS[0]);
+    await openAfternoon(page, 0);
     await lookUp(page);
 
     // The lapsed certificate never withholds food: the verdict clears the hand-out and names the
@@ -219,7 +253,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await page.getByTestId("reminder-button").click();
 
     await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.confirmed(1));
-    // For the rest of the day the action is spent, and it says so in place of its own label.
+    // For the rest of the afternoon the action is spent, and it says so in place of its own label.
     await expect(page.getByTestId("reminder-button")).toBeDisabled();
     await expect(page.getByTestId("reminder-button")).toHaveText(words.reminder.loggedInSession);
 
@@ -229,7 +263,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await expect(page.getByTestId("reminder-button")).toBeDisabled();
   });
 
-  test("refuses a second reminder attempt on the same day", async ({ page }) => {
+  test("refuses a second reminder attempt at the same afternoon", async ({ page }) => {
     await lookUp(page);
     await expect(page.getByTestId("reminder-button")).toBeDisabled();
 
@@ -243,18 +277,18 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
       words.reminder.errors.alreadyLogged,
     );
 
-    // The refusal wrote nothing: one entry for the day, and the count still stands at 1.
-    expect(await reminderRows()).toEqual([{ loggedOn: DAY_KEYS[0], resultingCount: 1 }]);
+    // The refusal wrote nothing: one entry for the afternoon, and the count still stands at 1.
+    expect(await reminderRows()).toEqual([{ sessionId: afternoons[0], resultingCount: 1 }]);
     expect((await householdRow()).reminderCount).toBe(1);
   });
 
-  test("offers the action again on the next distribution day and logs the second reminder", async ({
+  test("offers the action again at the next afternoon and logs the second reminder", async ({
     page,
   }) => {
-    pinDay(DAYS[1]);
+    await openAfternoon(page, 1);
     await lookUp(page);
 
-    // A new day: yesterday's spent action is an offer again, under its own label.
+    // A new afternoon: the spent action is an offer again, under its own label.
     await expect(page.getByTestId("reminder-button")).toBeEnabled();
     await expect(page.getByTestId("reminder-button")).toHaveText(words.reminder.submit);
 
@@ -266,7 +300,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
   test("shows a count of 3 after the third reminder and leaves the household active", async ({
     page,
   }) => {
-    pinDay(DAYS[2]);
+    await openAfternoon(page, 2);
     await lookUp(page);
     await serve(page);
     await page.getByTestId("reminder-button").click();
@@ -277,10 +311,10 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     // person.
     //
     // The verdict on this second look-up is ALREADY_SERVED and not the serve-and-remind one
-    // asserted before the hand-out (line ~198): since US-32 the day's record outranks the lapsed
-    // certificate. What the re-lookup has to prove is that the reminder controls survive that —
-    // `CertificateControls` reads `certificateExpired` off the household, not off the verdict kind,
-    // so a served household keeps everything it needs to be reminded and renewed.
+    // asserted before the hand-out (line ~198): since US-32 the afternoon's record outranks the
+    // lapsed certificate. What the re-lookup has to prove is that the reminder controls survive
+    // that — `CertificateControls` reads `certificateExpired` off the household, not off the
+    // verdict kind, so a served household keeps everything it needs to be reminded and renewed.
     await lookUp(page);
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("3");
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ACTIVE);
@@ -298,9 +332,9 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     expect(household.status).toBe("ACTIVE");
     expect(household.reminderCount).toBe(3);
     expect(await reminderRows()).toEqual([
-      { loggedOn: DAY_KEYS[0], resultingCount: 1 },
-      { loggedOn: DAY_KEYS[1], resultingCount: 2 },
-      { loggedOn: DAY_KEYS[2], resultingCount: 3 },
+      { sessionId: afternoons[0], resultingCount: 1 },
+      { sessionId: afternoons[1], resultingCount: 2 },
+      { sessionId: afternoons[2], resultingCount: 3 },
     ]);
   });
 
@@ -355,9 +389,9 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await expect(page.getByTestId("renewal-confirmation")).toHaveText(words.renewal.saved);
 
     // A fresh lookup: the prompt is gone with the reminder action, and the count reads 0. The
-    // verdict is still the day's — this household was served earlier in the spec and US-32 lets
-    // that outrank everything below an outdated card — so the evidence that the certificate no
-    // longer registers is the absence of its controls, which is the reading that matters anyway.
+    // verdict is still the afternoon's — this household was served earlier in the spec and US-32
+    // lets that outrank everything below an outdated card — so the evidence that the certificate
+    // no longer registers is the absence of its controls, which is the reading that matters anyway.
     await lookUp(page);
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",

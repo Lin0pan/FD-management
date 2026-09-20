@@ -9,6 +9,7 @@ import { clearRegister } from "@/infrastructure/prisma/test-support";
 import { ISOLATED } from "./registers";
 import { fillDay, fillSticky, hydrated } from "./day";
 import { fillPersonalData, type Person } from "./registration-form";
+import { endSession, endSessionInHook, startSession, startSessionInHook } from "./session";
 
 /**
  * The customer number decides the group (`tasks/prd-us-31-number-decides-the-group.md` §US-31.8,
@@ -39,10 +40,10 @@ const NOW_FILE = ISOLATED.now;
 /**
  * The two days this spec is judged on: Thursday 08.01.2026 and Thursday 15.01.2026.
  *
- * Both follow from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor
- * `2026-W02` = RED and distributions on ISO weekday 4, so the Thursday of W02 is a RED distribution
- * day and the Thursday of W03 a BLUE one. Two days is what a household changing weeks needs — one it
- * collects on before the move, and one it collects on after.
+ * Which group collects is the running session's to say (US-34), so this file holds a RED afternoon,
+ * then a BLUE one, then a RED one again — one the household collects at before the move and one it
+ * collects at after. The days are pinned with them because the cards and certificates are read
+ * against dates, and because a week apart is what the two afternoons look like to DF.
  */
 const RED_DAY = "2026-01-08T09:00:00.000Z";
 const BLUE_DAY = "2026-01-15T09:00:00.000Z";
@@ -191,13 +192,18 @@ test.describe("Die Nummer entscheidet die Gruppe", () => {
    * everything, which no spec on the shared register may do; this file owns its register outright,
    * which is what the isolated project is for.
    */
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinDay(RED_DAY);
     await prisma.waitingListEntry.deleteMany();
+    // `clearRegister` takes the afternoons with the hand-outs, so the session is started after it.
     await clearRegister(prisma);
+    await startSessionInHook({ browser, baseURL }, "RED");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: `waiting-list.spec.ts` shares this register and runs behind
+    // it (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for `waiting-list.spec.ts`
     // behind it on this same server.
     rmSync(NOW_FILE, { force: true });
@@ -294,11 +300,11 @@ test.describe("Die Nummer entscheidet die Gruppe", () => {
     await register(page, NUMBERS.registeredWhileRedIsFull);
   });
 
-  test("the counter reads the week off the number, and turns the other one away", async ({
+  test("the counter reads the week off the number, and a red afternoon turns the other away", async ({
     page,
   }) => {
-    // A RED distribution day. The two households differ in nothing a fixture set: one holds an odd
-    // number and the other an even one.
+    // A RED afternoon. The two households differ in nothing a fixture set: one holds an odd number
+    // and the other an even one, and the session says which of the two it serves.
     await lookUp(page, String(NUMBERS.mover));
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
@@ -446,9 +452,11 @@ test.describe("Die Nummer entscheidet die Gruppe", () => {
   test("the counter serves the household under the new number, in the new week", async ({
     page,
   }) => {
-    // The BLUE distribution day of the following week. Nothing was written between the move and
-    // this: the household collects in the other week because the number they hold is even.
+    // The BLUE afternoon of the following week. Nothing was written between the move and this: the
+    // household collects at the other group's afternoon because the number they hold is even.
+    await endSession(page);
     pinDay(BLUE_DAY);
+    await startSession(page, "BLUE");
 
     await lookUp(page, String(NUMBERS.moveTo));
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
@@ -468,7 +476,9 @@ test.describe("Die Nummer entscheidet die Gruppe", () => {
   });
 
   test("a superseded card is answered with the week it was printed for", async ({ page }) => {
+    await endSession(page);
     pinDay(RED_DAY);
+    await startSession(page, "RED");
 
     // The vacated slot goes to the next household, and its card run counts on: `1k2`, because `1k1`
     // is out in the world in the mover's pocket (US-25).

@@ -1,22 +1,30 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { germanDateTime } from "@/i18n/format";
 import { SHARED } from "./registers";
+import { endSession, startSession } from "./session";
 
 /**
- * The Start dashboard against a fixed clock (`tasks/prd-us-17-navigation-shell.md` §US-17.5).
+ * The Start dashboard against a fixed clock (`tasks/prd-us-17-navigation-shell.md` §US-17.5,
+ * US-34.9).
  *
- * Both facts the screen states are pure functions of the calendar, so asserting either means deciding
- * what day the app thinks it is. The seam is `FD_FIXED_NOW_FILE`, re-read per call, so writing the
- * file moves the app's today without a restart and deleting it hands the wall clock back.
+ * The date and the „nächste Ausgabe" line are pure functions of the calendar, so asserting either
+ * means deciding what day the app thinks it is. The seam is `FD_FIXED_NOW_FILE`, re-read per call,
+ * so writing the file moves the app's today without a restart and deleting it hands the wall clock
+ * back.
  *
  * The expected days follow from the seeded settings alone. **Three pinned days, and the third is the
  * one that matters**: on a Saturday *after* that week's distribution the current week is still RED
  * while the next Ausgabe is BLUE, so a panel reading `view.colour` instead of
  * `nextDistribution.colour` would announce the wrong group — invisible on the other two days.
  *
- * It only reads, but it does restore the clock in `afterAll`: a pinned today would make the settings
- * specs, which save a version stamped *now*, assert against January.
+ * The last spec is the one thing here that is **not** a function of the calendar: the afternoon under
+ * way (US-34.9). It starts one and ends it again through the counter's own controls, which is also
+ * what keeps this file's pinned instant the one the panel has to print.
+ *
+ * It otherwise only reads, but it does restore the clock in `afterAll`: a pinned today would make the
+ * settings specs, which save a version stamped *now*, assert against January.
  */
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
@@ -126,5 +134,41 @@ test.describe("Start", () => {
       "/einstellungen",
     );
     await expect(page.getByTestId("next-distribution")).toHaveCount(0);
+  });
+
+  test("states the afternoon under way, and nothing at all when none is", async ({ page }) => {
+    // Back onto a day the seeded settings are in force on, so the panel is read against the screen
+    // DF actually see rather than the unconfigured one above.
+    const started = "2026-01-08T09:00:00.000Z";
+    pinNow(started);
+
+    await page.goto("/");
+    await expect(page.getByTestId("running-session")).toHaveCount(0);
+
+    await startSession(page, "BOTH");
+    await page.goto("/");
+
+    // Both badges, because a merged afternoon is a thing this screen has to be able to state — and
+    // the instant it began, which is what a session nobody ended looks like on Friday morning.
+    const panel = page.getByTestId("running-session");
+    await expect(panel).toContainText(de.distribution.session.running);
+    const groups = page.getByTestId("running-session-groups");
+    await expect(groups).toContainText(de.distribution.colours.RED);
+    await expect(groups).toContainText(de.distribution.colours.BLUE);
+    await expect(page.getByTestId("running-session-started")).toHaveText(
+      de.distribution.session.onStartScreen.startedAt(germanDateTime(new Date(started))),
+    );
+    // The way to the screen that can end it — the act the panel exists to prompt.
+    await expect(
+      panel.getByRole("link", { name: de.distribution.session.onStartScreen.link }),
+    ).toHaveAttribute("href", "/ausgabe");
+    // The screen keeps its other two sentences: the panel is added above them, not instead of them.
+    await expect(page.getByTestId("today-date")).toBeVisible();
+    await expect(page.getByTestId("next-distribution")).toBeVisible();
+
+    // And the afternoon ended, the screen is byte-for-byte the one the other specs assert.
+    await endSession(page);
+    await page.goto("/");
+    await expect(page.getByTestId("running-session")).toHaveCount(0);
   });
 });

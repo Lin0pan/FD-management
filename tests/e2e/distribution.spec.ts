@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * The distribution screen between afternoons (`tasks/prd-us-34-distribution-session.md` §US-34.7).
@@ -9,14 +10,21 @@ import { de } from "@/i18n/de";
  * any more, so no spec in this file moves the clock.
  *
  * What it proves is the screen with **nothing running** — the start form is offered, and the counter
- * and the tally are not, there being nothing to record against. The running screen and the whole
- * afternoon are US-34.10's and US-34.11's, through the helper that drives these controls for every
- * other spec; starting a session here would leave one running for the files that sort after this one.
+ * and the tally are not, there being nothing to record against. The whole afternoon is US-34.11's.
+ *
+ * It holds **one afternoon of its own, ended before the first test**: every file sorting before this
+ * one now leaves an ended session behind (US-34.10), so what the start form preselects is a fact
+ * about a session this spec wrote rather than about who happened to run last.
  *
  * The last spec pins down that the withdrawn `?datum=` is ignored rather than refused.
  */
 
 test.describe("Ausgabe", () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
+    await startSessionInHook({ browser, baseURL }, "BOTH");
+    await endSessionInHook({ browser, baseURL });
+  });
+
   test("offers the three afternoons when none is running", async ({ page }) => {
     await page.goto("/ausgabe");
 
@@ -28,11 +36,11 @@ test.describe("Ausgabe", () => {
     await expect(page.getByTestId("session-start-submit")).toHaveText(
       de.distribution.session.start.submit,
     );
-    // Nothing is preselected: this register has never held a session, so there is no afternoon for
-    // `proposeGroups` to propose the opposite of. The preselection itself needs a session on
-    // record and is proved in the session loop (US-34.11), which is also the only file allowed to
-    // leave one behind.
-    await expect(page.locator('input[name="groups"]:checked')).toHaveCount(0);
+    // „Rot und Blau" and nothing else: the afternoon that ended last served both groups, so there is
+    // no group that was not up, and `proposeGroups` offers both again. That a merged period carries
+    // itself forward is the whole of the proposal's job; the alternating case is US-34.11's.
+    await expect(page.locator("#session-groups-BOTH")).toBeChecked();
+    await expect(page.locator('input[name="groups"]:checked')).toHaveCount(1);
   });
 
   test("offers no counter and no tally while no session runs", async ({ page }) => {
@@ -54,7 +62,9 @@ test.describe("Ausgabe", () => {
     await expect(page.getByTestId("session-start-submit")).toBeVisible();
     // No error anywhere on the page: every one this screen can show is an `Alert`, and none of them
     // is rendered. Located by `data-slot` rather than by `role="alert"`, because Next injects a
-    // route announcer carrying that role into every page client-side and it would count as one.
-    await expect(page.locator('[data-slot="alert"]')).toHaveCount(0);
+    // route announcer carrying that role into every page client-side and it would count as one —
+    // and `:visible`, because the last session's reopen confirmation is an `Alert` that sits in the
+    // markup inside a closed `<details>`.
+    await expect(page.locator('[data-slot="alert"]:visible')).toHaveCount(0);
   });
 });

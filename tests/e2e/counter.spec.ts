@@ -6,7 +6,8 @@ import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
-import { releaseNumbers, seedEndedSession } from "./seeding";
+import { releaseNumbers } from "./seeding";
+import { endSessionInHook, startSessionInHook } from "./session";
 
 /**
  * Every verdict the counter can hand down (`tasks/prd-us-04-lookup-customer.md` §US-04.5).
@@ -24,8 +25,10 @@ import { releaseNumbers, seedEndedSession } from "./seeding";
  * them. They take numbers in the 200s so the allocating specs keep their low sequence, and each takes
  * the *parity* its verdict needs (ADR-017).
  *
- * `ALREADY_SERVED` is the last of them, and its record is written through Prisma like the rest:
- * this spec is about what a *lookup* says, and serving through the UI is `serve.spec.ts`'s subject.
+ * `ALREADY_SERVED` is the last of them, and its record is written through Prisma like the rest —
+ * onto the afternoon this file started, because that is what „bereits ausgegeben" is judged against
+ * now (US-34). This spec is about what a *lookup* says; serving through the UI is `serve.spec.ts`'s
+ * subject.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
@@ -38,10 +41,9 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor
- * `2026-W02` = RED, distributions on ISO weekday 4. So it is a distribution day, the group
- * collecting is RED — which is what makes a RED household clear and a BLUE one sent away — and a
- * certificate lapsing in 2025 is expired while one running to 2027 is not.
+ * What makes a RED household clear and a BLUE one sent away is the **RED afternoon this file starts
+ * itself** (US-34), not the calendar. The day is still what the certificates are read against: one
+ * lapsing in 2025 is expired on it, one running to 2027 is not.
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 
@@ -49,10 +51,10 @@ const TODAY = "2026-01-08T09:00:00.000Z";
  * The numbers this spec owns. Well clear of the low sequence the other specs consume.
  *
  * **The parity is the fixture** (US-31): an odd number is RED and an even one BLUE, so the household
- * that is turned away for the wrong week is the one on 202 and every household that has to reach a
- * verdict *past* the week check is odd. Nothing seeds a group here, because there is nothing to
- * seed — the number is the whole of it. The blocked and archived households are even and it makes no
- * difference: both reasons are read before the week is (`evaluateAtCounter`'s precedence).
+ * the RED afternoon turns away is the one on 202 and every household that has to reach a verdict
+ * *past* the group check is odd. Nothing seeds a group here, because there is nothing to seed — the
+ * number is the whole of it. The blocked and archived households are even and it makes no
+ * difference: both reasons are read before the group is (`evaluateAtCounter`'s precedence).
  */
 const NUMBERS = {
   clear: 201,
@@ -67,8 +69,8 @@ const NUMBERS = {
    * make a verdict spec depend on which note test ran last.
    */
   notes: 207,
-  /** Has collected today, so the lookup states that rather than clearing them a second time. */
-  servedToday: 209,
+  /** Has collected at this afternoon, so the lookup states that rather than clearing them again. */
+  alreadyServed: 209,
   /** Inside the quota of 240 and held by nobody — a number staff could plausibly mistype. */
   unassigned: 239,
 } as const;
@@ -201,11 +203,13 @@ async function snapshotRegister(): Promise<string> {
 }
 
 /**
- * Book a hand-out for a household on {@link TODAY}, without going near the counter.
+ * Book a hand-out for a household **at the running afternoon**, without going near the counter.
  *
  * The one fact `evaluateAtCounter` cannot derive from the customer row, written the shortest way
  * there is: what a *recorded* hand-out looks like on the screen belongs to `serve.spec.ts`, and what
- * is wanted here is only a household the rule will call already served.
+ * is wanted here is only a household the rule will call already served. The session is read back
+ * rather than made here, because „bereits ausgegeben" is judged against the one that is running and
+ * a row on any other afternoon would leave the lookup clearing the household.
  */
 async function recordHandOut(customerNumber: number): Promise<void> {
   const customer = await prisma.customer.findFirst({
@@ -215,13 +219,17 @@ async function recordHandOut(customerNumber: number): Promise<void> {
   if (customer === null) {
     throw new Error(`No household on ${customerNumber} to record a hand-out for`);
   }
-  // The hand-out belongs to an afternoon (US-34); this one is already over, so the seeded row is
-  // there to be *read* and nothing here goes on writing to it.
-  const sessionId = await seedEndedSession(prisma, { at: new Date(TODAY) });
+  const session = await prisma.distributionSession.findFirst({
+    where: { endedAt: null, discardedAt: null },
+    select: { id: true },
+  });
+  if (session === null) {
+    throw new Error("No afternoon is running to record a hand-out at");
+  }
   await prisma.distributionRecord.create({
     data: {
       customerId: customer.id,
-      sessionId,
+      sessionId: session.id,
       date: new Date(TODAY),
       showedUp: true,
       paidCents: PRICE_CENTS,
@@ -288,7 +296,7 @@ test.describe("Verdikt am Tresen", () => {
   /** The names the seeded households got, so each spec can assert it is looking at the right one. */
   const names: Record<number, string> = {};
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinToday();
     for (const household of [
       {
@@ -338,7 +346,7 @@ test.describe("Verdikt am Tresen", () => {
         cardIndexes: [1],
       },
       {
-        customerNumber: NUMBERS.servedToday,
+        customerNumber: NUMBERS.alreadyServed,
         status: "ACTIVE",
         certificateValidUntil: VALID_CERTIFICATE,
         cardIndexes: [1],
@@ -346,17 +354,23 @@ test.describe("Verdikt am Tresen", () => {
     ] as const satisfies ReadonlyArray<Household>) {
       names[household.customerNumber] = await seedHousehold(household);
     }
-    await recordHandOut(NUMBERS.servedToday);
+    // RED, so that the even household is the one turned away — and started before the hand-out
+    // below, which has to belong to it.
+    await startSessionInHook({ browser, baseURL }, "RED");
+    await recordHandOut(NUMBERS.alreadyServed);
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving it would freeze January for the settings specs,
     // which save a version stamped *now* and would then assert against the wrong month.
     rmSync(NOW_FILE, { force: true });
     await prisma.$disconnect();
   });
 
-  test("clears a red household on a red distribution day", async ({ page }) => {
+  test("clears a red household at a red afternoon", async ({ page }) => {
     await lookUp(page, String(NUMBERS.clear));
 
     await expectVerdict(page, "CLEAR_TO_SERVE", verdicts.clearToServe.headline);
@@ -390,15 +404,15 @@ test.describe("Verdikt am Tresen", () => {
     await expect(page.getByTestId("counter-reminder-count")).toHaveText(String(REMINDERS_SENT));
   });
 
-  test("sends a blue household away in a red week, naming both colours", async ({ page }) => {
+  test("sends a blue household away from a red afternoon, naming their group", async ({ page }) => {
     await lookUp(page, String(NUMBERS.wrongGroup));
 
     // Blue because the number is even, and for no other reason — the household was seeded with a
-    // number and never with a week (US-31).
+    // number and never with a group (US-31). What they are being measured against is the session's
+    // groups, which the header above the counter states (US-34.7).
     await expectVerdict(page, "WRONG_GROUP", verdicts.wrongGroup.headline);
-    // US-03.4 wants the colour in words, not only painted, and the badge is where it is said now
-    // that the banner is a headline alone. The week's own colour is named in the banner above.
     await expect(page.getByTestId("counter-group")).toHaveText(de.customers.groups.BLUE);
+    await expect(page.getByTestId("session-groups")).toHaveText(de.distribution.colours.RED);
   });
 
   test("refuses a superseded card and names the current one", async ({ page }) => {
@@ -433,17 +447,17 @@ test.describe("Verdikt am Tresen", () => {
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ARCHIVED);
   });
 
-  test("states that a household which collected today has already been served", async ({
+  test("states that a household which has already collected at this afternoon was served", async ({
     page,
   }) => {
-    await lookUp(page, String(NUMBERS.servedToday));
+    await lookUp(page, String(NUMBERS.alreadyServed));
 
     // A fact, not a refusal: the household did nothing wrong, and since US-32 looking one up again
     // is the ordinary route to a correction. So the banner is muted chrome with no sentence under
     // it — the time and the amount are the record's own card below — and it is emphatically not the
-    // green „Ausgabe frei" this lookup answered before the rule was given the day's record.
+    // green „Ausgabe frei" this lookup answered before the rule was given the session's record.
     await expectVerdict(page, "ALREADY_SERVED", verdicts.alreadyServed.headline);
-    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.servedToday]);
+    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.alreadyServed]);
     // And no second hand-out is offered, however the number was reached.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
   });

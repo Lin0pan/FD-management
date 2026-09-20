@@ -10,6 +10,7 @@ import { formatEuroAmount, formatEuros } from "@/domain/money";
 import { fillSticky } from "./day";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
+import { endSession, endSessionInHook, startSession, startSessionInHook } from "./session";
 
 /**
  * The customer balance, from the counter to the next week's amount to pay
@@ -45,12 +46,13 @@ faker.seed(20260828);
 const NOW_FILE = SHARED.now;
 
 /**
- * The two distribution days this spec is judged on: Thursday 15.01.2026 and Thursday 29.01.2026.
+ * The two days this spec is judged on: Thursday 15.01.2026 and Thursday 29.01.2026.
  *
- * Both follow from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor
- * `2026-W02` = RED and distributions on ISO weekday 4, so the Thursdays of W03 and W05 are BLUE
- * distribution days — which is what makes a BLUE household clear to serve on each of them. In
- * January Berlin is UTC+1, so 09:00 UTC is the 10:00 the confirmations name.
+ * A fortnight apart, which is what „the carry" means: a debt taken on at one afternoon and asked for
+ * again at the next. **Two afternoons, and they are two sessions** (US-34) — the second is what makes
+ * the carried household servable again, not the calendar. In January Berlin is UTC+1, so 09:00 UTC
+ * is the 10:00 the confirmations name, and both days are pinned to it so one `SERVED_AT` covers
+ * either.
  */
 const FIRST_DAY = "2026-01-15T09:00:00.000Z";
 const SECOND_DAY = "2026-01-29T09:00:00.000Z";
@@ -178,6 +180,25 @@ async function handOutsOf(customerId: number): Promise<number> {
   return prisma.distributionRecord.count({ where: { customerId } });
 }
 
+/**
+ * Make sure the afternoon this test runs at is the **second** one, pinning the day with it.
+ *
+ * A fortnight of calendar no longer frees a household that has already collected — only a new
+ * session does (US-34) — so the carry the second half of this file is about needs one. Which
+ * afternoon is running is asked of the register rather than remembered between tests, so each test
+ * below states the afternoon it runs at instead of depending on which of them ran first.
+ */
+async function secondAfternoon(page: Page): Promise<void> {
+  pinDay(SECOND_DAY);
+  const running = await prisma.distributionSession.findFirst({
+    where: { endedAt: null, discardedAt: null },
+    select: { startedAt: true },
+  });
+  if (running !== null && running.startedAt >= new Date(SECOND_DAY)) return;
+  await endSession(page);
+  await startSession(page, "BLUE");
+}
+
 /** Type a number at the counter and press Enter, exactly as staff do it. */
 async function lookUp(page: Page, customerNumber: number): Promise<void> {
   await page.goto("/ausgabe");
@@ -212,15 +233,20 @@ test.describe("Saldo", () => {
   let carry: number;
   let smallCredit: number;
 
-  test.beforeAll(async () => {
+  test.beforeAll(async ({ browser, baseURL }) => {
     pinDay(FIRST_DAY);
     carry = await seedHousehold(NUMBERS.carry, 1, 1);
     smallCredit = await seedHousehold(NUMBERS.smallCredit, 1, 1);
     await seedHousehold(NUMBERS.largeCredit, 1, 1);
     await seedHousehold(NUMBERS.capped, 4, 3);
+    // BLUE: every number this spec owns is even, and that is the whole of their group (US-31).
+    await startSessionInHook({ browser, baseURL }, "BLUE");
   });
 
-  test.afterAll(async () => {
+  test.afterAll(async ({ browser, baseURL }) => {
+    // The afternoon goes with the spec: a session left running is state the file sorting after this
+    // one would inherit (tests/e2e/session.ts).
+    await endSessionInHook({ browser, baseURL });
     // The pinned today goes with the spec: leaving January frozen would be inherited by every spec
     // after this one, and the settings specs save versions stamped *now*.
     rmSync(NOW_FILE, { force: true });
@@ -337,7 +363,7 @@ test.describe("Saldo", () => {
   test("asks for the week's price plus what is still open, a fortnight later", async ({ page }) => {
     // The carry, and the point of the whole spec. A new distribution day, a fresh page load, and a
     // figure nothing wrote down: 3,00 € for this week plus the 2,00 € left open a fortnight ago.
-    pinDay(SECOND_DAY);
+    await secondAfternoon(page);
     await lookUp(page, NUMBERS.carry);
 
     await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(500));
@@ -354,7 +380,7 @@ test.describe("Saldo", () => {
   test("reduces the next amount to pay by a credit, to nothing when it covers the price", async ({
     page,
   }) => {
-    pinDay(SECOND_DAY);
+    await secondAfternoon(page);
 
     // 1,00 € ahead against a 3,00 € week: 2,00 € to collect, and the credit is spent by collecting it.
     await lookUp(page, NUMBERS.smallCredit);
@@ -378,7 +404,7 @@ test.describe("Saldo", () => {
   test("asks a capped household for more than the Maximalpreis when it carries a debt", async ({
     page,
   }) => {
-    pinDay(SECOND_DAY);
+    await secondAfternoon(page);
     await lookUp(page, NUMBERS.capped);
 
     // The one case where the amount to pay exceeds the cap, and it is not a cap being broken: the
@@ -387,8 +413,8 @@ test.describe("Saldo", () => {
     await expect(page.getByTestId("counter-price")).toHaveText(formatEuros(CAPPED_PRICE_CENTS));
   });
 
-  test("puts the balance back when today's hand-out is removed", async ({ page }) => {
-    pinDay(SECOND_DAY);
+  test("puts the balance back when the afternoon's hand-out is removed", async ({ page }) => {
+    await secondAfternoon(page);
     await lookUp(page, NUMBERS.carry);
 
     // Settle the household first, so the removal has something to undo: 5,00 € against 5,00 € asked.
@@ -418,14 +444,15 @@ test.describe("Saldo", () => {
     expect(await handOutsOf(carry)).toBe(1);
   });
 
-  test("corrects today's amount against what was asked that day, and the balance follows", async ({
+  test("corrects the amount against what was asked at the time, and the balance follows", async ({
     page,
   }) => {
-    // The other half of the same-day correction, which the removal test above leaves untouched: the
-    // amount itself. Every assertion here is in **one page load** after the hand-out was recorded —
-    // the correction form and the Saldo tile are two panels the same write feeds, and a suite of
-    // per-form tests could not see one of them stop following the record (CLAUDE.md §Testing).
-    pinDay(SECOND_DAY);
+    // The other half of the correction a running afternoon allows, which the removal test above
+    // leaves untouched: the amount itself. Every assertion here is in **one page load** after the
+    // hand-out was recorded — the correction form and the Saldo tile are two panels the same write
+    // feeds, and a suite of per-form tests could not see one of them stop following the record
+    // (CLAUDE.md §Testing).
+    await secondAfternoon(page);
     await lookUp(page, NUMBERS.carry);
 
     // 3,00 € for the week plus the 2,00 € still open. Handing over all of it settles the household.
@@ -435,9 +462,9 @@ test.describe("Saldo", () => {
     );
 
     // The correction form opens on what was stored, above the figure it is judged against — which is
-    // what was asked **that day**, 5,00 €, and not the 3,00 € a settled household would be asked for
-    // now. The two are different numbers on purpose: today's amount to pay already has this record's
-    // own payment folded into it.
+    // what was asked **when the hand-out was recorded**, 5,00 €, and not the 3,00 € a settled
+    // household would be asked for now. The two are different numbers on purpose: the amount to pay
+    // already has this record's own payment folded into it.
     await expect(page.getByTestId("correct-asked")).toHaveText(serveWords.asked(500));
     await expect(page.getByTestId("correct-amount")).toHaveValue(formatEuroAmount(500));
 
