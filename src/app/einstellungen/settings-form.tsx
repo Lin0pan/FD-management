@@ -51,8 +51,8 @@ function refusedFields(state: SaveSettingsState): ReadonlyArray<FieldRefusal> | 
 
 /**
  * One field of the form, in a slot of the twelve-column grid. `<label htmlFor>` + `id`, so the
- * accessibility snapshot has named textboxes; the ids are the field names, four of them load-bearing
- * (§7), and one form on the page leaves nothing for `useId` to disambiguate.
+ * accessibility snapshot has named textboxes; the ids are the field names, five of them
+ * load-bearing (§7), and one form on the page leaves nothing for `useId` to disambiguate.
  *
  * **Exactly two children, always** — the label and one control — because `FIELD_ROWS`' two rows are
  * what keeps the baselines straight. A field wanting a hint wraps both in one element.
@@ -280,9 +280,9 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
         </p>
       </Section>
 
-      {/* Between the amounts and the rhythm, where it belongs by subject: it is a *what a household
-          gets* setting. Its own card rather than a field in the one above, because a repeating table
-          with add and remove controls has no slot in a twelve-column subgrid (§3.3). */}
+      {/* Below the amounts, where it belongs by subject: it is a *what a household gets* setting.
+          Its own card rather than a field in the one above, because a repeating table with add and
+          remove controls has no slot in a twelve-column subgrid (§3.3). */}
       <Section heading={de.settings.eggs.heading}>
         <EggRuleTable rule={settings.eggRule} problem={problem} />
       </Section>
