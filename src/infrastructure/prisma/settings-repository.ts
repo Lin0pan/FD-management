@@ -20,7 +20,7 @@ interface StoredVersion {
 
 /**
  * Rebuild a domain version from its rows, back through `createSettings` so a hand-edited database
- * cannot smuggle a fractional price or an impossible weekday into the domain.
+ * cannot smuggle a fractional price or a descending egg staircase into the domain.
  */
 function toDomain(row: StoredVersion): SettingsVersion {
   return {
@@ -38,17 +38,6 @@ function toDomain(row: StoredVersion): SettingsVersion {
     }),
   };
 }
-
-/**
- * The three columns US-36.4 drops, still `NOT NULL` in the schema this runs against. Written here
- * as constants rather than kept on `Settings`: nothing reads them back, and a domain field no rule
- * uses is one a screen eventually offers to edit again.
- */
-const RETIRED_WEEK_CYCLE = {
-  weekAnchorIsoWeek: "2026-W02",
-  weekAnchorColour: "RED",
-  distributionWeekday: 4,
-} as const;
 
 /**
  * The SQLite-backed {@link SettingsRepository}. Append-only by construction — no update and no
@@ -92,7 +81,6 @@ export class PrismaSettingsRepository implements SettingsRepository {
       data: {
         recordedAt: version.recordedAt,
         quotaN: settings.quotaN,
-        ...RETIRED_WEEK_CYCLE,
         pricePerGrownUpCents: settings.pricePerGrownUp,
         pricePerChildCents: settings.pricePerChild,
         priceCapCents: settings.priceCap,

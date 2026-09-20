@@ -166,9 +166,6 @@ describe("PrismaSettingsRepository", () => {
       data: {
         recordedAt: new Date("2026-03-01T00:00:00.000Z"),
         quotaN: 240,
-        weekAnchorIsoWeek: "2026-W02",
-        weekAnchorColour: "RED",
-        distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
         eggRule: {
@@ -188,9 +185,6 @@ describe("PrismaSettingsRepository", () => {
       data: {
         recordedAt: new Date("2026-03-01T00:00:00.000Z"),
         quotaN: 240,
-        weekAnchorIsoWeek: "2026-W02",
-        weekAnchorColour: "RED",
-        distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
         priceCapCents: -1,

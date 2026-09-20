@@ -2,7 +2,7 @@
  * Every policy version ever written, newest first, each with the changes that produced it
  * (`tasks/prd-us-14-configure-business-rules.md` §US-14.4).
  *
- * What a reader wants from a superseded version is *what moved*, not the seven values that did not,
+ * What a reader wants from a superseded version is *what moved*, not the four values that did not,
  * so each is paired with its predecessor here rather than in the page.
  */
 
