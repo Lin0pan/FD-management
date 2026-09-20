@@ -28,13 +28,11 @@ import {
 } from "@/application/distribution/read-group-roster";
 import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
-import type { SessionGroups } from "@/domain/distribution/session";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDateTime, germanTime } from "@/i18n/format";
@@ -50,11 +48,11 @@ import {
   RunningSessionControls,
   StartSessionForm,
 } from "./session-controls";
+import { SessionGroupBadges } from "./session-group-badges";
 import { optionFor } from "./session-options";
 import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
 import { ServeControls } from "./serve-controls";
-import { GROUP_STYLES } from "../accents";
 import { Confirmation } from "../notice";
 import { NoticeBoard } from "../notice-board";
 import { SHELL } from "../shell";
@@ -92,29 +90,6 @@ function SessionHeader({ running }: { running: RunningSession }): React.ReactEle
         <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard} />
       </CardContent>
     </Card>
-  );
-}
-
-/**
- * Which group or groups an afternoon serves, named in words and wearing what the Kundenliste and a
- * customer's record wear — one colour means one thing application-wide
- * (`docs/guideline/ui_styling_guide.md` §12).
- */
-function SessionGroupBadges({
-  groups,
-  testId,
-}: {
-  groups: SessionGroups;
-  testId: string;
-}): React.ReactElement {
-  return (
-    <div data-testid={testId} className="flex flex-wrap items-center gap-2">
-      {groups.map((group) => (
-        <Badge key={group} variant="outline" className={GROUP_STYLES[group]}>
-          {de.distribution.colours[group]}
-        </Badge>
-      ))}
-    </div>
   );
 }
 

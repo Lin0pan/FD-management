@@ -97,6 +97,14 @@ function servedAndTook(households: number, totalPaidCents: number): string {
   return `${householdCount(households)} versorgt, ${formatEuros(totalPaidCents)} eingenommen`;
 }
 
+/**
+ * When an afternoon began — read on the Start screen while it still runs and on the card describing
+ * the one that ended last, which is why it is lifted rather than written twice.
+ */
+function startedAt(instant: string): string {
+  return `Begonnen: ${instant}`;
+}
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -1145,10 +1153,20 @@ export const de = {
        */
       last: {
         heading: "Letzte Ausgabe",
-        startedAt: (instant: string): string => `Begonnen: ${instant}`,
+        startedAt,
         endedAt: (instant: string): string => `Beendet: ${instant}`,
         summary: (households: number, totalPaidCents: number): string =>
           `${servedAndTook(households, totalPaidCents)}.`,
+      },
+      /**
+       * The Start screen while an afternoon runs (US-34.9). It states the two facts the counter
+       * states — that one is under way and whom it serves — and adds the instant it began, which is
+       * what an afternoon nobody ended looks like on Friday morning.
+       */
+      onStartScreen: {
+        startedAt,
+        /** The whole point of the panel: the screen that can end it is one click away. */
+        link: "Zur Ausgabe",
       },
       /**
        * Opening the last afternoon up again so a hand-out closed a minute too early can still be
