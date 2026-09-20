@@ -696,3 +696,56 @@ taken the two fields off `Settings` and pushed the writes down into the adapter 
   rows were the widest in `tasks/README.md`'s seed table, so every remaining row shifted two columns
   left. `npx prettier --write` the file *before* reading the diff, as the pattern above says.
 ---
+
+## 2026-09-20 — US-005 (batch 36)
+
+The screens stop predicting. US-36.3 had already taken the Start screen's two prediction lines and
+the settings form's whole `Ausgaberhythmus` section out — it had to, because `Settings` losing two
+fields has no green intermediate. What was left for this story is what a removal actually leaves
+behind: dictionary keys nothing reads, a count in prose, and comments describing controls that are
+no longer on the screen.
+
+- `de.home.distribution` is down to `notConfigured`, and its **German changed**: „Der
+  Ausgaberhythmus ist noch nicht hinterlegt." named the one thing that is no longer a setting, so
+  the unconfigured Start card now says „Die Einstellungen sind noch nicht hinterlegt." — the quota
+  and the prices are what is missing there (the AC's own wording).
+- `de.settings` lost `rhythmHeading`, the three week fields, their three `errorFields` entries, and
+  the `colours` / `weekdays` label tables — the latter two had **no reader in `src/` at all** after
+  US-36.3 and were found by grepping the key, not by any gate.
+- Comments corrected where they described a screen that has changed: `page.tsx` (three of them),
+  `ausgabe/deps.ts` („the week colour is derived from the settings history"), `ausgabe/page.tsx`
+  (two), `serve-controls.tsx` („what the household draws this week" → „at this Ausgabe"),
+  `settings-form.tsx` („between the amounts and the rhythm").
+- **The amounts grid needed no re-spanning.** Its four fields are `lg:col-span-3` each and already
+  fill a row of twelve — the hole US-27 had to tidy up does not exist here. Verified in the browser
+  at 1280 and 390 rather than reasoned about.
+- `home.spec.ts` and `settings.spec.ts` lost the assertions that drove the removed controls. Both
+  files pass on chromium; US-36.6 still owns the no-show spec and the two-engine run.
+
+**Learnings for future iterations:**
+
+- **A deleted dictionary key is a typecheck failure in `tests/`, not only in `src/`.** `tsconfig`
+  includes `**/*.ts`, so `de.settings.weekdays[4]` in a spec breaks `npm run typecheck` the moment
+  the key goes. That is what pulled US-36.6's first two acceptance criteria into this commit: a
+  presentation story that removes dictionary keys **cannot** leave the specs to the story after it.
+  Plan for it — the e2e story is then the *new* specs and the engines, not the deletions.
+- **Removing the last `<select>` from a form orphans an Enter-guard spec.** `settings.spec.ts`
+  pressed Enter in `#distributionWeekday` precisely because it was the only native `<select>` on a
+  guarded form; with it gone the press was re-pointed at `#quotaN` and the sentence claiming the
+  form holds a `<select>` was deleted. `guardEnter` still covers `SELECT` — no form on this screen
+  has one any more, which is a fact about the screen and not about the guard.
+- **„load-bearing ids" has a definition and it is countable**: `ui_styling_guide.md` §7 — an id a
+  spec reaches by CSS selector. `grep -rhno '#[a-zA-Z][a-zA-Z0-9.]*' tests/e2e/<spec>.ts | cut -d:
+  -f2 | sort -u` answers it in one command, which is how `settings-form.tsx`'s „four of them
+  load-bearing" became five. The same sweep is worth running whenever a field is added or removed.
+- **The unconfigured Start screen is reachable without emptying a table.** `SettingsVersion` has
+  children, so `deleteMany()` fails on a foreign key — but `npm run start` honours
+  `FD_FIXED_NOW_FILE`, so `FD_FIXED_NOW_FILE=/tmp/now.txt npm run start` with an instant *before*
+  the seeded version's `effectiveFrom` renders the „nothing configured" state against the real
+  build. Cheaper and safer than a script that mutates the register.
+- **A comment stating a deliberate refusal is worth one clause, not a paragraph.** The Start
+  screen's header says „It names no coming Ausgabe: nothing in the software knows when the next one
+  is (ADR-020)" — citing the record and stopping, rather than narrating that the line used to be
+  there. Root `CLAUDE.md` forbids the second form; the first is one of the four things a comment may
+  say.
+---

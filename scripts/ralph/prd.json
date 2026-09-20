@@ -99,7 +99,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Outside-in deletion: the screens stop reading first, which story 3 and 4 already made a compile error. Watch the settings grid — it was re-spanned once before and looks wrong with a gap."
     },
     {
