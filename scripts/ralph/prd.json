@@ -20,7 +20,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Small, pure, first. The temptation to resist is storing the group and the formatted card number 'for convenience' — both are derived from values already on the row, and storing them is exactly the fault ADR-017 and ADR-016 were written about."
     },
     {

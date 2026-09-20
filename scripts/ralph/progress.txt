@@ -483,3 +483,44 @@ receipt is joined by `DistributionRecord.customerId`, the surrogate id, never th
 **This is one piece of work in four parts** — 34 → 35 → 36 → 37. US-36 removes the week anchor, the
 distribution weekday and `weekColour.ts`; US-37 is the session overview and detail view. A story in
 this batch that finds itself deleting `weekColour.ts` has picked up US-36's work.
+
+## 2026-09-20 — US-001 (US-35.1): the receipt is a domain value
+
+- New `src/domain/distribution/handoutReceipt.ts`: `HandoutReceipt` (the nine captured values),
+  `ReceiptHousehold` (the fields a receipt reads off the register), `ReceiptInput` and
+  `receiptFor({ customer, members, card, at })`, which derives the counts through
+  `composition(members, at)` — the household at the session's **end** instant.
+- New `src/domain/distribution/handoutReceipt.test.ts`, written first (the run against the missing
+  module is the red): the five named rules from the AC plus one for the certificate date and the
+  reminder count, which FR-1 captures and no named test covered.
+- Files changed: those two only. Nothing else in the tree compiles against the module yet — the
+  writers are US-002 (port + adapter) and US-003 (`endDistributionSession`).
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (63 files, 1424 tests, domain
+  100%) and `npm run build` all green. No screen, no e2e — the batch is invisible until US-37.
+
+**Learnings for future iterations:**
+
+- **The house style for "everything this rule needs" is a narrow named input type, not the stored
+  record.** `counterVerdict.ts`'s `CounterCustomer` is the model: flat `certificateValidUntil` and
+  `reminderCount` rather than a `RegisteredCustomer`, with one line saying the application layer
+  derives them. `receiptFor` follows it, so `ReceiptHousehold` is **not** assignable from
+  `RegisteredCustomer` — US-003's call site spreads `customer.details` alongside `customerNumber`
+  and `reminderCount`. That is deliberate: the receipt's fields are named once, here.
+- **A `Pick<IssuedCard, "customerNumber" | "index">` states a refusal the comment would otherwise
+  have to carry.** The type itself says the printed counts (`countsAtIssue`) are not read, and the
+  test still passes a *whole* `IssuedCard` variable to prove it — an object literal could not, since
+  excess-property checking would reject `countsAtIssue` while a variable is assignable.
+- **The domain type is `IssuedCard.countsAtIssue`; the columns are `grownUpsAtIssue` /
+  `childrenAtIssue`.** Root `CLAUDE.md` and `schema.prisma` cite the column names, the domain cites
+  the field — a comment in `src/domain/` that names the columns is naming something that layer
+  cannot see.
+- **A module may cite an ADR the batch has not written yet.** `handoutReceipt.ts` cites ADR-021,
+  which US-004 records; `arc42.py check` reads `docs/`, not `src/`, and the whole batch is one PR.
+  Do not invent a placeholder number — the PRD names it.
+- **Story 1 of this batch is deliberately documentation-free.** Chapter 05's module list and the
+  glossary belong to US-004 by the PRD's own split, so an iteration that updates them here will
+  collide with the story that owns them. `docs/` stays untouched until then.
+- **`it("…")` names longer than 100 columns are normal in this repo** (251 such lines) — Prettier
+  will not break a string and the AC dictates the wording. Re-wrap the `/** */` prose instead, which
+  is what the width rule is about.
+---
