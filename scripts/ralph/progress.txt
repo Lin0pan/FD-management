@@ -106,6 +106,20 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   dot without moving the list. Same on the record's `number-change-select`. Six specs that used to
   open a `<details>` (`group-choice-open`, deleted in US-31.6) now just check the radio, and every
   spec that reads the *proposed* number must read it **after** the check.
+- **A spec that reads the session which ended LAST must run on the REAL clock.** `lastEnded` orders
+  by `endedAt`, and the register holds sessions from every file before it: the ones that pin January
+  are stamped January, but the ones that edit *settings* cannot pin at all — a saved version is
+  recorded at the real now and is only in force there — so `price-cap.spec.ts` ends its afternoon at
+  the real now and **beats** any pinned-past session. `session.spec.ts` therefore pins nothing,
+  `rmSync`s the now-file in its `beforeAll`, and dates its fixtures from `new Date()` (the clock
+  rule is `src/`-scoped, so a spec may read it). The trap is silent: the proposal assertion passed
+  against another spec's RED afternoon before a summary assertion two tests later exposed it.
+- **A spec that does not set the policy may not state a price.** With the real clock the version in
+  force is whatever the files before it left (`price-cap.spec.ts` leaves 9,99 € a head, capped at
+  5,00 €), so `session.spec.ts` reads the Betrag field and puts it through `parseEuros` — the very
+  function the server action reads the form with — and asserts every later figure against *that*.
+  A correction goes to **0,00 €**, the one amount that is certainly not an overpayment whatever the
+  cap is.
 - **Two specs share the isolated register now** (`ISOLATED_SPECS`), `number-group` before
   `waiting-list`. Sharing is safe only because each empties it with `clearRegister` in its own
   `beforeAll` and sets the quota it needs in its first test — which they both have to do anyway, since
@@ -976,4 +990,55 @@ US-34.12 owns the docs and says nothing else in CLAUDE.md changes this batch.
 - **Nothing branched on `browserName` and both engines passed first time** (208 passed, 1 skipped, on
   chromium and webkit). Kill any `next dev`/`next start` before believing that: the run starts servers
   of its own over its own registers.
+---
+
+## 2026-09-20 — US-011 (US-34.11) The session loop, end to end
+
+**Implemented.** `tests/e2e/session.spec.ts` — thirteen tests, one narrative, the only file where
+the rules that replaced the calendar are checked together. Its `beforeAll` starts and ends a RED
+afternoon of its own, so the first test's proposal („Blau" preselected) is a fact about a session
+this spec wrote; the staff member deviates to RED and that afternoon carries the middle of the file.
+Then: no start control while one runs; 352 (even, BLUE) turned away with „Falsche Gruppe"; 351
+collects and the **group tally on the same page** rises by exactly one with no `goto` between the
+write and the figure; a second hand-out refused; the record corrected, removed and recorded afresh;
+„Ausgabe verwerfen" withheld once a household has collected; 353 blocked and unblocked while the
+afternoon runs. Ending confirms „1 Haushalt versorgt, X € eingenommen" and leaves a screen with no
+counter on it at all, so the hand-out cannot be reached to be corrected. 353 is then blocked and
+unblocked again with **nothing running** (B-12). A second afternoon is started, 351 collects again,
+and the two hand-outs are asserted to sit on two `sessionId`s and one calendar day — the claim
+„einmal pro Kalendertag" could not express. The last ended afternoon is reopened with a reason, its
+hand-out corrected, and ended a second time. Finally an empty afternoon is started and discarded,
+leaving the previous one's figures standing as the last ended — a session started by mistake is not
+in the register's story at all.
+
+Files: `tests/e2e/session.spec.ts` (new). No `src/` change, no documentation change — US-34.12 owns
+the docs.
+
+**Learnings for future iterations:**
+
+- **The first draft pinned January like every spec around it, and that was the bug.** Half of what
+  this file asserts is read off the session that ended *last*, and `price-cap.spec.ts` — which
+  cannot pin, because a settings version it saves is recorded at the real now and is only in force
+  there — ends its afternoon at the real now and outranks any pinned-past session. The summary after
+  „Ausgabe beenden" read „1 Haushalt versorgt, 5,00 €": price-cap's afternoon, not this one's. Both
+  halves are now in Codebase Patterns; the second half is that a spec on the real clock may not
+  state a price either, and reads the Betrag field through `parseEuros` instead.
+- **The proposal test passed for the wrong reason before that was found.** price-cap's session also
+  served RED, so „Blau vorausgewählt" held against somebody else's afternoon. A green assertion
+  about `lastEnded` proves nothing until the file owns the session it is reading.
+- **`releaseNumbers` clears the hand-outs too**, so a CI retry replays this whole narrative from an
+  empty 351 — which the two-hand-outs-one-day assertion depends on, being a count rather than a
+  delta.
+- **The tally is read off the panel here, not out of the register.** That the sentence agrees with
+  the database is `group-progress.spec.ts`'s claim; what this file owns is the coupling — the panel
+  following a write made on the same page load. `/(\d+) von (\d+)/` over `innerText`, with an
+  `expect(...).not.toBeNull()` on the match so a changed sentence fails loudly instead of comparing
+  two `NaN`s.
+- **One grown-up and no child in the fixture.** With no pinned clock a child's birthdate is a time
+  bomb (13 in 2033) and the certificate a shorter one, so the certificate is dated a year out from
+  `NOW` and the household is a single 1985 grown-up. Nothing here turns on the composition, because
+  nothing here states a price.
+- **Both engines passed** (221 passed, 1 skipped, chromium and webkit) with nothing branching on
+  `browserName`. `registration.spec.ts` failed once mid-run and passed on every run after — a flake
+  in a file this story does not touch, and worth knowing it exists rather than chasing it here.
 ---

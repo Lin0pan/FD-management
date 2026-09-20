@@ -243,7 +243,7 @@
         "Lint passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "One spec, the whole afternoon. It is the only place the new rules are checked together. Use the helper from story 10 rather than a second way of starting a session."
     },
     {
