@@ -46,6 +46,15 @@ nothing references it: a certificate carries its type as text, not as a foreign 
 destroys no history and every record saved with that word goes on showing it. Everything above still
 holds for every table that holds customer data.
 
+**Amended again by
+[ADR-021](021-capture-the-household-s-state-when-a-distribution-session-is-ended.md):** there is a
+third exception, on an argument of a third kind. A `HandoutReceipt` — the household as it stood when
+its session was ended — is **deleted** when that session is reopened, because the row is not history
+but the freeze itself, re-taken whole by the next ending. It is also what keeps the correction
+window open: a reopened session may have a hand-out removed, and a receipt still pointing at it
+would make the database refuse that removal. Nothing that holds customer data outside a frozen
+session is touched by this.
+
 ## Consequences
 
 - A refused delete is a loud error instead of silent data loss.
@@ -64,6 +73,9 @@ holds for every table that holds customer data.
 ## More information
 
 - [Chapter 8 — domain model and persistence](../08-crosscutting-concepts.md#domain-model-and-persistence)
+- [ADR-019 — keep the certificate-type list out of the versioned settings history](019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md)
+  and [ADR-021 — capture the household's state when a distribution session is ended](021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)
+  (the second and third deliberate deletions)
 - `prisma/schema.prisma`, `src/infrastructure/prisma/schema.test.ts`,
   `src/infrastructure/prisma/test-support.ts`, `src/domain/customer/status.ts`
 - Commit `1476bab`

@@ -129,6 +129,15 @@ wurde — keine Lebensmittel, keine Erinnerung — bietet der Bildschirm **Ausga
 verworfene Ausgabe hat es für die Software nie gegeben; es wird nichts darüber festgehalten. Sobald
 der erste Haushalt erfasst ist, verschwindet diese Möglichkeit und es bleibt nur das Beenden.
 
+**Was eine beendete Ausgabe festhält.** Zu jeder beendeten Ausgabe hält die Software fest, welche
+Haushalte versorgt wurden — mit Name, Nummer, Karte, Erwachsenen und Kindern, Nachweisdatum und
+Erinnerungen **so, wie sie an jenem Nachmittag waren**, nicht wie sie heute sind. Wer später
+heiratet, umzieht oder eine neue Nummer bekommt, steht dort weiterhin mit dem, was damals galt.
+**Solange die Ausgabe läuft, kommt jede Korrektur noch an** — ein Name, der erst nach der Erfassung
+als falsch geschrieben auffällt, wird auch dort richtiggestellt. **Mit dem Beenden ist dieser Stand
+festgehalten**; beim Wiederöffnen gilt wieder der aktuelle, und das nächste Beenden hält ihn erneut
+fest.
+
 **Zu früh beendet: wieder öffnen.** Solange **keine neue** Ausgabe läuft, lässt sich die **zuletzt
 beendete** unter **Ausgabe** über **Ausgabe wieder öffnen** noch einmal öffnen. Dafür ist ein Grund
 erforderlich, der protokolliert wird. Danach sind ihre Einträge wieder zu korrigieren wie vorher.

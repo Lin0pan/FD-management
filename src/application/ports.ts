@@ -180,8 +180,9 @@ export interface CustomerRepository {
    *
    * A replacement rather than add-and-remove because the household is a set, and two half-applied
    * statements would leave a household nobody typed. The previous rows are gone: no history of past
-   * compositions is kept (`tasks/prd-us-16-maintain-customer-record.md` §FR-2), and what a card was
-   * printed with survives on the card. Nothing derived is written with them.
+   * compositions is kept (`tasks/prd-us-16-maintain-customer-record.md` §FR-2, bounded to the
+   * session by ADR-021), and what a household was survives on the card that printed its counts and
+   * on the receipt of every ended session it was served at. Nothing derived is written with them.
    */
   updateHousehold(id: number, members: ReadonlyArray<HouseholdMemberDetails>): Promise<void>;
   /**

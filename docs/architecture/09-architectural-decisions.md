@@ -1,8 +1,8 @@
 # 9. Architectural decisions
 
-_Last reviewed: 2026-09-17_
+_Last reviewed: 2026-09-20_
 
-A timeline. The twenty decisions that constrain future work and are hard to reverse have an ADR
+A timeline. The twenty-one decisions that constrain future work and are hard to reverse have an ADR
 of their own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more,
 because a decision log full of trivia teaches people to skim it.
 
@@ -30,6 +30,7 @@ because a decision log full of trivia teaches people to skim it.
 | [018](adr/018-keep-lucide-react-as-the-single-icon-set.md)                                         | Keep lucide-react as the single icon set                                          | Accepted | 2026-09-06 |
 | [019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md)             | Keep the certificate-type list out of the versioned settings history              | Accepted | 2026-09-17 |
 | [020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)          | The distribution session, not the calendar, is what a hand-out belongs to         | Accepted | 2026-09-20 |
+| [021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)               | Capture the household's state when a distribution session is ended                | Accepted | 2026-09-20 |
 
 ## Smaller decisions, recorded without an ADR
 
@@ -77,6 +78,7 @@ same idea being proposed again.
 | Portion allowance                         | Derived from the counts, shown on five screens, configurable → removed                                                                | Food is not handed out in portions: a staff member decides per distribution how much each grown-up and each child gets, from what was donated that week. The figure named a quantity that does not exist, so it was withdrawn rather than corrected (US-27, 2026-08-24)                                                                                   |
 | Group membership                          | A property of the household, set at registration and edited on the record → the parity of the customer number                         | Even is BLUE and odd is RED is DF's own rule, older than the software, and storing the group beside the number was two answers to one question that nothing stopped contradicting each other. Deriving makes the disagreement unrepresentable rather than merely invalid (US-31, 2026-09-02, [ADR-017](adr/017-the-customer-number-decides-the-group.md)) |
 | What a hand-out belongs to                | The Europe/Berlin calendar day, with the group derived from a week anchor → the distribution session a staff member started and ended | DF merge the two groups, cancel a Thursday and hold an extra distribution, so the calendar regularly describes an afternoon that did not take place — [ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)                                                                                                       |
+| A past household's state                  | No history of past household compositions, and no „as of" view of a past household → captured per hand-out when a session is ended    | Two of the details a past afternoon has to show — the name and the counts — cannot be reconstructed at all, because editing a household overwrites them. The reversal is **bounded to the session**: nothing outside one gains a history (US-35, 2026-09-20, [ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md))    |
 
 The project's convention for a withdrawn requirement is to **strike it through and mark it
 `[withdrawn]` rather than delete it**, so the next person to propose it finds DF's answer instead of

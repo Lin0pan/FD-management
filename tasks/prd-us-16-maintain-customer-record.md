@@ -18,6 +18,19 @@
 > _is_ choosing a number. The two group sizes §16.5 puts on the screen survive too; they are derived
 > from the numbers on the register rather than counted from a column.
 
+> **Note (2026-09-20).** **§4 FR-2 — „no history of past household compositions is kept" — is now
+> bounded rather than absolute**, and this PRD is again left as it was written. DF asked that a past
+> distribution session show the households **as they stood then**, and the name and the counts are
+> the two details that cannot be reconstructed afterwards — precisely because FR-2 works as
+> designed. So ending a session captures them: one **receipt** per hand-out, thawed by a reopening
+> and re-taken when the session is ended again
+> ([ADR-021](../docs/architecture/adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md),
+> [US-35](prd-us-35-session-receipt.md)).
+>
+> **What is unchanged** is everything FR-2 was for. Customer administration still shows today's
+> state only, member rows are still replaced rather than versioned, and there is still no „as of"
+> view of a household anywhere outside an ended session.
+
 ## 1. Introduction
 
 Households change: a baby is born, someone moves out, a family moves house, a certificate is renewed,

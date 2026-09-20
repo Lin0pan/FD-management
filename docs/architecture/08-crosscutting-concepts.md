@@ -8,8 +8,8 @@ over that" is [chapter 9](09-architectural-decisions.md); this chapter is "how d
 
 ## Domain model and persistence
 
-Twelve tables. The schema doubles as domain documentation and carries the argument for every unusual
-decision in its comments.
+Thirteen tables. The schema doubles as domain documentation and carries the argument for every
+unusual decision in its comments.
 
 ```mermaid
 erDiagram
@@ -20,6 +20,7 @@ erDiagram
     Customer ||--o{ ReminderLog : "was reminded"
     DistributionSession ||--o{ DistributionRecord : "holds (US-34)"
     DistributionSession ||--o{ ReminderLog : "holds (US-34)"
+    DistributionRecord ||--|| HandoutReceipt : "is settled by (US-35)"
     Customer ||--o| Customer : "re-registered from"
     SettingsVersion ||--o{ EggAllowanceRow : "awards (US-28)"
     SettingsVersion {
@@ -64,6 +65,18 @@ erDiagram
         int paidCents "the amount handed over"
         int priceCents "deliberate redundancy"
     }
+    HandoutReceipt {
+        int recordId FK "unique; one per hand-out, written when the session ends"
+        int customerNumber "the slot held then, and with it the group"
+        string firstName "not reconstructable afterwards"
+        string lastName "not reconstructable afterwards"
+        int grownUps "the counts as they stood then"
+        int children "the counts as they stood then"
+        int cardCustomerNumber "the card's own slot, not the holder's"
+        int cardIndex "with the slot, the card number"
+        datetime certificateValidUntil "the date on file then"
+        int reminderCount "the count as it stood then"
+    }
     WaitingListEntry {
         datetime addedOn "the entire place in the queue"
         datetime removedOn "stamped, never deleted"
@@ -101,27 +114,53 @@ drop-down and never joined
   dropped, so a household and its week cannot disagree, and no query may filter or index on a group:
   SQLite has no `% 2` in a `WHERE` clause, so the parity is applied in the use case after the rows
   come back.
-- Nothing computable is stored, with four argued exceptions, each carrying its argument in the schema
-  comments — [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md). Do not "fix"
-  them.
+- Nothing computable is stored, with five argued exceptions, each carrying its argument in the
+  schema comments — [ADR-007](adr/007-derive-anything-computable-rather-than-storing-it.md). Do not
+  "fix" them. The distinction that decides every one of them is **derived or snapshotted**, and it
+  is not "is this value stored": `Card.grownUpsAtIssue` and `HandoutReceipt`'s nine columns are
+  stored because they answer a question about a _named past moment_ — what a card printed, who
+  stood at the counter that afternoon — which no derivation from today's register can reach.
+  Everything that answers a question about **now** is derived at the point of use, including inside
+  those two snapshots: a receipt's group is `groupOf(customerNumber)` of the number it captured and
+  its card number is `formatCardNumber(cardCustomerNumber, cardIndex)`, so the snapshot cannot
+  disagree with itself either ([ADR-017](adr/017-the-customer-number-decides-the-group.md),
+  [ADR-016](adr/016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md)).
+  The test for a sixth is the one the balance and the group both failed: a value that today's rows
+  can still answer for is not a snapshot, it is a duplicate
+  ([ADR-015](adr/015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md)).
 - No relation carries `onDelete: Cascade`, and a nullable relation says `onDelete: Restrict` out
   loud because Prisma's default there is `SetNull` —
   [ADR-010](adr/010-never-hard-delete-a-record-archive-and-let-the-database-refuse.md).
 - A household's member rows are the one set that is _replaced_ rather than appended, because no
   history of past compositions is kept — what a household was survives on the card that printed its
-  counts.
+  counts, and, since
+  [ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md), on the
+  receipt of every afternoon it was served at. That is the whole of the history: outside an ended
+  session there is still no "as of" view of a household anywhere.
 - Certificates are appended, never edited: a renewal stacks a row. The one on file is the latest by
   `recordedAt`, and the trail behind it says when each renewal was brought.
 - `CertificateType` rows are the second set that is not archived but **deleted**, and on a different
   argument from the member rows: nothing references one, so removing it destroys no history and the
   records saved with that word keep showing it —
   [ADR-019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md).
+- `HandoutReceipt` rows are the **third**, on an argument of a third kind: a receipt is not history,
+  it is the freeze itself. Reopening a session **deletes** its receipts and ending it again writes
+  them afresh — there is no update path, and a receipt left standing would make the database refuse
+  the hand-out removal a reopening exists to allow
+  ([ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)).
 - **A hand-out and a reminder belong to a `DistributionSession`, not to a calendar day** —
   [ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md).
   The FK is permanent: „once per afternoon", „the wrong group" and „still correctable" are all read
   off it. A session started by mistake is stamped `discardedAt` and filtered out of every read, so a
   third state never reaches the domain, and `endedAt` is the freeze — the one column a reopening
   ever moves back.
+- **Ending a session settles what it showed.** One `HandoutReceipt` per hand-out captures the
+  household as it stood at the **ending instant**: the name, the counts, the number, the card's own
+  slot, the certificate date and the reminder count. Price and amount paid are not copied — they are
+  on the hand-out, and a second figure is a second answer. The receipt is joined by
+  `DistributionRecord.customerId`, the surrogate id, so a past afternoon can never name a household
+  that was not there once its number is given away
+  ([ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)).
 
 ## Time
 
@@ -134,6 +173,11 @@ dependency like any other.
 - **A hand-out asks no calendar at all.** What it belongs to is the session running when it was
   recorded, so an afternoon may cross midnight without splitting
   ([ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
+- **A receipt is taken at the ending instant**, not at the hand-out's. A child who turned 13 during
+  the afternoon is counted as `composition(members, endedAt)` says, which is the same divergence
+  `Card.grownUpsAtIssue` already exposes against the price charged earlier — real, and not to be
+  "fixed". It is observable only across Berlin midnight, which is what the boundary test for it pins
+  ([ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)).
 - **Two calendars, for what is left.** The **Europe/Berlin** day (`berlinDayKey`) is read by the
   no-show count, which still matches attended days against the calendar's distributions until US-36,
   and by the age boundary, which counts a birthday in the zone the counter is worked in. Week

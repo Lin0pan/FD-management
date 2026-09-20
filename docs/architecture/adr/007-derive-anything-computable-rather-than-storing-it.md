@@ -30,7 +30,7 @@ from something already on file plus, in some cases, today's date.
 ## Decision
 
 Anything computable is derived at the point of use and is not stored. A stored duplicate of a
-derivable fact needs an argument of its own kind, and there are exactly four:
+derivable fact needs an argument of its own kind, and there are exactly five:
 
 | Stored value                                 | Why it is not a violation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -38,6 +38,7 @@ derivable fact needs an argument of its own kind, and there are exactly four:
 | `Customer.firstNameFolded`, `lastNameFolded` | A **search key**, not a fact. SQLite can fold neither umlauts nor Unicode case in a `WHERE` clause, so the fold cannot live in the query. Never displayed; written from the names in the same statement, so a name edit rewrites them with it.                                                                                                                                                                                                                                                                                       |
 | `Card.customerNumber`                        | A **key the constraint needs** _and_ a snapshot: `@@unique([customerNumber, index])` cannot reach through the relation, and since [ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md) a household may move to another number, so this is the slot the card was **printed under** and is read as the card's number — and, since [ADR-017](017-the-customer-number-decides-the-group.md), as the card's **group**. Never updated — the household's number is `Customer.customerNumber`. |
 | `DistributionRecord.priceCents`              | Deliberate redundancy so a past hand-out is self-describing in a single-table read, alongside the settings history that could re-derive it. Not to be "cleaned up".                                                                                                                                                                                                                                                                                                                                                                  |
+| `HandoutReceipt`'s nine columns              | A **snapshot of who stood at the counter**, in the sense `Card.grownUpsAtIssue` is one: the household as it stood when its session was ended, captured because the name and the counts cannot be reconstructed at all afterwards ([ADR-021](021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)). Never read as the household's current name, number or counts; never updated — a reopening removes the row and the next ending writes it afresh.                                                             |
 
 The third row was **rewritten, not withdrawn**, by
 [ADR-016](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md):
@@ -52,6 +53,14 @@ under. The two counts beside it stay exactly as they are — nothing derives wha
 household's size. So the table still has four exceptions, one of them a column narrower, and the
 group joins the balance as a value this argument has removed rather than admitted — see
 [ADR-015](015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md).
+
+The table gained a **fifth row** under
+[ADR-021](021-capture-the-household-s-state-when-a-distribution-session-is-ended.md), the first
+addition since this ADR was written: a past distribution session must show the households as they
+stood then, and two of the details it needs — the name and the counts — are overwritten by ordinary
+editing, so nothing derives them once the afternoon is over. Amended, not superseded; the group and
+the card number on that row stayed **derived** from the two numbers captured, which is this
+principle deciding the shape of its own exception.
 
 ## Consequences
 
@@ -77,6 +86,8 @@ group joins the balance as a value this argument has removed rather than admitte
 - [ADR-016 — a customer number may be changed, and a card keeps the number it was printed with](016-a-customer-number-may-be-changed-and-a-card-keeps-the-number-it-was-printed-with.md)
 - [ADR-017 — the customer number decides the group](017-the-customer-number-decides-the-group.md)
   (`Card.groupAtIssue` is the exception this decision removed)
+- [ADR-021 — capture the household's state when a distribution session is ended](021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)
+  (the fifth exception, and the only one this decision has admitted)
 - `src/domain/customer/householdComposition.ts`, `src/domain/card/staleCard.ts`,
   `src/domain/customer/nameSearch.ts`, `src/domain/customer/group.ts`, `prisma/schema.prisma`
 - Commits `5beb708`, `2a20e60`, `df666a5`, `e52505c`, `f1853c5`, `3f9da6d`
