@@ -780,3 +780,53 @@ Files: `src/application/distribution/read-group-roster.ts(+test)`,
 - **Documentation is untouched on purpose:** chapter 05's row („answer this week's colour, read the
   group roster") is still literally true, and US-34.12 owns the rest of the sweep.
 ---
+
+## 2026-09-20 — US-007 (US-34.7) Starting and ending the session on the distribution screen
+
+**Implemented.** `/ausgabe` states the afternoon instead of predicting it. The week-colour banner is
+gone from this screen with its `de.distribution.banner.*` keys; a `SessionHeader` stands in its place
+naming the running session and its group(s) as `GROUP_STYLES` outline badges. With nothing running
+the screen offers `StartSessionForm` alone — three native radios („Rot", „Blau", „Rot und Blau"),
+preselected from `proposeGroups` and preselected not at all before the first session is on record —
+and the counter, the tally and the household controls are not built. While one runs,
+`RunningSessionControls` offers „Ausgabe beenden" (confirming with households served and total taken)
+and „Ausgabe verwerfen" while the session still holds nothing. `summariseSession` moved to
+`domain/distribution/session.ts`; `readDistributionSessionState` returns a `RunningSession`
+(`session` + `summary` + `canDiscard`) so the page guards once. Verdict wording:
+`alreadyServedToday` → `alreadyServed` („Bereits ausgegeben"), and the „heute" sentences went with it.
+
+Files: `src/app/ausgabe/{page.tsx,session-controls.tsx,session-actions.ts,session-options.ts,session-state.ts,group-progress-card.tsx,certificate-controls.tsx,counter-lookup.tsx}`,
+`src/domain/distribution/session.ts(+test)`,
+`src/application/distribution/{read-distribution-session-state,end-distribution-session}.ts(+test)`,
+`src/i18n/de.ts`, `tests/e2e/{distribution,counter,reminders}.spec.ts`.
+
+**Learnings for future iterations:**
+
+- **The PRD says „confirms in a dialog" and the house rule says never a `Dialog`.** `ui_styling_guide.md`
+  §6 is explicit — disclosures at the counter are `<details>`/`<summary>`, because the queue is
+  waiting and nothing may have to be dismissed before the next customer is served. Read „dialog" in a
+  PRD as „a confirm step", not as the Radix component, and cite §6 where you do.
+- **An e2e register has no session on record, so nothing is preselected there.** The first draft of
+  `distribution.spec.ts` asserted exactly one checked radio and failed for the right reason: the
+  register has never held a session, so `proposeGroups` returns null. The spec now asserts **zero**
+  checked — which is the other half of the AC — and the preselection itself belongs to US-34.11, the
+  only file allowed to leave a session behind. A spec asserting a proposal needs a session it ended
+  itself.
+- **`/ausgabe` returns 200 again** — the first time this batch, after three stories of deliberate 500.
+  The whole loop was verified by accessibility snapshot: start form → „Rot und Blau" → header with
+  both badges → both confirmations open → discard → back to the start form with nothing preselected →
+  start RED → end → **BLUE preselected**. The audit table then held exactly **one** entry
+  (`distribution.session.ended`, `why` carrying `startedAt`, `groups=RED`, `households=0`): the
+  discarded session left none, which is FR-7 proved end to end rather than argued.
+- **Kill the stale `next start` before believing any browser check** — there was one from Sep 19 still
+  serving. The existing bullet above is right; this iteration hit it again. `ps aux | grep
+  "[n]ext-server"`, `kill` by pid, then `npm run db:reset` **and** restart, since the reset cannot
+  reach a running server's open inode.
+- **A removed screen element leaves comments behind.** Three comments in `page.tsx` and
+  `group-progress-card.tsx` still placed things „above the week's banner" after the banner was
+  deleted — a comment describing a thing no reader can find, which is exactly what CLAUDE.md's
+  „don't narrate history" rule is aimed at. `grep -rn banner src/` after taking a screen element out.
+- **The e2e suite is still behaviour-red elsewhere** (US-34.10 starts the sessions); only
+  `distribution.spec.ts` was brought over in this story, because deleting the banner is what
+  falsified it. It passes on **both** engines.
+---

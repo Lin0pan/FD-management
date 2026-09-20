@@ -161,7 +161,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The counter screen is the most-read screen in the product. Six write controls already stand on it and NoticeBoard exists so only one answer shows at a time — the end and discard confirmations join that discipline. Do not turn the session header into a hint: it states two facts, running and which group(s)."
     },
     {
