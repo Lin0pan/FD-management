@@ -43,7 +43,6 @@ import { getWeekColour } from "../src/application/distribution/get-week-colour";
 import { recordAttendance } from "../src/application/distribution/record-attendance";
 import type {
   AuditLog,
-  FrozenHandout,
   CardRepository,
   CertificateRepository,
   CertificateTypeRepository,
@@ -51,6 +50,7 @@ import type {
   CustomerRepository,
   DistributionRecordRepository,
   DistributionSessionRepository,
+  FrozenHandout,
   ReminderLogRepository,
   SettingsRepository,
   WaitingListRepository,

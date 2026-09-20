@@ -105,9 +105,9 @@ deliberately and say why in the commit; do not add an inline disable.
   question, and a corrected or removed hand-out would leave them disagreeing silently. The **group**
   is the third time this has been refused (US-31, ADR-017), after the balance and beside the counts,
   and the only one that took stored columns away again: `Customer.group` and `Card.groupAtIssue` are
-  gone, so „a household on 37 in group BLUE" is a pair the system cannot
-  express rather than one a rule has to catch. The cost is that a group can be full while the
-  register is not — free slots are counted **per group** wherever capacity is shown.
+  gone, so „a household on 37 in group BLUE" is a pair the system cannot express rather than one a
+  rule has to catch. The cost is that a group can be full while the register is not — free slots
+  are counted **per group** wherever capacity is shown.
 
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
 - **Policy values are data, not constants** — the prices per head, the cap and the quota `N` live

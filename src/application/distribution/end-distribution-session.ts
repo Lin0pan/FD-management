@@ -69,6 +69,10 @@ function receiptOf(customer: RegisteredCustomer, at: Date): HandoutReceipt {
  * @throws {NoDistributionSessionRunning} if no session is running.
  * @throws {CustomerNotFound} if a hand-out names a household the register does not hold, which
  *   leaves the afternoon running rather than closing one that cannot be read back.
+ * @throws {EmptyHousehold} if a served household holds no members, off `receiptFor`.
+ * @throws {BirthDateInFuture} if one of its members was born after the ending instant. Both are
+ *   refused at every write, so a freeze meeting one has found a row the register should not have
+ *   been able to hold — and the afternoon stays open until it is put right.
  */
 export async function endDistributionSession(
   deps: EndDistributionSessionDeps,

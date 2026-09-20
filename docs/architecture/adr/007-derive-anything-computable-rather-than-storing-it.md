@@ -50,7 +50,7 @@ The **first row narrowed** the same way under
 [ADR-017](017-the-customer-number-decides-the-group.md): `Card.groupAtIssue` left it, because a
 group is now the parity of a customer number and the card already carries the slot it was printed
 under. The two counts beside it stay exactly as they are — nothing derives what a card said about a
-household's size. So the table still has four exceptions, one of them a column narrower, and the
+household's size. So the table stood at four exceptions, one of them a column narrower, and the
 group joins the balance as a value this argument has removed rather than admitted — see
 [ADR-015](015-derive-the-customer-balance-from-the-hand-out-history-never-store-it.md).
 

@@ -219,6 +219,7 @@ CREATE UNIQUE INDEX "ReminderLog_customerId_sessionId_key" ON "ReminderLog"("cus
 
 -- CreateIndex
 CREATE INDEX "AuditEntry_when_idx" ON "AuditEntry"("when");
+
 -- CreateIndex (hand-written: Prisma has no syntax for a partial/filtered unique index)
 --
 -- A customer number is a *slot*, not an identity. At most one household that is still on the
