@@ -1,7 +1,7 @@
 /**
  * How far through the session's group(s) the counter is, and who is still missing (US-23). The
  * tally is readable without interaction (§FR-1); the list is folded behind it, a hundred-odd rows
- * between the banner and the number field being a lot of screen for a question asked twice an
+ * between the session header and the number field being a lot of screen for a question asked twice an
  * afternoon.
  *
  * Three deliberate choices:

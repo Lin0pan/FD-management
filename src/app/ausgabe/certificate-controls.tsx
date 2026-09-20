@@ -193,7 +193,7 @@ export function CertificateControls({
                   data-testid="reminder-button"
                   className="h-12 bg-amber-500 px-6 text-lg font-semibold text-black hover:bg-amber-600"
                 >
-                  {alreadyLogged ? words.reminder.loggedToday : words.reminder.submit}
+                  {alreadyLogged ? words.reminder.loggedInSession : words.reminder.submit}
                 </Button>
               </div>
               {showingReminder && reminderState.status === "logged" ? (

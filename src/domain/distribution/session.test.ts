@@ -9,6 +9,7 @@ import {
   parseSessionGroups,
   proposeGroups,
   servesGroup,
+  summariseSession,
   type DistributionSession,
 } from "./session";
 
@@ -157,5 +158,18 @@ describe("canReopen", () => {
 
   it("refuses to reopen when no session has ended yet", () => {
     expect(canReopen(session(7, ["RED"]), { mostRecentlyEnded: null, running: null })).toBe(false);
+  });
+});
+
+describe("summariseSession", () => {
+  it("counts one household per hand-out and sums what was handed over", () => {
+    expect(summariseSession([{ paidCents: 400 }, { paidCents: 150 }, { paidCents: 0 }])).toEqual({
+      households: 3,
+      totalPaidCents: 550,
+    });
+  });
+
+  it("comes to nothing for a session nobody collected at", () => {
+    expect(summariseSession([])).toEqual({ households: 0, totalPaidCents: 0 });
   });
 });

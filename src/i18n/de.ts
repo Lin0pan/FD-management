@@ -83,6 +83,11 @@ function balanceWording(kind: BalanceKind, cents: number): string {
   return kind === "SETTLED" ? "ausgeglichen" : signedAmount(cents);
 }
 
+/** „1 Haushalt“, „7 Haushalte“ — inflected, because a session serving one is the ordinary Tuesday. */
+function householdCount(count: number): string {
+  return count === 1 ? "1 Haushalt" : `${count} Haushalte`;
+}
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -1049,14 +1054,14 @@ export const de = {
       unknown: "Die Änderung konnte nicht gespeichert werden.",
     },
   },
-  /** The distribution screen at /ausgabe — which group collects today, and who is at the counter. */
+  /** The distribution screen at /ausgabe — the afternoon under way, and who is at the counter. */
   distribution: {
     heading: "Ausgabe",
     colours: {
       RED: "Rot",
       BLUE: "Blau",
     },
-    /** The colour is always named in words; the banner's colour only repeats what the text says. */
+    /** The colour is always named in words; a badge's tint only repeats what the text says. */
     group: (colour: string): string => `Gruppe ${colour}`,
     /**
      * The group or groups one session serves, in words: „Gruppe Rot" or „Gruppe Rot und Blau"
@@ -1064,15 +1069,63 @@ export const de = {
      * two labels a reader has to pair up.
      */
     groups: (colours: ReadonlyArray<string>): string => `Gruppe ${colours.join(" und ")}`,
-    banner: {
-      isDistributionDay: "Heute ist Ausgabe",
-      noDistributionDay: "Heute ist keine Ausgabe",
-      next: (date: string, colour: string): string => `Nächste Ausgabe: ${date}, Gruppe ${colour}`,
+    /**
+     * The afternoon itself: started by hand, ended by hand (US-34.7). This replaced the week-colour
+     * banner, which on a Tuesday session read „Heute ist keine Ausgabe“ over a counter serving
+     * customers.
+     */
+    session: {
+      /** The header while one runs. Two facts and no third: that it runs, and whom it serves. */
+      running: "Ausgabe läuft",
+      start: {
+        heading: "Ausgabe starten",
+        /**
+         * The one choice the start form asks for. Three options and not two checkboxes: „Rot und
+         * Blau“ is the merged afternoon DF actually hold, and a pair of boxes would also offer
+         * „keine Gruppe“, which is not an afternoon.
+         */
+        groupsLabel: "Gruppen",
+        options: {
+          RED: "Rot",
+          BLUE: "Blau",
+          BOTH: "Rot und Blau",
+        },
+        submit: "Ausgabe starten",
+        submitting: "Wird gestartet …",
+        errors: {
+          alreadyRunning: "Es läuft bereits eine Ausgabe. Bitte die Seite neu laden.",
+          noGroup: "Bitte eine Gruppe auswählen.",
+          unknown: "Die Ausgabe konnte nicht gestartet werden. Bitte erneut versuchen.",
+        },
+      },
+      /** Ending is the freeze (FR-14), so the confirmation names the window that closes with it. */
+      end: {
+        open: "Ausgabe beenden",
+        confirm: (households: number, totalPaidCents: number): string =>
+          `${householdCount(households)} versorgt, ${formatEuros(totalPaidCents)} eingenommen. ` +
+          `Nach dem Beenden sind die Einträge nicht mehr korrigierbar.`,
+        submit: "Ja, Ausgabe beenden",
+        submitting: "Wird beendet …",
+        errors: {
+          notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
+          unknown: "Die Ausgabe konnte nicht beendet werden. Bitte erneut versuchen.",
+        },
+      },
       /**
-       * The week number alone — `KW 02`, not `Kalenderwoche 2026-W02`: the date beside it carries the
-       * year, and staff check it against a wall calendar that prints two digits.
+       * Throwing away a session started by mistake. The confirmation states the one thing the screen
+       * cannot show: nothing is written down about it (FR-7).
        */
-      week: (week: string): string => `KW ${week}`,
+      discard: {
+        open: "Ausgabe verwerfen",
+        confirm: "Diese Ausgabe wird verworfen. Es wird nichts darüber festgehalten.",
+        submit: "Ja, verwerfen",
+        submitting: "Wird verworfen …",
+        errors: {
+          notEmpty: "An dieser Ausgabe wurde bereits etwas erfasst. Bitte sie stattdessen beenden.",
+          notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
+          unknown: "Die Ausgabe konnte nicht verworfen werden. Bitte erneut versuchen.",
+        },
+      },
     },
     /**
      * The counter lookup — the most-read text in the product, and held to the strictest account:
@@ -1104,7 +1157,7 @@ export const de = {
         },
         wrongGroup: { headline: "Falsche Gruppe" },
         outdatedCard: { headline: "Karte ungültig" },
-        alreadyServedToday: { headline: "Heute bereits ausgegeben" },
+        alreadyServed: { headline: "Bereits ausgegeben" },
         clearToServe: { headline: "Ausgabe frei" },
         certificateExpired: { headline: "Ausgabe frei — Nachweis abgelaufen" },
       },
@@ -1206,7 +1259,7 @@ export const de = {
        * bezahlt“, which cannot say 2,00 € of 5,00 €.
        */
       alreadyServed: (time: string, paidCents: number, askedCents: number): string =>
-        `Heute bereits versorgt um ${time} Uhr. ` +
+        `Bereits versorgt um ${time} Uhr. ` +
         `(${formatEuros(paidCents)} von ${formatEuros(askedCents)} gezahlt)`,
       /**
        * The question an amount above what was asked raises (US-29.7). A question and not a fault —
@@ -1221,7 +1274,7 @@ export const de = {
         confirm: "Ja, Betrag so buchen",
       },
       correct: {
-        heading: "Heutigen Eintrag korrigieren",
+        heading: "Eintrag korrigieren",
         save: "Betrag speichern",
         saved: "Eintrag aktualisiert.",
         remove: "Eintrag entfernen",
@@ -1234,13 +1287,13 @@ export const de = {
           `Diesen Eintrag wirklich entfernen? Der Saldo steht danach wieder bei: ` +
           `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
-        removed: "Eintrag entfernt. Der Haushalt kann heute erneut erfasst werden.",
+        removed: "Eintrag entfernt. Der Haushalt kann erneut erfasst werden.",
       },
       errors: {
         notClearToServe: "Ausgabe nicht möglich. Bitte den Hinweis oben beachten.",
-        alreadyServed: "Dieser Haushalt hat heute bereits eine Ausgabe erhalten.",
+        alreadyServed: "Dieser Haushalt hat bei dieser Ausgabe bereits etwas erhalten.",
         noLongerCorrectable:
-          "Dieser Eintrag stammt nicht von heute und kann nicht mehr geändert werden.",
+          "Diese Ausgabe ist beendet. Der Eintrag kann nicht mehr geändert werden.",
         notFound: "Der Eintrag wurde nicht gefunden. Bitte die Seite neu laden.",
         /** The field takes euros as DF write them — `4`, `4,00` and `4.00` all read the same. */
         notAnAmount: "Kein gültiger Betrag. Bitte so eingeben: 4,00",
@@ -1257,12 +1310,13 @@ export const de = {
       heading: "Bedarfsnachweis",
       reminder: {
         submit: "Erinnerung erfassen",
-        /** The explanatory label the disabled button carries for the rest of the day (FR-5). */
-        loggedToday: "Erinnerung heute bereits erfasst",
+        /** The explanatory label the disabled button carries for the rest of the session (FR-5). */
+        loggedInSession: "Erinnerung bereits erfasst",
         confirmed: (count: number): string =>
           `Erinnerung erfasst. Bisherige Erinnerungen: ${count}.`,
         errors: {
-          alreadyLogged: "Für diesen Haushalt ist heute bereits eine Erinnerung erfasst.",
+          alreadyLogged:
+            "Für diesen Haushalt ist bei dieser Ausgabe bereits eine Erinnerung erfasst.",
           stillValid: "Der Bedarfsnachweis ist noch gültig. Es gibt nichts zu erinnern.",
           unknown: "Die Erinnerung konnte nicht gespeichert werden. Bitte erneut versuchen.",
         },
@@ -1282,17 +1336,11 @@ export const de = {
         },
       },
     },
-    /**
-     * Both reachable from the banner alone: the screen resolves today's settings, and either there
-     * are none or the anchor week is not a week of the calendar.
-     */
+    /** Reachable from the counter alone: the lookup prices a household and there are no settings. */
     errors: {
       noSettings:
         "Für dieses Datum sind keine Einstellungen hinterlegt. Bitte die Grundeinstellungen " +
         "einspielen.",
-      invalidAnchor:
-        "Die Ankerwoche in den Einstellungen benennt keine Woche des Kalenders. Bitte die " +
-        "Einstellungen prüfen.",
     },
   },
   settings: {

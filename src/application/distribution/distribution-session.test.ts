@@ -447,12 +447,21 @@ describe("reopenDistributionSession", () => {
 });
 
 describe("readDistributionSessionState", () => {
+  /** Every screen reads the state; what it holds of the afternoon is read from the rows themselves. */
+  function deps(
+    sessions: FakeDistributionSessionRepository,
+    records: FakeDistributionRecordRepository = new FakeDistributionRecordRepository(),
+    reminders: FakeReminderLogRepository = new FakeReminderLogRepository(),
+  ) {
+    return { sessions, records, reminders };
+  }
+
   it("proposes the group that was not up last time when nothing is running", async () => {
     const sessions = new FakeDistributionSessionRepository(
       session({ id: EARLIER_ID, endedAt: new Date(ENDED), groups: createSessionGroups(["RED"]) }),
     );
 
-    const state = await readDistributionSessionState({ sessions });
+    const state = await readDistributionSessionState(deps(sessions));
 
     expect(state.running).toBeNull();
     expect(state.lastEnded?.id).toBe(EARLIER_ID);
@@ -460,9 +469,7 @@ describe("readDistributionSessionState", () => {
   });
 
   it("preselects nothing before the first afternoon has ever taken place", async () => {
-    const state = await readDistributionSessionState({
-      sessions: new FakeDistributionSessionRepository(),
-    });
+    const state = await readDistributionSessionState(deps(new FakeDistributionSessionRepository()));
 
     expect(state).toEqual({ running: null, lastEnded: null, proposedGroups: null });
   });
@@ -473,9 +480,49 @@ describe("readDistributionSessionState", () => {
       session({ groups: createSessionGroups(["RED"]) }),
     );
 
-    const state = await readDistributionSessionState({ sessions });
+    const state = await readDistributionSessionState(deps(sessions));
 
-    expect(state.running?.id).toBe(RUNNING_ID);
+    expect(state.running?.session.id).toBe(RUNNING_ID);
     expect(state.proposedGroups).toEqual(["RED"]);
+  });
+
+  it("sums what the running session has come to so far", async () => {
+    const sessions = new FakeDistributionSessionRepository(session());
+    const records = new FakeDistributionRecordRepository([
+      handout(1, 400 as Cents),
+      handout(2, 250 as Cents),
+      handout(3, 500 as Cents, EARLIER_ID),
+    ]);
+
+    const state = await readDistributionSessionState(deps(sessions, records));
+
+    expect(state.running?.summary).toEqual({ households: 2, totalPaidCents: 650 });
+  });
+
+  it("offers to discard a session that has served nobody and reminded nobody", async () => {
+    const state = await readDistributionSessionState(
+      deps(new FakeDistributionSessionRepository(session())),
+    );
+
+    expect(state.running?.canDiscard).toBe(true);
+  });
+
+  it("withdraws the discard once the first household has collected", async () => {
+    const sessions = new FakeDistributionSessionRepository(session());
+    const records = new FakeDistributionRecordRepository([handout(1, 400 as Cents)]);
+
+    const state = await readDistributionSessionState(deps(sessions, records));
+
+    expect(state.running?.canDiscard).toBe(false);
+  });
+
+  it("withdraws the discard once the first reminder has been logged", async () => {
+    const sessions = new FakeDistributionSessionRepository(session());
+
+    const state = await readDistributionSessionState(
+      deps(sessions, new FakeDistributionRecordRepository(), new FakeReminderLogRepository(1)),
+    );
+
+    expect(state.running?.canDiscard).toBe(false);
   });
 });

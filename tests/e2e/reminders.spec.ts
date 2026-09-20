@@ -221,7 +221,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.confirmed(1));
     // For the rest of the day the action is spent, and it says so in place of its own label.
     await expect(page.getByTestId("reminder-button")).toBeDisabled();
-    await expect(page.getByTestId("reminder-button")).toHaveText(words.reminder.loggedToday);
+    await expect(page.getByTestId("reminder-button")).toHaveText(words.reminder.loggedInSession);
 
     // The disabled state comes from the store, not client memory: a fresh lookup re-reads it.
     await lookUp(page);
@@ -289,7 +289,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
       "ALREADY_SERVED",
     );
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
-      verdicts.alreadyServedToday.headline,
+      verdicts.alreadyServed.headline,
     );
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
     await expect(page.getByTestId("reminder-button")).toBeVisible();

@@ -442,7 +442,7 @@ test.describe("Verdikt am Tresen", () => {
     // is the ordinary route to a correction. So the banner is muted chrome with no sentence under
     // it — the time and the amount are the record's own card below — and it is emphatically not the
     // green „Ausgabe frei" this lookup answered before the rule was given the day's record.
-    await expectVerdict(page, "ALREADY_SERVED", verdicts.alreadyServedToday.headline);
+    await expectVerdict(page, "ALREADY_SERVED", verdicts.alreadyServed.headline);
     await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.servedToday]);
     // And no second hand-out is offered, however the number was reached.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);

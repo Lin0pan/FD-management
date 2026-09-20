@@ -10,6 +10,7 @@
 
 import { GROUPS, type Group } from "../customer/group";
 import { InvalidSessionGroups, MissingRequiredField } from "../errors";
+import type { Cents } from "../money";
 
 /**
  * The groups one session serves: RED, BLUE or both, in that order and without repetition. Only
@@ -25,6 +26,14 @@ export interface DistributionSession {
   /** `null` while the session is running. Only a human ever fills it in (FR-5). */
   readonly endedAt: Date | null;
   readonly groups: SessionGroups;
+}
+
+/** What an afternoon came to. Derived from its hand-outs at every read, never stored (ADR-015). */
+export interface SessionSummary {
+  /** How many households collected — one hand-out each, which `(customerId, sessionId)` guarantees. */
+  readonly households: number;
+  /** The sum handed over across those hand-outs, never the sum of what was asked for. */
+  readonly totalPaidCents: Cents;
 }
 
 /** What {@link canDiscard} weighs: how much the session already holds. */
@@ -124,4 +133,19 @@ export function canDiscard(session: DistributionSession, contents: SessionConten
  */
 export function canReopen(session: DistributionSession, context: ReopenContext): boolean {
   return context.running === null && context.mostRecentlyEnded?.id === session.id;
+}
+
+/**
+ * Sum up an afternoon: what ending it will close, and what the screen states afterwards.
+ *
+ * Nothing is counted about who stayed away — a no-show is the absence of a row, and a figure for it
+ * would put staff to explaining a number DF never asked for.
+ */
+export function summariseSession(
+  handouts: ReadonlyArray<{ readonly paidCents: Cents }>,
+): SessionSummary {
+  return {
+    households: handouts.length,
+    totalPaidCents: handouts.reduce((total, handout) => total + handout.paidCents, 0),
+  };
 }
