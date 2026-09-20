@@ -362,6 +362,11 @@ bullets that sat under „Where batch 35 starts" are not carried over — they a
   those — the results are valid markdown — so only reading `git diff` catches it. And re-run the
   width sweep *after each* rewrap: fixing one 101-column line pushes words onto the next. Exclude
   lines containing `](`; a long ADR link is unbreakable and Prettier accepts it.
+- **A behaviour-changing domain story cannot stop at the domain.** The „change the shape only, never
+  the behaviour" rule that lets a signature change land alone assumes the old answer survives one
+  more iteration. When the story *is* the behaviour change (a rule rewritten around a new input),
+  there is no green intermediate: the story that supplies the input — a new port method, a dep the
+  reading use case never had — lands in the same commit, and the commit body says why.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
@@ -513,3 +518,55 @@ settings screen stops rendering the three removed kinds.
 **This is one piece of work in four parts** — 34 → 35 → 36 → 37. US-37 is the session overview and
 detail view, and it is the batch that proves US-35's freeze through a screen. A story here that finds
 itself building `/ausgabetermine` has picked up US-37's work.
+
+## 2026-09-20 — US-001 and US-002 (batch 36)
+
+A no-show is a session that was missed, and the seam both screens read loads the afternoons rather
+than the settings. **Two stories in one commit**, deliberately: the domain signature cannot change
+without `listEnded()` to feed it, and `readCustomer` had no session port at all, so a domain-only
+commit would have left the tree red. Story 2's own acceptance criteria are all met.
+
+- `src/domain/distribution/noShows.ts` rewritten around
+  `{ sessions, attendedSessionIds, customerGroup, registeredOn }` — no settings, no clock, no
+  calendar. A session counts when it has ended, serves the household's group, started after they
+  joined and holds no hand-out for them; the walk goes newest first and stops at the first one they
+  collected at. Seven named tests, written first and red before the module was replaced.
+- `berlinDayKey` **stayed** in `attendance.ts` (its comment now names `householdComposition.ts` as
+  the one caller), and `src/i18n/format.ts` lost the sentence claiming the attendance rules count a
+  Berlin day — they count a session.
+- `DistributionSessionRepository.listEnded()`, the Prisma adapter (`endedAt desc, id desc`, the same
+  ordering `lastEnded` uses) and two integration tests: the ordering, and that the running and the
+  discarded session are both left out.
+- `countNoShows` lost its `SettingsRepository` and its `deps`/`today` arguments — it is now a pure
+  three-argument function. `lookupCustomer` and `readCustomer` pass the attended ids off the records
+  they already load; `readCustomer` gained a read-only `sessions` dep, and `customerDeps` with it.
+- Named application test for the bug: „counts no miss for a fortnight no afternoon was held in".
+
+**Learnings for future iterations:**
+
+- **A domain story whose behaviour changes cannot stop at the domain.** The „change the shape only,
+  never the behaviour" rule that lets a signature change land alone does not apply when the story
+  *is* the behaviour change: there is no green intermediate, so the story that feeds the new input
+  has to land in the same commit. Check early whether the next story owns the only source of the new
+  argument — here `listEnded` — and say so in the commit body rather than shipping a red tree or a
+  fake-green one (every count reading 0 for one commit).
+- **`readCustomer` and `lookupCustomer` are not symmetric in their deps.** The counter already held
+  `sessions`; the record screen held none, so `ReadCustomerDeps` and `customerDeps` both grew. A
+  „both screens read the same seam" story should check both composition roots before estimating.
+- **Adding a method to `DistributionSessionRepository` breaks nine test files**, not eight: seven
+  hand-written fakes plus the two `Deps` object literals that structural typing had been carrying.
+  The house stub is the usual `Promise.reject(new Error("… has a suite of its own"))` — but check
+  `grep -c "lookupCustomer(\|readCustomer(" <file>` first: `maintain-customer.test.ts` drives the
+  lookup for its notes test, so a rejecting stub fails it and `Promise.resolve([])` is the honest
+  fixture. And keep the fake's rule identical to the adapter's: a fake whose `listEnded` returns
+  rows while its `lastEnded` returns `null` is a fixture that can contradict itself.
+- **A fixture keyed on a calendar day has to be re-keyed on a session id.** `attend(id, iso)` in
+  `customers.test.ts` wrote every hand-out under one `SESSION_ID`, which made every no-show test
+  read 0 once the rule matched by session. It now takes the id as a fourth argument, and the five
+  „own Thursdays" became five ended sessions, newest first. Where a suite's household number decides
+  the group (50 is even, so BLUE), give the fixture sessions **both** groups rather than guessing —
+  `lookup-customer.test.ts`'s old comment called its Thursdays RED for a BLUE household and nothing
+  had ever caught it.
+- **`vitest run` covers the Prisma integration tests too** (`include: ["src/**/*.{test,spec}.ts"]`),
+  so a port method added without an adapter test is a gap nothing reports — the suite is green
+  because the throwaway database never ran the query.

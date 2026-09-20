@@ -21,7 +21,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "This story fixes a real bug: today every cancelled week in the walk is counted as a miss nobody made. Do not keep a calendar fallback for households registered before the first session — 'no session on record' is zero, which is what it has always meant."
     },
     {
@@ -39,7 +39,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "One new port method and one changed dependency. Every hand-written fake DistributionSessionRepository gains listEnded in this story."
     },
     {
