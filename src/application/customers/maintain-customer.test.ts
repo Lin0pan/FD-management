@@ -164,6 +164,11 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
     return Promise.resolve(null);
   }
 
+  /** The counter's no-show count reads this; no afternoon has taken place in this suite. */
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.resolve([]);
+  }
+
   findById(): Promise<DistributionSession | null> {
     return Promise.resolve(RUNNING_SESSION);
   }

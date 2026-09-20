@@ -17,6 +17,7 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
 import {
   BirthDateInFuture,
   CardNumberTaken,
@@ -46,6 +47,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   SettingsRepository,
 } from "../ports";
 import { archiveCustomer } from "./archive-customer";
@@ -483,6 +485,57 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
 
   thawSession(): Promise<void> {
     return Promise.reject(new Error("Thawing an afternoon has a suite of its own"));
+  }
+}
+
+/** An afternoon that took place: started at `iso`, ended three hours later, serving RED. */
+function endedSession(id: number, iso: string): DistributionSession {
+  const startedAt = new Date(iso);
+  return {
+    id,
+    startedAt,
+    endedAt: new Date(startedAt.getTime() + 3 * 60 * 60 * 1000),
+    groups: createSessionGroups(["RED"]),
+  };
+}
+
+/**
+ * Only the afternoons that took place, which is the half of the no-show count the household does
+ * not carry. Starting, ending and discarding one has a suite of its own.
+ */
+class FakeDistributionSessionRepository implements DistributionSessionRepository {
+  constructor(private readonly ended: ReadonlyArray<DistributionSession> = []) {}
+
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.resolve(this.ended);
+  }
+
+  findRunning(): Promise<DistributionSession | null> {
+    return Promise.resolve(null);
+  }
+
+  lastEnded(): Promise<DistributionSession | null> {
+    return Promise.resolve(this.ended.at(0) ?? null);
+  }
+
+  findById(): Promise<DistributionSession | null> {
+    return Promise.reject(new Error("No use case in this file reads one afternoon"));
+  }
+
+  start(): Promise<DistributionSession> {
+    return Promise.reject(new Error("No use case in this file starts a session"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file ends a session"));
+  }
+
+  discard(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file discards a session"));
+  }
+
+  reopen(): Promise<void> {
+    return Promise.reject(new Error("No use case in this file reopens a session"));
   }
 }
 
@@ -1430,19 +1483,27 @@ describe("readCustomer", () => {
   let audit: FakeAuditLog;
 
   /**
-   * A RED Thursday every fortnight from the `2026-W02` anchor: … 06-11, 06-25, 07-09, 07-23. With
-   * `TODAY` on 2026-07-22 the last own distribution behind the household is 07-09.
+   * Five RED afternoons a fortnight apart, newest first as the store hands them over — every one of
+   * them the household's own, since 49 is odd (ADR-017).
    */
-  const OWN_DISTRIBUTIONS = [
-    "2026-05-14T09:00:00.000Z",
-    "2026-05-28T09:00:00.000Z",
-    "2026-06-11T09:00:00.000Z",
-    "2026-06-25T09:00:00.000Z",
-    "2026-07-09T09:00:00.000Z",
+  const OWN_SESSIONS = [
+    endedSession(15, "2026-07-09T09:00:00.000Z"),
+    endedSession(14, "2026-06-25T09:00:00.000Z"),
+    endedSession(13, "2026-06-11T09:00:00.000Z"),
+    endedSession(12, "2026-05-28T09:00:00.000Z"),
+    endedSession(11, "2026-05-14T09:00:00.000Z"),
   ];
 
   function deps(today = TODAY) {
-    return { customers, cards, settings, records, clock: fakeClock(today), audit };
+    return {
+      customers,
+      cards,
+      settings,
+      records,
+      sessions: new FakeDistributionSessionRepository(OWN_SESSIONS),
+      clock: fakeClock(today),
+      audit,
+    };
   }
 
   /**
@@ -1462,10 +1523,15 @@ describe("readCustomer", () => {
   }
 
   /** A hand-out at the seeded 5,00 € price; `paidCents` is what the household handed over. */
-  async function attend(customerId: number, iso: string, paidCents = 500): Promise<void> {
+  async function attend(
+    customerId: number,
+    iso: string,
+    paidCents = 500,
+    sessionId = SESSION_ID,
+  ): Promise<void> {
     await records.create({
       customerId,
-      sessionId: SESSION_ID,
+      sessionId,
       date: new Date(iso),
       showedUp: true,
       paidCents: paidCents as Cents,
@@ -1557,17 +1623,35 @@ describe("readCustomer", () => {
 
     const view = await readCustomer(deps(), registered.id);
 
-    expect(view.consecutiveNoShows).toBe(OWN_DISTRIBUTIONS.length);
+    expect(view.consecutiveNoShows).toBe(OWN_SESSIONS.length);
   });
 
   it("stops the no-show count at the last distribution the household attended", async () => {
     const registered = await seedLongStanding();
-    await attend(registered.id, "2026-06-25T09:00:00.000Z");
+    await attend(registered.id, "2026-06-25T09:00:00.000Z", 500, 14);
 
     const view = await readCustomer(deps(), registered.id);
 
-    // Only 07-09 is missed; 06-25 was attended and everything before it is behind that.
+    // Only 07-09 is missed; 06-25 was collected at and everything before it is behind that.
     expect(view.consecutiveNoShows).toBe(1);
+  });
+
+  it("counts no miss for a fortnight no afternoon was held in", async () => {
+    // The bug US-36 fixes: the count used to walk the calendar a fortnight at a time, so every
+    // cancelled afternoon was held against a household nobody had invited. Three of the five above
+    // never took place.
+    const registered = await seedLongStanding();
+    const held = [
+      endedSession(15, "2026-07-09T09:00:00.000Z"),
+      endedSession(11, "2026-05-14T09:00:00.000Z"),
+    ];
+
+    const view = await readCustomer(
+      { ...deps(), sessions: new FakeDistributionSessionRepository(held) },
+      registered.id,
+    );
+
+    expect(view.consecutiveNoShows).toBe(2);
   });
 
   it("shows no missed distributions for a household registered since the last one", async () => {

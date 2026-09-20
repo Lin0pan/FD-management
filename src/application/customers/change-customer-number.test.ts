@@ -162,13 +162,25 @@ const RUNNING_SESSION: DistributionSession = {
   groups: createSessionGroups(["RED", "BLUE"]),
 };
 
+/** One afternoon behind them, so the household's missed count is not trivially zero either side. */
+const ENDED_SESSION: DistributionSession = {
+  id: 2,
+  startedAt: new Date("2026-08-20T14:00:00.000Z"),
+  endedAt: new Date("2026-08-20T17:00:00.000Z"),
+  groups: createSessionGroups(["RED"]),
+};
+
 class FakeDistributionSessionRepository implements DistributionSessionRepository {
   findRunning(): Promise<DistributionSession | null> {
     return Promise.resolve(RUNNING_SESSION);
   }
 
   lastEnded(): Promise<DistributionSession | null> {
-    return Promise.resolve(null);
+    return Promise.resolve(ENDED_SESSION);
+  }
+
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.resolve([ENDED_SESSION]);
   }
 
   findById(): Promise<DistributionSession | null> {
@@ -559,7 +571,14 @@ describe("changeCustomerNumber", () => {
   }
 
   function readDeps() {
-    return { customers, cards, settings, records, clock: fakeClock(TODAY) };
+    return {
+      customers,
+      cards,
+      settings,
+      records,
+      sessions: new FakeDistributionSessionRepository(),
+      clock: fakeClock(TODAY),
+    };
   }
 
   beforeEach(() => {
@@ -826,7 +845,14 @@ describe("the record after a number change", () => {
   }
 
   function readCustomerDeps() {
-    return { customers, cards, settings, records, clock: fakeClock(TODAY) };
+    return {
+      customers,
+      cards,
+      settings,
+      records,
+      sessions: new FakeDistributionSessionRepository(),
+      clock: fakeClock(TODAY),
+    };
   }
 
   function reissueDeps() {

@@ -417,6 +417,12 @@ export interface DistributionSessionRepository {
   /** The session that ended last, or `null`: what the next group is proposed from, and what a
    * reopening may address (US-34, FR-2 and FR-16). */
   lastEnded(): Promise<DistributionSession | null>;
+  /**
+   * Every afternoon that took place, most recent first — what a household's missed sessions are
+   * counted against (US-36.2). Not narrowed per household: one distribution a week is a few hundred
+   * rows over the software's whole life.
+   */
+  listEnded(): Promise<ReadonlyArray<DistributionSession>>;
   /** The session with this id, or `null` — how a record's own session is loaded for a correction. */
   findById(sessionId: number): Promise<DistributionSession | null>;
   /**

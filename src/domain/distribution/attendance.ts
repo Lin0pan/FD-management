@@ -32,9 +32,9 @@ const berlinDay = new Intl.DateTimeFormat("en-CA", {
 /**
  * The calendar day `instant` falls on in Europe/Berlin, as a comparable `YYYY-MM-DD` key.
  *
- * No attendance rule reads this any more. It survives for `noShows.ts`, which still matches
- * attended days against the calendar's distributions, and for `householdComposition.ts`, which
- * counts an age in the zone the counter is worked in — US-36 retires the first of those.
+ * No attendance rule reads this any more: a hand-out belongs to a session, not to a day. It
+ * survives for `householdComposition.ts`, which counts an age in the zone the counter is worked in,
+ * because a birthday turns over at Berlin midnight (US-13.1).
  */
 export function berlinDayKey(instant: Date): string {
   return berlinDay.format(instant);

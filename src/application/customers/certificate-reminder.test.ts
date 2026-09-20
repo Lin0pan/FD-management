@@ -212,6 +212,10 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
     return Promise.resolve(null);
   }
 
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.reject(new Error("counting missed afternoons has a suite of its own"));
+  }
+
   findById(): Promise<DistributionSession | null> {
     return Promise.resolve(this.running);
   }

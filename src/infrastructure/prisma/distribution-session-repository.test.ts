@@ -166,6 +166,30 @@ describe("PrismaDistributionSessionRepository.end and reopen", () => {
   });
 });
 
+describe("PrismaDistributionSessionRepository.listEnded", () => {
+  it("hands back the afternoons that took place, most recent first", async () => {
+    const first = await repository.start(RED, STARTED);
+    await repository.end(first.id, ENDED);
+    const second = await repository.start(BOTH, NEXT_WEEK);
+    await repository.end(second.id, NEXT_WEEK);
+
+    expect((await repository.listEnded()).map((session) => session.id)).toEqual([
+      second.id,
+      first.id,
+    ]);
+  });
+
+  it("leaves out the running session and the discarded one, which no afternoon was", async () => {
+    const ended = await repository.start(RED, STARTED);
+    await repository.end(ended.id, ENDED);
+    const discarded = await repository.start(RED, NEXT_WEEK);
+    await repository.discard(discarded.id, NEXT_WEEK);
+    await repository.start(BOTH, NEXT_WEEK);
+
+    expect((await repository.listEnded()).map((session) => session.id)).toEqual([ended.id]);
+  });
+});
+
 describe("PrismaDistributionSessionRepository.discard", () => {
   it("stamps the row rather than deleting it — the register deletes nothing (ADR-010)", async () => {
     const started = await repository.start(RED, STARTED);

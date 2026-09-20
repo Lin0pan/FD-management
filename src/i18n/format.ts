@@ -63,8 +63,7 @@ export function germanLongDate(date: Date): string {
  *
  * Unlike {@link germanDate}, a hand-out is an *instant*, not a day: the time a customer was served
  * has to read as the local clock the staff saw, so it follows the Berlin offset (and its DST
- * changes) rather than UTC. The same zone the attendance rules count the day in (`berlinDayKey`), so
- * "served at 23:59" and "already served today" cannot disagree about which day that was.
+ * changes) rather than UTC.
  */
 const berlinTime = new Intl.DateTimeFormat("de-DE", {
   timeZone: "Europe/Berlin",
