@@ -386,6 +386,19 @@ bullets that sat under „Where batch 35 starts" are not carried over — they a
   more iteration. When the story *is* the behaviour change (a rule rewritten around a new input),
   there is no green intermediate: the story that supplies the input — a new port method, a dep the
   reading use case never had — lands in the same commit, and the commit body says why.
+- **A deleted `de.ts` key breaks `npm run typecheck` in `tests/` as well as `src/`.** `tsconfig`
+  includes `**/*.ts`, so a spec reading `de.settings.weekdays[4]` fails to compile the moment the
+  key goes — which means a presentation story that removes dictionary keys cannot leave the e2e
+  files to the story after it. Plan the e2e story as the *new* specs and the engine runs, and let
+  the deletions land with the keys (batch 36, US-36.5 absorbing US-36.6's first two criteria).
+- **„Load-bearing id" has a definition and it is countable** (`ui_styling_guide.md` §7: an id a spec
+  reaches by CSS selector). `grep -rhno '#[a-zA-Z][a-zA-Z0-9.]*' tests/e2e/<spec>.ts | cut -d: -f2 |
+  sort -u` answers it in one command — run it whenever a field is added to or removed from a form,
+  because the count sits in a comment no gate reads.
+- **A screen's „nothing is configured yet" state is reachable without emptying a table.**
+  `npm run start` honours `FD_FIXED_NOW_FILE`, so pinning an instant *before* the seeded version's
+  `effectiveFrom` renders it against the real build. `settingsVersion.deleteMany()` fails on a
+  foreign key anyway.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
