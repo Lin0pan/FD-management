@@ -75,6 +75,15 @@ bullets that sat under „Where batch 35 starts" are not carried over — they a
     afterwards is what makes the two agree — check with
     `SELECT sql FROM sqlite_master WHERE name='Customer_customerNumber_onRegister_key'` rather than
     trusting that the reset ran.
+  - **`sqlite3` is not installed in this sandbox**, so a "did the index land" check runs through
+    `npx tsx -e` with `$queryRawUnsafe` over `sqlite_master`. Read the seeded row's
+    `Object.keys(...)` in the same script: it proves the reset re-applied the *new* schema rather
+    than serving a stale file.
+  - **`migrate dev` wants `--skip-seed`**, or it seeds a database the hand-written indexes have not
+    been appended to yet.
+  - **Slice the hand-written tail off the OLD file by index** (`s.index("-- CreateIndex (hand-written")`)
+    and append it, rather than retyping it: every index and its comment comes back byte-identical,
+    which is what `schema.test.ts` greps for.
   - A regeneration **renames a directory that documents cite by name**. `grep -rn "<old-timestamp>_init"
     docs/ src/ tests/` afterwards; prefer the `prisma/migrations/*_init/migration.sql` glob, which
     survives the next one.
