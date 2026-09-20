@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 35**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 36**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -359,7 +359,10 @@ ended by a human being.
 - **36 (US-36)** finishes the removal: the no-show count walks **sessions** instead of calendar
   weeks — every cancelled week in that walk is a miss nobody made today — and the week anchor and
   the distribution weekday leave settings, schema and domain without replacement, taking
-  `weekColour.ts`, `distributionDay.ts`, `get-week-colour.ts` and `berlinDayKey` with them.
+  `weekColour.ts`, `distributionDay.ts` and `get-week-colour.ts` with them. **`berlinDayKey` is not
+  among them**, though the PRD was written saying so: the 13-year boundary has called it since
+  US-13.1, because a birthday turns over at Berlin midnight. What leaves is the Berlin-day
+  _matching_ of attended days inside the walk (corrected in both documents, 2026-09-20).
 - **37 (US-37)** is the two screens: `/ausgabetermine` and `/ausgabetermine/[id]`. No schema change,
   no new domain rule, no new ADR.
 

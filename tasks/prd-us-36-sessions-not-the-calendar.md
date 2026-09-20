@@ -29,9 +29,12 @@ knows what happened and what is happening, and that is all it claims.
 
 What goes with the anchor is a satisfying amount of code: `weekColour.ts`'s ISO-week arithmetic,
 `distributionDay.ts`, `get-week-colour.ts`, three settings columns, two form controls, two variants
-of the settings-history union, and `berlinDayKey`, whose last caller was the no-show walk. What stays
-is `startOfUtcDay`, which the certificate comparison needs and which belongs beside the other
-calendar-day helpers rather than in a module about a cycle that no longer exists.
+of the settings-history union, and the Berlin-day **matching** of attended days, whose only caller is
+the no-show walk. What stays is `startOfUtcDay`, which the certificate comparison needs and which
+belongs beside the other calendar-day helpers rather than in a module about a cycle that no longer
+exists — and `berlinDayKey` itself, which this PRD was written believing the walk was the last caller
+of: the 13-year boundary has read it since US-13.1, because a birthday turns over at Berlin midnight
+(`householdComposition.ts`). It stays in `attendance.ts` with that one caller.
 
 ## Goals
 
@@ -67,8 +70,11 @@ that the number beside a household means what I think it means.
       **display only**, no threshold lives here and nothing automatic follows from any value; and a
       **block is deliberately not excluded**. It drops the three calendar boundaries, which the four
       conditions above replace, and it does not narrate that it used to count weeks.
-- [ ] `berlinDayKey` and the Berlin-day matching leave `attendance.ts` with their last caller. Check
-      with `grep -rn berlinDayKey src/ tests/` that nothing is left.
+- [ ] The **Berlin-day matching of attended days** leaves `noShows.ts` with the walk it served:
+      attendance is matched by session id from here on, not by calendar day. `berlinDayKey` itself
+      **stays** in `attendance.ts` — the 13-year boundary has called it since US-13.1 and a birthday
+      still turns over at Berlin midnight. Check with `grep -rn berlinDayKey src/ tests/` that the
+      only caller left is `householdComposition.ts`.
 - [ ] Written test-first, one named test per rule:
   - `counts a session the household's group was served at and they missed`
   - `does not count a session that served only the other group`
@@ -112,7 +118,8 @@ nobody finds a working week-colour function and starts calling it again.
 - [ ] `src/domain/distribution/weekColour.ts` and `src/domain/distribution/distributionDay.ts` are
       **deleted**. `startOfUtcDay` moves to `src/domain/calendarDay.ts`, which is where a helper about
       calendar days belongs; `isoWeekdayOf`, `isoWeekOf`, `colourOf` and the ISO-week parsing go with
-      the files.
+      the files. Its callers are `counterVerdict.ts` **and `prisma/demo-seed.ts`**, which imports it
+      for the day it anchors the demo register on.
 - [ ] `settings-diff.ts` loses the `weekAnchorIsoWeek`, `weekAnchorColour` and `distributionWeekday`
       variants of `SettingsChange`. The union is switched exhaustively on the settings screen, so
       every removal is a compile error until the screen is updated — that is the mechanism working.

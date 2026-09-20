@@ -113,6 +113,7 @@ database**: it is a development fixture and `--reset` deletes customer data outr
 | `npm run test:e2e`        | Playwright on **Chromium** vs. the built app + throwaway SQLite dbs (browser install first) |
 | `npm run test:e2e:webkit` | The same suite on **WebKit** (Safari's engine), on registers of its own                     |
 | `npm run format`          | Prettier write                                                                              |
+| `npm run arc42:check`     | The structure and ADR-index check CI runs over `docs/architecture/`                         |
 | `npm run db:demo`         | Seed twenty synthetic households to click around with                                       |
 
 ## Architecture in one paragraph

@@ -1,10 +1,10 @@
 # Ralph Progress Log
-Started: Sun Sep 20 2026 (batch 36 — US-36 the derived rules follow sessions, not the calendar)
+Started: Sun Sep 20 2026 (batch 35 — US-35 a hand-out is the receipt of who stood at the counter)
 
 The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on purpose
-(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-35-specific
-bullets that sat under „Where batch 35 starts" are not carried over — they are in
-`scripts/ralph/archive/2026-09-20-us-35-session-receipt/progress.txt`.
+(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-34-specific
+bullets that sat under „Where batch 34 starts" are not carried over — they are in
+`scripts/ralph/archive/2026-09-20-us-34-distribution-session/progress.txt`.
 
 ## Codebase Patterns
 - **A transaction cannot span two ports.** There is no unit of work in this codebase and
@@ -449,67 +449,295 @@ bullets that sat under „Where batch 35 starts" are not carried over — they a
   `registration-form.tsx`'s group radio both carry the same three lines.
 
 
-### Where batch 36 starts
+### Where batch 35 starts
 
-US-34 made a hand-out belong to a **session** and US-35 froze the households it served. **Two things
-still read the calendar**, and this batch removes both.
+US-34 made a hand-out belong to a **session** (ADR-020). DF then asked for something the software
+has never been able to do: a past session must show the households **as they stood then** — the name
+they had that afternoon, the counts that were true then, the number they held, the card they
+carried, the certificate date on file. Two of those eight values (**name**, **Erw. + Kinder**) are
+not reconstructable at all, because editing a household overwrites them (US-16, FR-2), and three
+more would have to be assembled out of three different histories. So all eight are **captured
+together**: the hand-out becomes the **receipt** of who stood at the counter.
 
-**First, the no-show count.** „How many of their own distributions has this household missed in a
-row" is counted today by walking backwards through the calendar a fortnight at a time, asking the
-week anchor which colour each week carried — so **every cancelled week in that walk is a miss nobody
-made**. It now counts the sessions that actually took place: a session counts against a household
-when it has **ended**, its groups **include** the household's group, it **started after** they joined
-the register, and it holds **no hand-out** for them. The running session never counts. The figure
-stays **display only** — no threshold, no automatic archive — and a block is still deliberately not
-excluded.
+Requirements: `local_only/manually-start-ausgabe/refined-requirements.md` (E-4, E-5, E-7, E-8, E-9).
+Full PRD: `tasks/prd-us-35-session-receipt.md`. Four stories.
 
-**Second, the settings screen.** It still holds a week anchor („KW 02/2026 war Rot") and a
-distribution weekday. After US-34 nothing reads the weekday at all and the anchor is read by exactly
-one line on the Start screen. Both go **without replacement**: a settings value with no effect is one
-that eventually gets maintained wrongly, and a screen predicting „die nächste Ausgabe ist am
-Donnerstag (Rot)" makes a promise the software has no way to keep.
-
-Requirements: `local_only/manually-start-ausgabe/refined-requirements.md` requirement **D**.
-Full PRD: `tasks/prd-us-36-sessions-not-the-calendar.md`. Seven stories.
+**This batch has an expiry date, and it is the only one in the project that does.** Every session
+ended before the freeze rule exists is lost to the detail view for good. It merges immediately after
+US-34 and before DF are handed a build they run a real afternoon on.
 
 What changes, in one line each:
 
-- **`noShows.ts`** rewritten around `{ sessions, attendedSessionIds, customerGroup, registeredOn }`
-  — no settings, no weekday, no anchor, no clock.
-- **`listEnded()`** on `DistributionSessionRepository`; `countNoShows` loses its `SettingsRepository`
-  dependency and the callers pass the attended ids off records they already load.
-- **`weekColour.ts`, `distributionDay.ts`, `get-week-colour.ts` deleted**, `WeekColour`, `WeekAnchor`
-  and `IsoWeekday` with them; `startOfUtcDay` **moves** to `src/domain/calendarDay.ts`.
-- **Three `SettingsVersion` columns dropped**, two form controls and three `SettingsChange` variants
-  with them; the Start screen stops predicting.
-- **No new ADR.** ADR-020 already recorded this removal as its own consequence — a story that writes
-  one has misread the batch.
+- **`src/domain/distribution/handoutReceipt.ts`** — the nine captured columns and `receiptFor`,
+  deriving the counts through `composition(members, at)` at the session's **end** instant.
+- **`HandoutReceipt`** in the schema, one row per `DistributionRecord` (`recordId Int @unique`,
+  `onDelete: Restrict`). **Price and paidCents are NOT copied** — both are already on the hand-out.
+- **`freezeSession(sessionId, receipts)` / `thawSession(sessionId)`** on
+  `DistributionRecordRepository`; ending takes the receipts in the **same transaction** as the
+  ending, reopening gives them back in the same transaction as clearing `endedAt`.
+- **ADR-021**, which reverses US-16's written „no history of past household compositions", and root
+  `CLAUDE.md`'s „derive, don't store" list gains its **fourth** exception.
 
-**The order is load-bearing:** inside-out for the rule half (1, 2), **outside-in for the removal
-half** (3 domain, 4 schema, 5 screens). Built the other way round, story 3 breaks every caller at
-once. The exhaustive `switch` on `SettingsChange` is the safety net: the build fails until the
-settings screen stops rendering the three removed kinds.
+**Nothing in this batch is visible.** The receipts are written; the screen that reads them is US-37.
 
 **The three things most likely to go wrong:**
 
-- **`berlinDayKey` STAYS.** The PRD was written believing the no-show walk was its last caller; it is
-  not. `householdComposition.ts` has called it since US-13.1, because the 13-year boundary turns over
-  at **Berlin** midnight. What leaves is the Berlin-day *matching of attended days* inside
-  `noShows.ts` — attendance is matched by **session id** from here on. Deleting `berlinDayKey` moves
-  the age boundary to UTC and breaks the boundary tests; corrected in §US-36.1 and in this batch's
-  acceptance criteria (2026-09-20).
-- **Migrations are regenerated again** (the eleventh time, ADR-009), so **both** hand-written indexes
-  have to be re-added by hand: `Customer_customerNumber_onRegister_key` **and** `one_running_session`
-  from US-34.3. `schema.test.ts` greps for both. `npm run db:reset` after, or the first symptom is
-  the settings screen reporting that nothing is configured.
-- **The failure mode of a removal is a survivor** — a dictionary key, a comment, a test helper. Story
-  5 makes a grep an acceptance criterion, exactly as US-27 did for the portion allowance. Sweep
-  `src/`, `tests/` and `prisma/` (`demo-seed.ts` imports `startOfUtcDay` from the module story 3
-  deletes).
+- **The thaw is a DELETE, and ADR-010 forbids deleting.** It is the **third** deliberate exception
+  beside `HouseholdMember` and `CertificateType`, and the schema comment has to say why: a receipt
+  is not history, it is the freeze itself, re-taken whole by the next ending. A reopened session may
+  have a hand-out **removed** (US-34, FR-14), and a receipt still pointing at it would make the store
+  refuse that removal — thawing is what keeps the correction window open at all.
+- **The group and the card number are NOT columns.** The group is `groupOf(customerNumber)` of the
+  *captured* number (ADR-017) and the card number is `formatCardNumber(cardCustomerNumber,
+  cardIndex)` — a `group` column here would be exactly the second recording US-31 removed. Capture
+  the **card's own slot**, never the holder's current one (ADR-016).
+- **Migrations are regenerated again** (the tenth time, ADR-009), so **both** hand-written partial
+  unique indexes have to be re-added by hand: `Customer_customerNumber_onRegister_key` **and**
+  `one_running_session` from US-34.3. `schema.test.ts` greps for both. `npm run db:reset` after, or
+  the first symptom is the settings screen reporting that nothing is configured.
 
-**A household's group is unchanged:** still `groupOf(customerNumber)`, even is BLUE and odd is RED
-(ADR-017), shown everywhere it is shown today. Only the statement „this week is RED" disappears.
+**Two deliberate acceptances that are not bugs.** A household moved to another number while the
+session runs is captured under its **new** number and therefore its new group (E-5, J-1) — in a
+RED-only session possibly as BLUE. And a child who turns 13 during the afternoon is counted by the
+composition at the **end** instant, not by the price charged earlier — the same divergence
+`Card.grownUpsAtIssue` already exposes. Comment them, do not argue with them.
 
-**This is one piece of work in four parts** — 34 → 35 → 36 → 37. US-37 is the session overview and
-detail view, and it is the batch that proves US-35's freeze through a screen. A story here that finds
-itself building `/ausgabetermine` has picked up US-37's work.
+**A household archived and its number given away is still the household that was served** (E-4): the
+receipt is joined by `DistributionRecord.customerId`, the surrogate id, never the customer number.
+
+**This is one piece of work in four parts** — 34 → 35 → 36 → 37. US-36 removes the week anchor, the
+distribution weekday and `weekColour.ts`; US-37 is the session overview and detail view. A story in
+this batch that finds itself deleting `weekColour.ts` has picked up US-36's work.
+
+## 2026-09-20 — US-001 (US-35.1): the receipt is a domain value
+
+- New `src/domain/distribution/handoutReceipt.ts`: `HandoutReceipt` (the nine captured values),
+  `ReceiptHousehold` (the fields a receipt reads off the register), `ReceiptInput` and
+  `receiptFor({ customer, members, card, at })`, which derives the counts through
+  `composition(members, at)` — the household at the session's **end** instant.
+- New `src/domain/distribution/handoutReceipt.test.ts`, written first (the run against the missing
+  module is the red): the five named rules from the AC plus one for the certificate date and the
+  reminder count, which FR-1 captures and no named test covered.
+- Files changed: those two only. Nothing else in the tree compiles against the module yet — the
+  writers are US-002 (port + adapter) and US-003 (`endDistributionSession`).
+- Gates: `npm run lint`, `npm run typecheck`, `npm run test:coverage` (63 files, 1424 tests, domain
+  100%) and `npm run build` all green. No screen, no e2e — the batch is invisible until US-37.
+
+**Learnings for future iterations:**
+
+- **The house style for "everything this rule needs" is a narrow named input type, not the stored
+  record.** `counterVerdict.ts`'s `CounterCustomer` is the model: flat `certificateValidUntil` and
+  `reminderCount` rather than a `RegisteredCustomer`, with one line saying the application layer
+  derives them. `receiptFor` follows it, so `ReceiptHousehold` is **not** assignable from
+  `RegisteredCustomer` — US-003's call site spreads `customer.details` alongside `customerNumber`
+  and `reminderCount`. That is deliberate: the receipt's fields are named once, here.
+- **A `Pick<IssuedCard, "customerNumber" | "index">` states a refusal the comment would otherwise
+  have to carry.** The type itself says the printed counts (`countsAtIssue`) are not read, and the
+  test still passes a *whole* `IssuedCard` variable to prove it — an object literal could not, since
+  excess-property checking would reject `countsAtIssue` while a variable is assignable.
+- **The domain type is `IssuedCard.countsAtIssue`; the columns are `grownUpsAtIssue` /
+  `childrenAtIssue`.** Root `CLAUDE.md` and `schema.prisma` cite the column names, the domain cites
+  the field — a comment in `src/domain/` that names the columns is naming something that layer
+  cannot see.
+- **A module may cite an ADR the batch has not written yet.** `handoutReceipt.ts` cites ADR-021,
+  which US-004 records; `arc42.py check` reads `docs/`, not `src/`, and the whole batch is one PR.
+  Do not invent a placeholder number — the PRD names it.
+- **Story 1 of this batch is deliberately documentation-free.** Chapter 05's module list and the
+  glossary belong to US-004 by the PRD's own split, so an iteration that updates them here will
+  collide with the story that owns them. `docs/` stays untouched until then.
+- **`it("…")` names longer than 100 columns are normal in this repo** (251 such lines) — Prettier
+  will not break a string and the AC dictates the wording. Re-wrap the `/** */` prose instead, which
+  is what the width rule is about.
+---
+
+## 2026-09-20 — US-002 (US-35.2: the receipt table, written and thawed with the session)
+
+- **Schema.** New `HandoutReceipt` model in `prisma/schema.prisma`: `recordId Int @unique` with a
+  `DistributionRecord` relation (`onDelete: Restrict` stated out loud) plus exactly the nine captured
+  columns of US-35.1 — no group, no formatted card number, no `priceCents`/`paidCents`. The model
+  comment says the three things the code cannot: that it is a snapshot in `Card.grownUpsAtIssue`'s
+  sense, that the group and the card number stay derived, and why these rows may be **deleted** where
+  ADR-010 forbids it (the thaw is what keeps a reopened session correctable).
+- **Migrations regenerated** (`20260919153410_init` → `20260920125124_init`), both hand-written
+  indexes re-appended by hand, `npm run db:reset` after, and the reset database verified to carry
+  `Customer_customerNumber_onRegister_key` and `one_running_session` by querying `sqlite_master`.
+  `diff` against the old SQL shows only the new table and its unique index.
+- **Port.** `freezeSession(sessionId, receipts)` and `thawSession(sessionId)` on
+  `DistributionRecordRepository`, documented once there, with a new `FrozenHandout` type
+  (`{ recordId, receipt }`) above the interface.
+- **Adapter.** `freezeSession` is one `$transaction`: `deleteMany` the session's receipts, then
+  `createMany`. `thawSession` is the `deleteMany` alone. Both reach the session through the relation
+  filter `{ record: { sessionId } }`.
+- **Fixtures.** `clearRegister` and `releaseNumbers` delete receipts before the records they point at;
+  `demo-seed.ts` freezes every served afternoon before ending it (42 receipts for 42 hand-outs,
+  verified by querying the seeded register). `prisma/seed.ts` is untouched — settings only.
+- **Five integration tests** against a throwaway SQLite file: the round trip of all nine values, one
+  receipt per hand-out and none for another afternoon, the re-take, the thaw leaving hand-outs
+  untouched, and the store refusing to remove a hand-out its receipt still points at (P2003) then
+  allowing it once thawed.
+- Files: `prisma/schema.prisma`, `prisma/migrations/20260920125124_init/migration.sql`,
+  `prisma/demo-seed.ts`, `src/application/ports.ts`,
+  `src/infrastructure/prisma/distribution-record-repository.{ts,test.ts}`,
+  `src/infrastructure/prisma/test-support.ts`, `tests/e2e/seeding.ts`, and the eight application test
+  files whose fakes implement the port.
+- Gates: lint, typecheck, `test:coverage` (63 files, 1429 tests, domain + application 100%), `build`,
+  `format:check`, and **both** e2e engines (221 passed each) all green.
+
+**Learnings for future iterations:**
+
+- **Adding a method to `DistributionRecordRepository` is an eight-file test break**, and every one of
+  them is a hand-written fake: `change-customer-number`, `maintain-customer`, `lookup-customer`,
+  `customers`, `distribution-session`, `read-group-roster`, `record-attendance`,
+  `correct-attendance`. The house stub is `Promise.reject(new Error("… has a suite of its own"))`,
+  which is better than a no-op — a use case that starts calling the method fails loudly in the suites
+  that have no business exercising it. Patch them with a script that inserts before the class's first
+  `\n}\n`; `tsc` names the files but not the insertion point.
+- **A transaction cannot span two ports in this codebase** — there is no unit of work, and
+  `$transaction` appears only inside adapters. So „the receipts land in one transaction *with* the
+  session's end" is implemented as **ordering plus idempotence**, not as one SQL transaction:
+  `freezeSession` first (a failure leaves the session running), `end` second. `freezeSession`
+  therefore begins with a `deleteMany` — the freeze is re-taken whole, which is also what heals a
+  reopening whose thaw did not land. The alternative, stamping `endedAt` from the *record*
+  repository, was refused: it would have hidden the one write everybody looks for in the session
+  repository and left `sessions.end` dead.
+- **A Prisma relation filter is how a child table is scoped by its grandparent.**
+  `handoutReceipt.deleteMany({ where: { record: { sessionId } } })` needs no join and no id list; the
+  same shape scopes `releaseNumbers`' delete by the customers it is releasing.
+- **`omit: { id: true, recordId: true }` turns a round-trip test into one `toEqual`** against the
+  domain value that was written — no field list to fall behind when a column is added. `findUniqueOrThrow`
+  keeps it a single expression.
+- **Assert the *code* of a refusal the database issues, and prove the assertion by breaking it.**
+  A foreign key refusing a delete is `P2003`, not the `P2025` the adapter translates; `rejects.toSatisfy`
+  reads it off `Prisma.PrismaClientKnownRequestError`. Flipping the code to `P9999` for one run is
+  what separates a real assertion from one that passes on any rejection.
+- **The demo seed cannot call `endDistributionSession`** — that use case reads `deps.clock.now()`,
+  while every fixture instant is a historical `day.at`. So the seed freezes through the port directly
+  and maps `RegisteredCustomer` → `ReceiptHousehold` by hand, which US-003 will do again in the use
+  case. Two call sites, one deliberate: the alternative is a domain function taking a stored record,
+  which is exactly what `ReceiptHousehold` exists to avoid.
+---
+
+## 2026-09-20 — US-003 (US-35.3: ending takes the receipts; reopening gives them back)
+
+- **`endDistributionSession`** gains `customers: CustomerRepository` and, between summarising the
+  afternoon and stamping it, builds one `FrozenHandout` per hand-out: `customers.findById` on the
+  record's **surrogate id**, mapped to the domain's `ReceiptHousehold` by a local `receiptOf` and
+  through `receiptFor({ …, at: now })`. Then `records.freezeSession` and only afterwards
+  `sessions.end` — a freeze that fails leaves the afternoon running. `@throws {CustomerNotFound}`
+  for a hand-out naming a household the register does not hold.
+- **`reopenDistributionSession`** gains `records: DistributionRecordRepository` and calls
+  `thawSession` **after** `sessions.reopen`, before the audit entry.
+- **No call site changed**: `counterActionDeps` already carries `customers` and `records`, and every
+  composition root is wider than each `Deps` interface (structural typing). `tsc` stayed green on
+  `src/app/**` with no edit — the batch really is invisible.
+- Tests (written first, nine red): `FakeCustomerRepository` and a `frozen` map plus a `freezeFails`
+  flag on the record fake in `distribution-session.test.ts`, then the five named rules from the AC
+  plus the card's own slot, the empty afternoon, the failed freeze and the unknown household.
+- Files: `end-distribution-session.ts`, `reopen-distribution-session.ts`,
+  `distribution-session.test.ts`. No `docs/` and no `prisma/` — US-004 owns both.
+- Gates: lint, typecheck, `test:coverage` (63 files, 1439 tests, domain + application 100%), `build`,
+  `format:check`, and **both** e2e engines (221 passed each) all green. The suite proved the wiring
+  end to end without a new spec: each e2e register came out of the run holding **20 receipts**
+  written by the real screen, action and adapter.
+
+**Learnings for future iterations:**
+
+- **Adding a dependency to a use case's `Deps` breaks nothing at the call sites**, and that is the
+  design: every composition root in `src/app/**/deps.ts` is wider than each `Deps` interface, so a
+  use case may start reading any port the root already holds without a single edit outside its own
+  file and suite. Check the root before assuming a wide break — `counterActionDeps` holds all eight.
+- **The end instant is only observable across Berlin midnight.** `composition` compares *calendar
+  days*, so every instant of one afternoon gives the same counts and a test asserting "taken at the
+  end, not at the hand-out" passes just as well against `session.startedAt`. The one fixture that
+  separates them is an afternoon **ended after midnight** (`2026-01-08T23:30Z` = 00:30 Berlin) with a
+  member whose 13th birthday is the next day. Without it the whole AC is untested.
+- **A `Partial<T>` fixture builder hides a field that has to move with another.** `receipt()` defaults
+  both `customerNumber` and `cardCustomerNumber` to 49, so the second household's expectation read
+  `{ customerNumber: 50 }` and silently kept card slot 49 — a one-line diff at the end of a green
+  implementation that looked like a bug in the use case. Where two fields are equal *by default and
+  not by rule*, override both or let the builder derive one from the other.
+- **Order between two stores is stated as a comment or it is not stated at all.** `freezeSession`
+  before `end`, `thawSession` **after** `reopen`: the asymmetry is deliberate — each leaves the
+  half-done state that the *next* act heals, since the freeze is re-taken whole. The port doc written
+  in US-35.2 already anticipated „a reopening whose `thawSession` did not land", which is what
+  settled the direction. Read the port before choosing an order.
+- **A nullable port read inside the happy path needs a typed error, not a `??`.** `customers.findById`
+  is `T | null` and the 100% branch gate reaches both arms only if the `null` is *thrown*, which also
+  makes the refusal honest: a hand-out naming a household the register does not hold leaves the
+  afternoon running rather than closing one that cannot be read back. `CustomerNotFound` already
+  existed and `tierOf` already covers it, so no German string and no `notice-tier.ts` edit followed.
+- **`Promise.all` over `handouts.map(async …)` is the house shape for N independent reads** (see
+  `lookup-customer.ts`), preserves order for the assertion, and keeps a `throw` inside the callback
+  working as a rejection. There is no `no-await-in-loop` rule, but the parallel form is what this
+  codebase reads like.
+- **Prove an invisible batch against the e2e registers, not with a new spec.** `data/e2e*.db` are
+  ordinary SQLite files and a five-line `tsx` script against `PrismaClient` with
+  `datasources.db.url = file:../data/e2e.db` counts what the suite just wrote. It has to live **inside
+  the repo** (`@prisma/client` resolves nowhere else) and wrap its `await` in a function — the same
+  two constraints the `local_only/` bullet above names.
+---
+
+## 2026-09-20 — US-004 (US-35.4: record ADR-021 and correct what it reverses)
+
+- **ADR-021** „Capture the household's state when a distribution session is ended", scaffolded with
+  `arc42.py new-adr` and set `Accepted` in both the file and the chapter 9 row. Context, options and
+  consequences are taken from DF's own requirement E and their answers (G-3 when to freeze, G-7 no
+  balance, H-2 the reopening, J-1 the mid-session number change) rather than reconstructed.
+- **ADR-007 amended, not superseded**: a **fifth** row in its exception table (`HandoutReceipt`'s
+  nine columns) plus the paragraph saying which row was added and why the group and the card number
+  stayed derived. **ADR-010 amended** the same way ADR-019 amended it: a third deliberate deletion,
+  on an argument of a third kind.
+- **Root `CLAUDE.md`, the two counts the batch made wrong**: three exceptions to derive-don't-store
+  → four, with the receipt's argument written in the same voice as the other three; two deliberate
+  deletion exceptions → three.
+- **arc42**: 05 (29 domain modules, `handoutReceipt.ts` named in the `distribution/` row, the two
+  port methods on `DistributionRecordRepository`), 08 (thirteen tables, the `HandoutReceipt` block
+  and relation in the ER diagram, the five-exception rule restated as **derived or snapshotted**,
+  the third deletion, the freeze, and the end-instant rule under „Time"), 09 (the ADR row, the
+  count in the intro, and a row in **Decisions that were reversed**), 11 (a forgotten session now
+  also takes its receipt late), 12 (glossary **Receipt** / _Beleg_, plus the two entries that had
+  stopped being true).
+- `tasks/prd-us-16-maintain-customer-record.md` gained a second dated note at the top; its body is
+  untouched. `src/application/ports.ts`'s `updateHousehold` doc had copied FR-2's absolute claim —
+  one clause bounds it.
+- `docs/handout/betriebsanleitung.md`: four German sentences between „verwerfen" and „wieder
+  öffnen".
+- Gates: `arc42.py check`, `prettier --check .`, lint, typecheck, `test` (63 files, 1439 tests) and
+  `build` all green. No e2e: the only `src/` change is a doc comment.
+
+**Learnings for future iterations:**
+
+- **`npm run arc42:check` does not exist**, though three PRDs and this batch's AC name it. `package.json`
+  has no such script; CI runs `python3 .claude/skills/arc42/scripts/arc42.py check` directly
+  (`.github/workflows/ci.yml`). Run the script. Its clean output still lists the two long-standing
+  `> **TODO:**` markers in chapter 07 — those are expected, not this story's.
+- **Root `CLAUDE.md` and ADR-007 have never agreed on how many exceptions there are, and both are
+  right.** The ADR's table counts `DistributionRecord.priceCents`; `CLAUDE.md`'s prose list never
+  has. So one batch makes it „three → four" in one file and „four → five" in the other. Say which
+  file a count belongs to before changing it, and state the discrepancy where a reader meets it
+  (ADR-021's consequence does) rather than quietly aligning the two.
+- **Never rewrap a markdown paragraph with a script that stops at the next blank line.** Two such
+  rewraps swallowed the following list item into the paragraph above it (`CLAUDE.md`'s audit
+  „Don't", chapter 08's `onDelete` bullet) and one turned a top-level bullet into a nested one by
+  applying a two-space prefix to the `-` as well. `prettier --check` passes on all three, because
+  every result is valid markdown — only reading `git diff` catches it. Re-wrap by hand, or bound the
+  block by its own list marker.
+- **The width sweep has to be re-run after each rewrap, not once at the end.** Fixing one 101-column
+  line pushes words onto the next and creates the next violation, so the check is a loop:
+  `git diff -U0 | python3 -c "…len(b) > 100…"` until it is silent. Exclude lines containing `](` —
+  a long ADR link is unbreakable and Prettier accepts it.
+- **A documentation story still has to ask what is true *today*.** The AC's German paragraph
+  described the detail view US-37 builds, in a document DF actually hold; it was rewritten to
+  describe what ending a session *does* („Was eine beendete Ausgabe festhält"), which is true now,
+  is the one thing DF need in order to use the reopening sensibly, and reads identically once the
+  screen lands. An AC written for a four-part piece of work can name a screen that is two batches
+  away.
+- **An ADR that reverses something gets a second home in chapter 09.** The „Decisions that were
+  reversed" table is not covered by `arc42.py check` and no AC named it, but the chapter says in its
+  own words why it exists — a reversal is the most useful row in a decision log. A batch whose PRD
+  says „this reverses a written decision" owes that table a row.
+- **Sweep the reversed claim's *phrasing* through `src/` too, not only `docs/` and `tasks/`.**
+  `grep -rn "no history of past"` found the sentence copied into `ports.ts` and
+  `customer-repository.ts` verbatim. The port was bounded (documented once, on the port); the
+  adapter was left, since CLAUDE.md puts that comment's home on the port.
+---
