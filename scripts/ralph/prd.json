@@ -264,7 +264,7 @@
         "Lint passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "Last story. Cite ADR-020 from code rather than re-arguing it (CLAUDE.md: where the argument is already recorded, cite it and stop). Do NOT remove Wochenfarbe from the glossary yet — US-36 does that, and a glossary that drops a word still in the code is worse than one that marks it."
     }
   ]

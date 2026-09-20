@@ -1,6 +1,6 @@
 # 1. Introduction and goals
 
-_Last reviewed: 2026-09-17_
+_Last reviewed: 2026-09-20_
 
 ## Introduction
 
@@ -22,7 +22,7 @@ five years or more with little maintenance, possibly in the hands of a different
 
 ## Requirements overview
 
-The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-33.
+The story-by-story record is [`tasks/`](../../tasks/), one PRD per user story, US-01 to US-37.
 (`docs/archiv/user_stories_mvp.md` describes an early MVP scope the system has since moved past; it is not
 current — see [chapter 11](11-risks-and-technical-debt.md).) What matters architecturally:
 
@@ -39,14 +39,19 @@ current — see [chapter 11](11-risks-and-technical-debt.md).) What matters arch
 - **Derive the egg allowance** — how many eggs the household is handed alongside the food — from the
   number of people in it, whatever their ages, against the staircase DF configured. The eggs are
   free and do not touch the price.
+- **Start and end a distribution by hand**, naming the group or groups it serves. At most one runs
+  at a time, and nothing the software does ever ends one
+  ([ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
 - **Answer one question at the counter**: given a card or customer number, may this household
-  collect today? Exactly one verdict, never a list of hints.
-- **Record a hand-out** — at most one per household per distribution day — and allow it to be
-  corrected the same day.
+  collect at the session under way? Exactly one verdict, never a list of hints.
+- **Record a hand-out** — at most one per household per session — and allow it to be corrected
+  until that session is ended, after which the last one may be reopened with a reason.
 - **Track the proof of need**: flag an expiring or expired certificate, log each reminder given,
   record a renewal. There is no automatic consequence; escalation is a staff judgement.
 - **Alternate RED and BLUE weeks** strictly, derived from the calendar so two weeks of one colour in
-  a row are impossible.
+  a row are impossible. Since ADR-020 the alternation decides nothing — which groups collect is the
+  choice made when a session is started — and only the Start screen's „nächste Ausgabe" line still
+  reads it, until US-36.
 - **Keep the register true over time**: block and unblock, archive (releasing the number), reuse an
   archived record for a re-registration, run a waiting list in strict arrival order.
 - **Let DF change their own rules** — quota, prices, price cap, distribution weekday, week anchor,

@@ -10,6 +10,15 @@
 > for what is built. The rest of this PRD — one hand-out per Berlin day, the price captured on the
 > record, correction and removal on the same day only — still stands.
 
+> ⚠️ **The Berlin day is no longer the unit — superseded by
+> [US-34](prd-us-34-distribution-session.md) (2026-09-20).** A hand-out belongs to the
+> **distribution session** it was recorded in: „once per Berlin day" is now once per session, and
+> „correctable on the same day only" is now correctable until that session is ended — after which
+> the most recently ended one may be reopened with a reason
+> ([ADR-020](../docs/architecture/adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
+> An afternoon may therefore cross midnight, and two hand-outs to one household on one calendar day
+> are correct where they are two sessions. The price captured on the record is unchanged.
+
 ## 1. Introduction
 
 When a customer has been looked up and is clear to serve, one action must record that they showed up

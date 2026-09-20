@@ -1,6 +1,6 @@
 # 6. Runtime view
 
-_Last reviewed: 2026-09-06_
+_Last reviewed: 2026-09-20_
 
 Four scenarios, chosen for what they reveal rather than for how easily they draw. Participants are
 named as in [chapter 5](05-building-block-view.md). The failure paths are the point — they are where
@@ -68,8 +68,8 @@ more (paying ahead), and what is stored is what was handed over.
 revalidates and redirects to the counter's initial state, handing the household's **customer
 number** — and nothing else — to the confirmation the page states at the top. The name, the amount
 and the time are read back through `lookupCustomer` on the way in, so the sentence cannot go on
-stating a hand-out another tab has since corrected, and a number that resolves to no record today is
-silent rather than an error. The rising group tally is the standing evidence the write landed.
+stating a hand-out another tab has since corrected, and a number with no hand-out in this session
+is silent rather than an error. The rising group tally is the standing evidence the write landed.
 Everything that is _not_ a success stays on the screen with the household it is about — the
 overpayment question above and every refusal below — because nothing may be cleared while an answer
 is owed (US-32.7).

@@ -326,6 +326,17 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   the fix; only the one naming the defect was red. Do not read „green immediately" as a fixture
   mistake and do not delete the test — it is the proof the AC asked for. Still run the suite
   **before** implementing, so which ones are red is a fact rather than a guess.
+- **A documentation sweep greps the vanished identifier, not the concept.** When a story removes a
+  column or a function, `grep -rn "<oldName>" docs/ tasks/` names every chapter that has quietly
+  stopped being true in one command — including the accepted ADRs, whose *examples* may cite it even
+  though their decision is untouched. Grepping the concept („session", „group") matches hundreds of
+  lines and finds nothing. The counterpart rule holds for prose: a claim is corrected by grepping
+  its *phrasing*.
+- **Chapter 05 carries four counting words and nothing checks them:** „N modules in four families",
+  „N use cases behind N ports", „N modules" under `src/infrastructure/`, and „(the other N)" for the
+  repositories. A heading and the table under it can disagree — US-34.4 updated „twelve ports" while
+  the ports table stayed at eleven rows. Count both halves whenever a module, a port or a route is
+  added.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
@@ -1042,3 +1053,63 @@ the docs.
   `browserName`. `registration.spec.ts` failed once mid-run and passed on every run after — a flake
   in a file this story does not touch, and worth knowing it exists rather than chasing it here.
 ---
+
+## 2026-09-20 — US-012 (US-34.12) Record ADR-020 and update what it makes wrong
+
+**Implemented.** ADR-020 („The distribution session, not the calendar, is what a hand-out belongs
+to"), Accepted, scaffolded with `arc42.py new-adr` and written out in full: five rejected
+alternatives, including the two an implementer reaches for (override the calendar; derive the
+session from the hand-outs themselves) and the two DF refused by name (auto-close, editing an ended
+session). Then the sweep. Chapters **05** (the session module, the twelfth port's missing row, the
+adapter and route counts, `/` and `/ausgabe`), **08** (the ER diagram gains `DistributionSession`
+and loses `dayKey`/`loggedOn`, the „two calendars" rule, the audit list, the invariants table and
+the `P2002`-names-an-index note), **09** (the ADR row, „twenty decisions", a reversal row), **12**
+(_Ausgabetermin_ and _laufende Ausgabe_ added, _Wochenfarbe_ marked as on its way out, not removed),
+**06** (one stale „today", the review date). Beyond the AC and for the same reason: **01** (two
+capability bullets stated the calendar rule), **02** (`dayKey` as a stored key; one hand-written
+partial index is now two), **04** (§5 listed the two vanished indexes), **11** (both indexes in the
+regeneration risk; a new risk row for a session nobody ends), ADR-002 (a consequence bullet named
+`dayKey`). `betriebsanleitung.md` gains „Die Ausgabe starten und beenden" and its „Am selben Tag"
+correction paragraph is rewritten; `ui_styling_guide.md` §8's „window that closes" example named the
+window this batch removed. Root `CLAUDE.md`'s audit list gains ending and reopening.
+
+Files: `docs/architecture/adr/020-*.md` (new), `docs/architecture/{01,02,04,05,06,08,09,11,12}*.md`,
+`docs/architecture/README.md`, `docs/architecture/adr/002-*.md`, `docs/guideline/ui_styling_guide.md`,
+`docs/handout/{README.md,betriebsanleitung.md}`, `tasks/prd-us-0{3,5}-*.md`, `CLAUDE.md`.
+
+**Learnings for future iterations:**
+
+- **`npm run arc42:check` does not exist** — the AC names it, but `package.json` has no such script
+  and CI runs `python3 .claude/skills/arc42/scripts/arc42.py check` directly. Run the script; do not
+  add the alias on a documentation story.
+- **A batch's documentation debt is collected in the progress log, and it was right.** US-34.3, .5,
+  .8 and .9 each named the chapter they had falsified and left it; every one of those pointers was
+  accurate and the sweep cost an hour instead of a day. Keep writing them — and read the whole log
+  before the documentation story, not just the PRD.
+- **The AC named five chapters and seven were wrong.** `02` (a stored `dayKey`), `04` (§5's index
+  list), `01` (two capability bullets) and `11` (the regeneration risk) were falsified by stories
+  3 and 5 and named by nobody. The sweep that finds them is for the **vanished identifier**, not for
+  the concept: `grep -rn "dayKey\|loggedOn" docs/` found `02`, `04` and ADR-002 in one command,
+  where „session" matches hundreds of lines.
+- **An accepted ADR still has to stop naming a column that no longer exists.** ADR-002's consequence
+  bullet cited `dayKey` as its example of SQLite having no timezone arithmetic. Changing an example
+  to one that is still true is not rewriting the decision — the decision (SQLite) and its reasoning
+  are untouched — and a dead identifier in an ADR is the „comment describing code nobody can find"
+  failure with a longer half-life. Reserve the amendment paragraph (ADR-007's shape) for a rule that
+  actually moved.
+- **The handout's stale sentence was more urgent than the section the AC asked for.** „Am selben Tag
+  können Sie einen Eintrag ändern" is an instruction DF would have followed into a dead end. A
+  documentation story that adds a section without re-reading the sections around it ships a document
+  that contradicts itself — `grep -in "am selben\|heute\|Kalendertag" docs/handout/`.
+- **`ui_styling_guide.md` §8's examples are load-bearing prose.** Its „a window that closes" example
+  quoted the same-day correction window verbatim, so the rule taught the next reader a sentence the
+  product no longer says. When a rule is illustrated by a real string, changing the string is part
+  of changing the rule's subject.
+- **Three counting words in chapter 05 go stale per batch, and one had already drifted.** „44 use
+  cases behind twelve ports" was updated by US-34.4 while the ports **table** stayed at eleven rows —
+  a heading and its table disagreeing, which no gate sees. Check both halves: `grep -c "^| \`" `
+  the table against the number in the heading. „27 modules" (now 28), „13 adapters" (now 14, and
+  „modules" is the honest word — `clock.ts`, `client.ts`, `seed.ts` and `test-support.ts` are not
+  adapters) and „the other 7" repositories (now 8) all moved this batch.
+- **No `src/` change, so no browser check** — this story is documentation only. The gates that mean
+  anything here are `format:check` (Prettier owns every table in `docs/`) and `arc42.py check`.

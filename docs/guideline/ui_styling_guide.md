@@ -453,7 +453,7 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   does. Text earns its place by naming something **invisible**:
   - a side effect — „Erinnerungen werden dabei auf 0 zurückgesetzt“
   - a one-way door — „Rückgängig machen lässt sich die Archivierung nicht“
-  - a window that closes — „Korrekturen sind nur am selben Tag möglich“
+  - a window that closes — „Nach dem Beenden sind die Einträge nicht mehr korrigierbar“
   - what an **empty** field means — „Leer lassen: kein Maximalpreis“
   - an example that makes a free-text box answerable — „z. B. über die Nachbarin, dienstags
     vormittags“

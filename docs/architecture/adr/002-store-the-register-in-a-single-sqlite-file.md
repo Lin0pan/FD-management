@@ -40,10 +40,13 @@ columns are `Int` cents, because SQLite has no decimal type.
 - No database server exists to administer, secure or keep patched.
 - SQLite's limits shape the schema in ways that show up throughout: no decimal type
   ([money is integer cents](../08-crosscutting-concepts.md#money)), no enum type (groups, statuses and
-  reasons are validated strings), no timezone arithmetic (`dayKey` is written by the domain), and no
-  case- or umlaut-folding in `WHERE` (the folded search keys in [ADR-007](007-derive-anything-computable-rather-than-storing-it.md)).
-- Prisma cannot express a partial unique index, so the one the slot rule needs is hand-written at the
-  end of the init migration and must be re-added whenever the migration is regenerated
+  reasons are validated strings), no timezone arithmetic (a Berlin day is derived in the domain, and
+  since [ADR-020](020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md) no
+  row is keyed by one), and no case- or umlaut-folding in `WHERE` (the folded search keys in
+  [ADR-007](007-derive-anything-computable-rather-than-storing-it.md)).
+- Prisma cannot express a partial unique index, so the two this schema needs — the slot rule's and
+  the one admitting a single running session — are hand-written at the end of the init migration and
+  must be re-added whenever it is regenerated
   ([ADR-009](009-regenerate-migration-history-until-fd-holds-real-data.md)).
 - Concurrent writers are limited, which is invisible at this many users and would not be at hundreds.
 - No backup schedule exists yet. That is the single most important operational gap and is tracked in
