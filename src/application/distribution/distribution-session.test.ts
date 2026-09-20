@@ -1,11 +1,22 @@
+import { faker } from "@faker-js/faker";
 import { beforeEach, describe, expect, it } from "vitest";
+import type { IssuedCard } from "@/domain/card/card";
+import type {
+  CustomerDetails,
+  HouseholdMemberDetails,
+  PersonalDetails,
+  RegisteredCustomer,
+} from "@/domain/customer/customer";
+import { composition } from "@/domain/customer/householdComposition";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
+import type { HandoutReceipt } from "@/domain/distribution/handoutReceipt";
 import {
   createSessionGroups,
   type DistributionSession,
   type SessionGroups,
 } from "@/domain/distribution/session";
 import {
+  CustomerNotFound,
   DistributionSessionAlreadyRunning,
   DistributionSessionNotEmpty,
   DistributionSessionNotReopenable,
@@ -15,11 +26,14 @@ import {
 } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import type {
+  ArchivedCustomer,
   AuditEntry,
   AuditLog,
   Clock,
+  CustomerRepository,
   DistributionRecordRepository,
   DistributionSessionRepository,
+  FrozenHandout,
   ReminderLogEntry,
   ReminderLogRepository,
 } from "../ports";
@@ -31,9 +45,23 @@ import { startDistributionSession } from "./start-distribution-session";
 
 /** Hand-written fakes throughout, per the testing standard — no mocking library. */
 
+faker.seed(20260920);
+
 const STARTED = "2026-01-08T14:00:00.000Z";
 const ENDED = "2026-01-08T17:30:00.000Z";
+/**
+ * 00:30 the next morning in Berlin — the one instant at which an afternoon's end falls on another
+ * calendar day than its hand-outs, and therefore the only way a receipt can show that it is taken
+ * at the **end** and not when the household stood at the counter.
+ */
+const ENDED_AFTER_MIDNIGHT = "2026-01-08T23:30:00.000Z";
 const LATER = "2026-01-15T14:00:00.000Z";
+
+const GROWN_UP = "1985-03-11T00:00:00.000Z";
+const CHILD = "2020-06-01T00:00:00.000Z";
+/** A member who turns 13 on 9 January 2026 — a child all afternoon and a grown-up at midnight. */
+const CHILD_TURNING_13 = "2013-01-09T00:00:00.000Z";
+const CERTIFICATE_UNTIL = "2027-01-31T00:00:00.000Z";
 
 const RUNNING_ID = 12;
 const EARLIER_ID = 11;
@@ -133,6 +161,11 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
 }
 
 class FakeDistributionRecordRepository implements DistributionRecordRepository {
+  /** The receipts each afternoon is frozen with, keyed by the session they belong to. */
+  readonly frozen = new Map<number, ReadonlyArray<FrozenHandout>>();
+  /** Set by the one test that asks what an ending does when the store refuses the freeze. */
+  freezeFails = false;
+
   constructor(private readonly rows: ReadonlyArray<DistributionRecord> = []) {}
 
   listForCustomer(): Promise<ReadonlyArray<DistributionRecord>> {
@@ -160,12 +193,106 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   remove(): Promise<void> {
     return Promise.reject(new Error("Correcting a hand-out has a suite of its own"));
   }
-  freezeSession(): Promise<void> {
-    return Promise.reject(new Error("Freezing an afternoon has a suite of its own"));
+  freezeSession(sessionId: number, receipts: ReadonlyArray<FrozenHandout>): Promise<void> {
+    if (this.freezeFails) {
+      return Promise.reject(new Error("the store refused the freeze"));
+    }
+    // `set` rather than a merge, because the adapter drops what the session already carries: a
+    // freeze is re-taken whole and never amended.
+    this.frozen.set(sessionId, receipts);
+    return Promise.resolve();
   }
 
-  thawSession(): Promise<void> {
-    return Promise.reject(new Error("Thawing an afternoon has a suite of its own"));
+  thawSession(sessionId: number): Promise<void> {
+    this.frozen.delete(sessionId);
+    return Promise.resolve();
+  }
+}
+
+/**
+ * The customer register, holding whole households: a receipt is read off the row, so a fake
+ * answering with less than the adapter does would prove nothing about what is captured.
+ */
+class FakeCustomerRepository implements CustomerRepository {
+  readonly holders: RegisteredCustomer[] = [];
+
+  constructor(...holders: RegisteredCustomer[]) {
+    this.holders.push(...holders);
+  }
+
+  findById(id: number): Promise<RegisteredCustomer | null> {
+    return Promise.resolve(this.holders.find((customer) => customer.id === id) ?? null);
+  }
+
+  /** The **active** holder of a slot, which is what "who is on 49 today" asks. */
+  findByCustomerNumber(customerNumber: number): Promise<RegisteredCustomer | null> {
+    return Promise.resolve(
+      this.holders.find(
+        (customer) => customer.customerNumber === customerNumber && customer.status === "ACTIVE",
+      ) ?? null,
+    );
+  }
+
+  updateDetails(
+    id: number,
+    details: PersonalDetails,
+    household: ReadonlyArray<HouseholdMemberDetails>,
+  ): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    const held = this.holders[index];
+    this.holders[index] = {
+      ...held,
+      details: { ...held.details, ...details, householdMembers: [...household] },
+    };
+    return Promise.resolve();
+  }
+
+  archive(id: number, reason: string, archivedAt: Date): Promise<void> {
+    const index = this.holders.findIndex((customer) => customer.id === id);
+    this.holders[index] = {
+      ...this.holders[index],
+      status: "ARCHIVED",
+      blockReason: null,
+      archiveReason: reason,
+      archivedAt,
+    };
+    return Promise.resolve();
+  }
+
+  takenActiveNumbers(): Promise<ReadonlyArray<number>> {
+    return Promise.reject(new Error("Allocating a number has a suite of its own"));
+  }
+
+  listWithStatus(): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.reject(new Error("Reading the register has a suite of its own"));
+  }
+
+  list(): Promise<ReadonlyArray<RegisteredCustomer>> {
+    return Promise.reject(new Error("The customer list has a suite of its own"));
+  }
+
+  searchArchived(): Promise<ReadonlyArray<ArchivedCustomer>> {
+    return Promise.reject(new Error("Searching the archive has a suite of its own"));
+  }
+
+  create(): Promise<RegisteredCustomer> {
+    return Promise.reject(new Error("Registering a customer has a suite of its own"));
+  }
+
+  updateHousehold(): Promise<void> {
+    return Promise.reject(new Error("Editing a household has a suite of its own"));
+  }
+
+  updateNotes(): Promise<void> {
+    return Promise.reject(new Error("Editing a note has a suite of its own"));
+  }
+
+  changeCustomerNumber(): Promise<IssuedCard> {
+    return Promise.reject(new Error("Moving a household has a suite of its own"));
+  }
+
+  setStatus(): Promise<void> {
+    return Promise.reject(new Error("Blocking a customer has a suite of its own"));
   }
 }
 
@@ -196,7 +323,10 @@ class FakeAuditLog implements AuditLog {
   }
 }
 
-/** A hand-out in the session under test — only the two money fields and the session matter here. */
+/**
+ * A hand-out in the session under test. The customer it names is its own id, so a register holding
+ * households 1 and 2 is the register the afternoon below was served from.
+ */
 function handout(id: number, paidCents: Cents, sessionId = RUNNING_ID): DistributionRecord {
   return {
     id,
@@ -207,6 +337,81 @@ function handout(id: number, paidCents: Cents, sessionId = RUNNING_ID): Distribu
     paidCents,
     priceCents: 500 as Cents,
   };
+}
+
+function member(birthDate: string): HouseholdMemberDetails {
+  return {
+    firstName: faker.person.firstName(),
+    lastName: faker.person.lastName(),
+    birthDate: new Date(birthDate),
+  };
+}
+
+interface CustomerOverrides {
+  readonly id?: number;
+  readonly customerNumber?: number;
+  readonly firstName?: string;
+  readonly lastName?: string;
+  readonly householdMembers?: ReadonlyArray<HouseholdMemberDetails>;
+  /** The slot the card was printed under, which a move leaves behind (ADR-016). */
+  readonly cardCustomerNumber?: number;
+}
+
+/** A household in the register: one grown-up and one child on slot 49 unless a test says so. */
+function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
+  const customerNumber = overrides.customerNumber ?? 49;
+  const details: CustomerDetails = {
+    firstName: overrides.firstName ?? "Mira",
+    lastName: overrides.lastName ?? "Aalto",
+    birthDate: new Date(GROWN_UP),
+    address: { street: "Hauptstraße", houseNumber: "1", zip: "33129", city: "Delbrück" },
+    certificate: { type: "Jobcenter", validUntil: new Date(CERTIFICATE_UNTIL) },
+    householdMembers: overrides.householdMembers ?? [member(GROWN_UP), member(CHILD)],
+    notes: "",
+  };
+  return {
+    id: overrides.id ?? 1,
+    customerNumber,
+    status: "ACTIVE",
+    blockReason: null,
+    archiveReason: null,
+    archivedAt: null,
+    reminderCount: 0,
+    card: {
+      customerNumber: overrides.cardCustomerNumber ?? customerNumber,
+      index: 1,
+      issuedAt: new Date(STARTED),
+      reason: "FIRST_ISSUE",
+      countsAtIssue: composition(details.householdMembers, new Date(STARTED)),
+    },
+    registeredOn: new Date(STARTED),
+    previousCustomerId: null,
+    details,
+  };
+}
+
+/** What {@link customerRecord}'s household comes to once frozen — all nine captured values. */
+function receipt(overrides: Partial<HandoutReceipt> = {}): HandoutReceipt {
+  return {
+    customerNumber: 49,
+    firstName: "Mira",
+    lastName: "Aalto",
+    grownUps: 1,
+    children: 1,
+    cardCustomerNumber: 49,
+    cardIndex: 1,
+    certificateValidUntil: new Date(CERTIFICATE_UNTIL),
+    reminderCount: 0,
+    ...overrides,
+  };
+}
+
+/** The receipts the store holds for one afternoon — empty where it holds none. */
+function frozenIn(
+  records: FakeDistributionRecordRepository,
+  sessionId = RUNNING_ID,
+): ReadonlyArray<FrozenHandout> {
+  return records.frozen.get(sessionId) ?? [];
 }
 
 describe("startDistributionSession", () => {
@@ -325,6 +530,7 @@ describe("discardDistributionSession", () => {
 describe("endDistributionSession", () => {
   let sessions: FakeDistributionSessionRepository;
   let records: FakeDistributionRecordRepository;
+  let customers: FakeCustomerRepository;
   let audit: FakeAuditLog;
 
   beforeEach(() => {
@@ -332,11 +538,15 @@ describe("endDistributionSession", () => {
       session({ groups: createSessionGroups(["RED", "BLUE"]) }),
     );
     records = new FakeDistributionRecordRepository();
+    customers = new FakeCustomerRepository(
+      customerRecord(),
+      customerRecord({ id: 2, customerNumber: 50, firstName: "Jonas", lastName: "Behrens" }),
+    );
     audit = new FakeAuditLog();
   });
 
-  function deps() {
-    return { sessions, records, audit, clock: fakeClock(ENDED) };
+  function deps(at = ENDED) {
+    return { sessions, records, customers, audit, clock: fakeClock(at) };
   }
 
   it("counts what was taken when the session ends", async () => {
@@ -382,10 +592,119 @@ describe("endDistributionSession", () => {
     );
     expect(audit.entries).toHaveLength(0);
   });
+
+  it("freezes every hand-out of the session when it is ended", async () => {
+    records = new FakeDistributionRecordRepository([
+      handout(1, 500 as Cents),
+      handout(2, 250 as Cents),
+      // An earlier afternoon's hand-out: neither frozen here nor even looked up, which is why the
+      // register below need not hold household 3 at all.
+      handout(3, 900 as Cents, EARLIER_ID),
+    ]);
+
+    await endDistributionSession(deps());
+
+    expect(frozenIn(records)).toEqual([
+      { recordId: 1, receipt: receipt() },
+      {
+        recordId: 2,
+        receipt: receipt({
+          customerNumber: 50,
+          cardCustomerNumber: 50,
+          firstName: "Jonas",
+          lastName: "Behrens",
+        }),
+      },
+    ]);
+    expect(records.frozen.has(EARLIER_ID)).toBe(false);
+  });
+
+  it("captures the card's own slot, not the one its holder has moved to", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ customerNumber: 51, cardCustomerNumber: 49 }),
+    );
+    records = new FakeDistributionRecordRepository([handout(1, 500 as Cents)]);
+
+    await endDistributionSession(deps());
+
+    expect(frozenIn(records)[0]?.receipt).toEqual(
+      receipt({ customerNumber: 51, cardCustomerNumber: 49 }),
+    );
+  });
+
+  it("keeps following corrections while the session is still running", async () => {
+    records = new FakeDistributionRecordRepository([handout(1, 500 as Cents)]);
+    // The spelling is noticed after the household has collected and put right before the afternoon
+    // is closed: until the ending, the record is what the receipt will say.
+    const { birthDate, address, householdMembers } = customerRecord().details;
+    await customers.updateDetails(
+      1,
+      { firstName: "Mira", lastName: "Aalto-Rinne", birthDate, address },
+      householdMembers,
+    );
+
+    await endDistributionSession(deps());
+
+    expect(frozenIn(records)[0]?.receipt).toEqual(receipt({ lastName: "Aalto-Rinne" }));
+  });
+
+  it("counts a child who turned 13 before the session was ended as a grown-up", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ householdMembers: [member(GROWN_UP), member(CHILD_TURNING_13)] }),
+    );
+    records = new FakeDistributionRecordRepository([handout(1, 500 as Cents)]);
+
+    // The price charged in the afternoon was a grown-up's and a child's; the receipt says two
+    // grown-ups. The divergence is real and is not to be "fixed" (US-35.3) — it is the one
+    // `Card.grownUpsAtIssue` already exposes.
+    await endDistributionSession(deps(ENDED_AFTER_MIDNIGHT));
+
+    expect(frozenIn(records)[0]?.receipt).toEqual(receipt({ grownUps: 2, children: 0 }));
+  });
+
+  it("keeps the household that was served after its number is given to another", async () => {
+    records = new FakeDistributionRecordRepository([handout(1, 500 as Cents)]);
+
+    await endDistributionSession(deps());
+
+    // The household leaves the register and slot 49 is handed to the next applicant.
+    await customers.archive(1, "weggezogen", new Date(LATER));
+    customers.holders.push(
+      customerRecord({ id: 3, customerNumber: 49, firstName: "Selma", lastName: "Nowak" }),
+    );
+
+    expect((await customers.findByCustomerNumber(49))?.details.firstName).toBe("Selma");
+    expect(frozenIn(records)).toEqual([{ recordId: 1, receipt: receipt() }]);
+  });
+
+  it("freezes nothing for an afternoon nobody came to", async () => {
+    await endDistributionSession(deps());
+
+    expect(frozenIn(records)).toEqual([]);
+    expect(await sessions.findRunning()).toBeNull();
+  });
+
+  it("leaves the session running when the freeze fails", async () => {
+    records = new FakeDistributionRecordRepository([handout(1, 500 as Cents)]);
+    records.freezeFails = true;
+
+    await expect(endDistributionSession(deps())).rejects.toThrowError("the store refused");
+    expect((await sessions.findRunning())?.id).toBe(RUNNING_ID);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses to end an afternoon naming a household the register does not hold", async () => {
+    records = new FakeDistributionRecordRepository([handout(9, 500 as Cents)]);
+
+    await expect(endDistributionSession(deps())).rejects.toBeInstanceOf(CustomerNotFound);
+    expect((await sessions.findRunning())?.id).toBe(RUNNING_ID);
+  });
 });
 
 describe("reopenDistributionSession", () => {
   let sessions: FakeDistributionSessionRepository;
+  let records: FakeDistributionRecordRepository;
+  let customers: FakeCustomerRepository;
   let audit: FakeAuditLog;
 
   beforeEach(() => {
@@ -393,11 +712,15 @@ describe("reopenDistributionSession", () => {
       session({ id: EARLIER_ID, endedAt: new Date("2026-01-01T17:00:00.000Z") }),
       session({ endedAt: new Date(ENDED) }),
     );
+    // The afternoon as ending left it: one hand-out, frozen with the household that collected.
+    records = new FakeDistributionRecordRepository([handout(1, 500 as Cents)]);
+    records.frozen.set(RUNNING_ID, [{ recordId: 1, receipt: receipt() }]);
+    customers = new FakeCustomerRepository(customerRecord());
     audit = new FakeAuditLog();
   });
 
   function deps() {
-    return { sessions, audit, clock: fakeClock(LATER) };
+    return { sessions, records, audit, clock: fakeClock(LATER) };
   }
 
   it("reopens the session that ended last, and records why", async () => {
@@ -436,6 +759,36 @@ describe("reopenDistributionSession", () => {
       reopenDistributionSession(deps(), { sessionId: EARLIER_ID, reason: "Zahlung nachtragen" }),
     ).rejects.toBeInstanceOf(DistributionSessionNotReopenable);
     expect((await sessions.findById(EARLIER_ID))?.endedAt).not.toBeNull();
+    expect(frozenIn(records)).toHaveLength(1);
+  });
+
+  it("thaws the frozen state when the session is reopened", async () => {
+    await reopenDistributionSession(deps(), {
+      sessionId: RUNNING_ID,
+      reason: "Zahlung nachtragen",
+    });
+
+    expect(records.frozen.has(RUNNING_ID)).toBe(false);
+  });
+
+  it("freezes it again when the reopened session is ended", async () => {
+    await reopenDistributionSession(deps(), {
+      sessionId: RUNNING_ID,
+      reason: "Name falsch geschrieben",
+    });
+
+    // The correction the reopening was for, and then the second ending that closes it again.
+    const { birthDate, address, householdMembers } = customerRecord().details;
+    await customers.updateDetails(
+      1,
+      { firstName: "Mira", lastName: "Aalto-Rinne", birthDate, address },
+      householdMembers,
+    );
+    await endDistributionSession({ sessions, records, customers, audit, clock: fakeClock(LATER) });
+
+    expect(frozenIn(records)).toEqual([
+      { recordId: 1, receipt: receipt({ lastName: "Aalto-Rinne" }) },
+    ]);
   });
 
   it("refuses to reopen a session the register does not hold", async () => {

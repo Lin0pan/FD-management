@@ -3,6 +3,10 @@
  * hand-out closed a minute too early can still be corrected. Its records become amendable again and
  * ending it a second time closes them again.
  *
+ * The households captured when it was ended are given back with them (US-35, ADR-021): a reopened
+ * afternoon follows every correction exactly as a running one does, and the next ending takes the
+ * receipts afresh. There is no amending a frozen one.
+ *
  * The reason **is** the record here, as it is for a block and an archival: nothing else on the row
  * says why a closed afternoon was opened up.
  *
@@ -13,7 +17,12 @@
 
 import { canReopen } from "@/domain/distribution/session";
 import { DistributionSessionNotReopenable, MissingAuditReason } from "@/domain/errors";
-import type { AuditLog, Clock, DistributionSessionRepository } from "../ports";
+import type {
+  AuditLog,
+  Clock,
+  DistributionRecordRepository,
+  DistributionSessionRepository,
+} from "../ports";
 
 /** The audit event a reopening is written under. */
 const SESSION_REOPENED = "distribution.session.reopened";
@@ -23,6 +32,7 @@ const REOPENED_FIELDS = ["endedAt"] as const;
 
 export interface ReopenDistributionSessionDeps {
   readonly sessions: DistributionSessionRepository;
+  readonly records: DistributionRecordRepository;
   readonly audit: AuditLog;
   readonly clock: Clock;
 }
@@ -63,6 +73,10 @@ export async function reopenDistributionSession(
   }
 
   await deps.sessions.reopen(sessionId);
+  // Thawed after the end stamp is cleared, not before it: a thaw that lands on a session still
+  // ended would leave an afternoon nobody can read back, while a reopening whose thaw did not land
+  // heals at the next ending, which re-takes the freeze whole.
+  await deps.records.thawSession(sessionId);
   await deps.audit.append({
     what: SESSION_REOPENED,
     changedFields: [...REOPENED_FIELDS],
