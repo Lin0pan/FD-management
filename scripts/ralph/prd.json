@@ -180,7 +180,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "This is the screen DF see on a Monday. It has exactly two jobs: start the next afternoon, and show what the last one did. The reopening lives here because it is only ever reached from here."
     },
     {

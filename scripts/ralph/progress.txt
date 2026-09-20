@@ -254,6 +254,12 @@ bullets that sat under „Where batch 33 starts" are not carried over — they a
   browser check or nothing (batch 31, `/kunden/neu` and the record's number control). Assert
   `hasAttribute("checked")` and not only `.checked` — the attribute is what the reset restores from,
   so it is the half that tells a fixed control from one that happens to look right.
+- **`germanDate` is for days and `germanDateTime` for instants, and the difference is the time zone.**
+  `germanDate` reads UTC deliberately (a stored day is midnight UTC), so passing it a *moment* names
+  the wrong day for anything after 23:00 UTC — and a session left running overnight is exactly the
+  case the last-session summary is read in. Both instants of an afternoon are written out in full
+  rather than as one day with two times, for the same reason: „14:00–08:30" would state an overnight
+  session as a morning.
 - **`list[0]` lies in this repo; `list.at(0) ?? fallback` does not.** `tsconfig` has no
   `noUncheckedIndexedAccess`, so an index access on a possibly-empty array types as present and the
   `?? fallback` beside it reads as dead code to the next reader. `.at(0)` returns `T | undefined`,
@@ -829,4 +835,50 @@ Files: `src/app/ausgabe/{page.tsx,session-controls.tsx,session-actions.ts,sessio
 - **The e2e suite is still behaviour-red elsewhere** (US-34.10 starts the sessions); only
   `distribution.spec.ts` was brought over in this story, because deleting the banner is what
   falsified it. It passes on **both** engines.
+---
+
+## 2026-09-20 — US-008 (US-34.8) The distribution screen with no session running
+
+**Implemented.** Between afternoons `/ausgabe` now has its second job. `readDistributionSessionState`
+returns `lastEnded` as an `EndedSession` — `session` + `summary` + `canReopen` — the same three-part
+shape `RunningSession` already had, so a screen reads either the same way. The page renders a
+`LastSessionCard` under the start form: the group badges (a lifted `SessionGroupBadges`, shared with
+the session header), „Begonnen"/„Beendet" as full instants, and the clause „1 Haushalt versorgt,
+4,00 € eingenommen". Beside it stands „Ausgabe wieder öffnen" — the closed disclosure of
+`archive-controls.tsx`, reason required, save disabled until one is typed — wired to a
+`reopenSessionAction` that carries the session in a hidden field. The counter lookup, the tally and
+an inert `?nummer=` were already right from US-34.7 and were re-checked rather than rewritten.
+
+Files: `src/application/distribution/read-distribution-session-state.ts` (+ four tests in
+`distribution-session.test.ts`), `src/app/ausgabe/{page.tsx,session-controls.tsx,session-actions.ts}`,
+`src/i18n/{de.ts,format.ts,format.test.ts}`.
+
+**Learnings for future iterations:**
+
+- **The reopening was reachable in the browser for real, so nothing had to be faked.** Start a
+  session serving both groups → look up demo customer 6 → „Ausgabe erfassen" → end → the card states
+  „1 Haushalt versorgt, 4,00 € eingenommen" → reopen with a reason → the audit table holds
+  `distribution.session.reopened` carrying it, and the hand-out is correctable again. That whole loop
+  is one `npm run db:demo` and eight commands; prefer it to the `local_only/` fixture script, which
+  is only for a state no screen can yet produce.
+- **`npm run db:demo` seeds sessions now**, so `/ausgabe` between afternoons is never the
+  before-the-first-session screen in the demo register. The last seeded one is ended with no
+  hand-outs (0 Haushalte, 0,00 €) — run one afternoon by hand if the figures are what you are
+  checking.
+- **A clause read on two screens is lifted above `de`, not copied.** „N Haushalte versorgt, X €
+  eingenommen" is both the end confirmation's first sentence and the whole of the last session's
+  summary; `servedAndTook` beside `householdCount` is the existing pattern (`eggRow`, `fromPersons`)
+  and the reason is CLAUDE.md's: two wordings of one fact are how two screens come to disagree.
+- **`canReopen(ended, { mostRecentlyEnded: ended, running })` passes the same session twice on
+  purpose.** The store has just answered that it *is* the one that ended last, so what is left for
+  the rule to weigh is the session running against it. Restating the rule as `running === null` in
+  the use case would have been a second source of truth for FR-16; the comment says why it reads
+  circular.
+- **`endedAt` is narrowed, never asserted.** The store only reports a session as the last *ended*
+  one when it has an end stamp, but the type is `Date | null` for every session — so the card guards
+  with `=== null ? null : …` rather than a `!`, which the style rules forbid anyway.
+- **Still on US-34.12's list, untouched here:** chapter 05's `/ausgabe` row (line 127) describes the
+  counter alone and has said nothing about starting, ending or reopening an afternoon since US-34.7.
+  It is incomplete rather than wrong, and widening that cell reflows the whole table under Prettier —
+  which is the documentation story's diff to own, not this one's.
 ---

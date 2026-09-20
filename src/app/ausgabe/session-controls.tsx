@@ -1,25 +1,33 @@
 "use client";
 
 /**
- * The afternoon's own three controls (`tasks/prd-us-34-distribution-session.md` §US-34.7): start one,
- * end one, throw an empty one away. A client component for `useActionState`; no rules here — which
- * controls are on screen is decided by the state the page read.
+ * The afternoon's own four controls (`tasks/prd-us-34-distribution-session.md` §§US-34.7, US-34.8):
+ * start one, end one, throw an empty one away, open the last one up again. A client component for
+ * `useActionState`; no rules here — which controls are on screen is decided by the state the page
+ * read.
  *
- * Ending and discarding are the same two-step disclosure as the block and archive controls
- * (`docs/guideline/ui_styling_guide.md` §6): at the counter the queue is waiting and nothing may
- * have to be dismissed before the next customer is served, so neither is a `Dialog`.
+ * Ending, discarding and reopening are the same two-step disclosure as the block and archive
+ * controls (`docs/guideline/ui_styling_guide.md` §6): at the counter the queue is waiting and
+ * nothing may have to be dismissed before the next customer is served, so none of them is a
+ * `Dialog`.
  */
 
-import { useActionState } from "react";
+import { useActionState, useId, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import type { SessionSummary } from "@/domain/distribution/session";
 import { de } from "@/i18n/de";
 import { ControlSummary } from "../disclosure";
 import { Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
-import { discardSessionAction, endSessionAction, startSessionAction } from "./session-actions";
+import {
+  discardSessionAction,
+  endSessionAction,
+  reopenSessionAction,
+  startSessionAction,
+} from "./session-actions";
 import { GROUP_OPTIONS_IN_ORDER, type GroupOption } from "./session-options";
 import { initialSessionState, type SessionActionState } from "./session-state";
 
@@ -167,5 +175,60 @@ export function RunningSessionControls({
       <SessionNotice id="session-end" state={endState} />
       <SessionNotice id="session-discard" state={discardState} />
     </div>
+  );
+}
+
+/**
+ * „Ausgabe wieder öffnen" — the way back into the afternoon that ended last (US-34.8), and the only
+ * screen it is reached from.
+ *
+ * The reason **is** the record, as it is for a block and an archival, so the save stays disabled
+ * until one has been typed — the same shape and the same argument as `archive-controls.tsx`. The
+ * session is carried in a hidden field rather than resolved by the action: what is reopened is the
+ * afternoon this screen was showing.
+ */
+export function ReopenSessionControls({ sessionId }: { sessionId: number }): React.ReactElement {
+  const [state, action, pending] = useActionState(reopenSessionAction, initialSessionState);
+  const [reason, setReason] = useState("");
+  const reasonId = useId();
+
+  return (
+    <details className="group">
+      <ControlSummary testId="session-reopen-open">
+        {de.distribution.session.reopen.open}
+      </ControlSummary>
+      <form action={action} className="mt-3 flex flex-col items-start gap-3">
+        <input type="hidden" name="sessionId" value={sessionId} />
+        <Alert>
+          <AlertDescription data-testid="session-reopen-confirm" className="max-w-prose">
+            {de.distribution.session.reopen.confirm}
+          </AlertDescription>
+        </Alert>
+        <div className="flex w-full max-w-prose flex-col gap-1">
+          <label htmlFor={reasonId} className="text-sm font-medium">
+            {de.distribution.session.reopen.reasonLabel}
+          </label>
+          <Textarea
+            id={reasonId}
+            name="reason"
+            rows={3}
+            required
+            data-testid="session-reopen-reason"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+          />
+        </div>
+        <Button
+          type="submit"
+          disabled={reason.trim() === "" || pending}
+          data-testid="session-reopen-submit"
+        >
+          {pending
+            ? de.distribution.session.reopen.submitting
+            : de.distribution.session.reopen.submit}
+        </Button>
+        <SessionNotice id="session-reopen" state={state} />
+      </form>
+    </details>
   );
 }

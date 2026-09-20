@@ -88,6 +88,15 @@ function householdCount(count: number): string {
   return count === 1 ? "1 Haushalt" : `${count} Haushalte`;
 }
 
+/**
+ * What an afternoon came to, in one clause: „7 Haushalte versorgt, 42,50 € eingenommen“. Read
+ * twice — in the confirmation that ends a session and in the summary of the one that ended last —
+ * and lifted here so the two cannot come to word the same figures differently.
+ */
+function servedAndTook(households: number, totalPaidCents: number): string {
+  return `${householdCount(households)} versorgt, ${formatEuros(totalPaidCents)} eingenommen`;
+}
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -1102,7 +1111,7 @@ export const de = {
       end: {
         open: "Ausgabe beenden",
         confirm: (households: number, totalPaidCents: number): string =>
-          `${householdCount(households)} versorgt, ${formatEuros(totalPaidCents)} eingenommen. ` +
+          `${servedAndTook(households, totalPaidCents)}. ` +
           `Nach dem Beenden sind die Einträge nicht mehr korrigierbar.`,
         submit: "Ja, Ausgabe beenden",
         submitting: "Wird beendet …",
@@ -1124,6 +1133,38 @@ export const de = {
           notEmpty: "An dieser Ausgabe wurde bereits etwas erfasst. Bitte sie stattdessen beenden.",
           notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
           unknown: "Die Ausgabe konnte nicht verworfen werden. Bitte erneut versuchen.",
+        },
+      },
+      /**
+       * The afternoon that ended last, which is half of what the screen between afternoons is for
+       * (US-34.8): a session left running until Friday morning shows up here as one that ran
+       * through the night.
+       *
+       * Both instants are written out in full rather than as one day with two times. The overnight
+       * session is exactly the case this is read in, and „14:00–08:30“ would state it as a morning.
+       */
+      last: {
+        heading: "Letzte Ausgabe",
+        startedAt: (instant: string): string => `Begonnen: ${instant}`,
+        endedAt: (instant: string): string => `Beendet: ${instant}`,
+        summary: (households: number, totalPaidCents: number): string =>
+          `${servedAndTook(households, totalPaidCents)}.`,
+      },
+      /**
+       * Opening the last afternoon up again so a hand-out closed a minute too early can still be
+       * corrected (FR-16). The reason is the record — nothing else on the row says why — so it is
+       * asked for as the block and the archive ask for theirs.
+       */
+      reopen: {
+        open: "Ausgabe wieder öffnen",
+        confirm: "Die Einträge dieser Ausgabe werden wieder korrigierbar.",
+        reasonLabel: "Grund",
+        submit: "Ja, wieder öffnen",
+        submitting: "Wird geöffnet …",
+        errors: {
+          missingReason: "Bitte einen Grund angeben.",
+          notReopenable: "Diese Ausgabe lässt sich nicht mehr öffnen. Bitte die Seite neu laden.",
+          unknown: "Die Ausgabe konnte nicht geöffnet werden. Bitte erneut versuchen.",
         },
       },
     },

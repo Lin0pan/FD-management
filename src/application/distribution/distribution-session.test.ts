@@ -464,7 +464,7 @@ describe("readDistributionSessionState", () => {
     const state = await readDistributionSessionState(deps(sessions));
 
     expect(state.running).toBeNull();
-    expect(state.lastEnded?.id).toBe(EARLIER_ID);
+    expect(state.lastEnded?.session.id).toBe(EARLIER_ID);
     expect(state.proposedGroups).toEqual(["BLUE"]);
   });
 
@@ -524,5 +524,41 @@ describe("readDistributionSessionState", () => {
     );
 
     expect(state.running?.canDiscard).toBe(false);
+  });
+
+  it("sums what the afternoon that ended last came to", async () => {
+    const sessions = new FakeDistributionSessionRepository(
+      session({ id: EARLIER_ID, endedAt: new Date(ENDED) }),
+    );
+    const records = new FakeDistributionRecordRepository([
+      handout(1, 400 as Cents, EARLIER_ID),
+      handout(2, 250 as Cents, EARLIER_ID),
+    ]);
+
+    const state = await readDistributionSessionState(deps(sessions, records));
+
+    expect(state.lastEnded?.summary).toEqual({ households: 2, totalPaidCents: 650 });
+  });
+
+  it("offers to reopen the afternoon that ended last", async () => {
+    const sessions = new FakeDistributionSessionRepository(
+      session({ id: EARLIER_ID, endedAt: new Date(ENDED) }),
+    );
+
+    const state = await readDistributionSessionState(deps(sessions));
+
+    expect(state.lastEnded?.canReopen).toBe(true);
+  });
+
+  it("withholds the reopening while another afternoon is running", async () => {
+    const sessions = new FakeDistributionSessionRepository(
+      session({ id: EARLIER_ID, endedAt: new Date(ENDED) }),
+      session({ startedAt: new Date(LATER) }),
+    );
+
+    const state = await readDistributionSessionState(deps(sessions));
+
+    expect(state.lastEnded?.session.id).toBe(EARLIER_ID);
+    expect(state.lastEnded?.canReopen).toBe(false);
   });
 });

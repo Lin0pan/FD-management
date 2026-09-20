@@ -3,13 +3,14 @@
  * (`tasks/prd-us-34-distribution-session.md` §US-34.4): whether one is running, what it has come to,
  * which was the last to end, and which groups the start form should preselect.
  *
- * One read for all of it so no screen states two answers: the proposal is `proposeGroups` of the very
- * session reported as the last ended, and the summary is of the very session reported as running,
- * never a second query that might have moved on.
+ * One read for all of it so no screen states two answers: each summary is of the very session it is
+ * reported beside, and the proposal is `proposeGroups` of the very session reported as the last
+ * ended — never a second query that might have moved on.
  */
 
 import {
   canDiscard,
+  canReopen,
   proposeGroups,
   summariseSession,
   type DistributionSession,
@@ -44,11 +45,28 @@ export interface RunningSession {
   readonly canDiscard: boolean;
 }
 
+/**
+ * The afternoon that ended last and what it came to — the same three-part answer
+ * {@link RunningSession} gives about the one under way, so a screen showing either reads it the
+ * same way.
+ */
+export interface EndedSession {
+  readonly session: DistributionSession;
+  /** What it closed with: the households served and what they handed over. */
+  readonly summary: SessionSummary;
+  /**
+   * Whether it may be opened up again, which only the one that ended last may and only while
+   * nothing is running (FR-16). The rule is the domain's; a screen only offers or withholds the
+   * control by it.
+   */
+  readonly canReopen: boolean;
+}
+
 export interface DistributionSessionState {
   /** The afternoon under way, or `null` between them. */
   readonly running: RunningSession | null;
   /** The afternoon that ended last — what a summary is shown of and what a reopening may address. */
-  readonly lastEnded: DistributionSession | null;
+  readonly lastEnded: EndedSession | null;
   /**
    * The groups to preselect when the next session is started, `null` before the first has ever taken
    * place. A proposal and never a rule: deviating from it needs no reason (FR-2).
@@ -61,11 +79,22 @@ export async function readDistributionSessionState(
   deps: ReadDistributionSessionStateDeps,
 ): Promise<DistributionSessionState> {
   const running = await deps.sessions.findRunning();
-  const lastEnded = await deps.sessions.lastEnded();
-  const proposal = { lastEnded, proposedGroups: proposeGroups(lastEnded) };
+  const ended = await deps.sessions.lastEnded();
+
+  const lastEnded =
+    ended === null
+      ? null
+      : {
+          session: ended,
+          summary: summariseSession(await deps.records.listForSession(ended.id)),
+          // The session appears twice because the store has just answered that it *is* the one that
+          // ended last; what is left for the rule to weigh is the session running against it.
+          canReopen: canReopen(ended, { mostRecentlyEnded: ended, running }),
+        };
+  const past = { lastEnded, proposedGroups: proposeGroups(ended) };
 
   if (running === null) {
-    return { running: null, ...proposal };
+    return { running: null, ...past };
   }
 
   const handouts = await deps.records.listForSession(running.id);
@@ -79,6 +108,6 @@ export async function readDistributionSessionState(
         reminders: reminders.length,
       }),
     },
-    ...proposal,
+    ...past,
   };
 }

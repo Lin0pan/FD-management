@@ -75,3 +75,23 @@ const berlinTime = new Intl.DateTimeFormat("de-DE", {
 export function germanTime(instant: Date): string {
   return berlinTime.format(instant);
 }
+
+/**
+ * An instant as `TT.MM.JJJJ, HH:MM` — a date that is a *moment*, not a day.
+ *
+ * Berlin, for {@link germanTime}'s reason, and that is the whole of why this is not
+ * {@link germanDate} with a time appended: an afternoon left running overnight and ended the next
+ * morning is precisely the case this is read in, and a UTC date would name the wrong day for it.
+ */
+const berlinDateTime = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export function germanDateTime(instant: Date): string {
+  return berlinDateTime.format(instant);
+}

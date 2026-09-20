@@ -19,6 +19,7 @@ import Link from "next/link";
 import { lookupCustomer, type CounterLookup } from "@/application/customers/lookup-customer";
 import {
   readDistributionSessionState,
+  type EndedSession,
   type RunningSession,
 } from "@/application/distribution/read-distribution-session-state";
 import {
@@ -33,9 +34,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
+import type { SessionGroups } from "@/domain/distribution/session";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
-import { germanTime } from "@/i18n/format";
+import { germanDateTime, germanTime } from "@/i18n/format";
 import { ArchiveControls } from "../kunden/archive-controls";
 import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
@@ -43,7 +45,11 @@ import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { GroupProgressCard } from "./group-progress-card";
 import { RECORD_REMOVED } from "./removed-flag";
-import { RunningSessionControls, StartSessionForm } from "./session-controls";
+import {
+  ReopenSessionControls,
+  RunningSessionControls,
+  StartSessionForm,
+} from "./session-controls";
 import { optionFor } from "./session-options";
 import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
@@ -81,15 +87,73 @@ function SessionHeader({ running }: { running: RunningSession }): React.ReactEle
       <CardContent className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-base font-medium">{de.distribution.session.running}</p>
-          <div data-testid="session-groups" className="flex flex-wrap items-center gap-2">
-            {running.session.groups.map((group) => (
-              <Badge key={group} variant="outline" className={GROUP_STYLES[group]}>
-                {de.distribution.colours[group]}
-              </Badge>
-            ))}
-          </div>
+          <SessionGroupBadges groups={running.session.groups} testId="session-groups" />
         </div>
         <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard} />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Which group or groups an afternoon serves, named in words and wearing what the Kundenliste and a
+ * customer's record wear — one colour means one thing application-wide
+ * (`docs/guideline/ui_styling_guide.md` §12).
+ */
+function SessionGroupBadges({
+  groups,
+  testId,
+}: {
+  groups: SessionGroups;
+  testId: string;
+}): React.ReactElement {
+  return (
+    <div data-testid={testId} className="flex flex-wrap items-center gap-2">
+      {groups.map((group) => (
+        <Badge key={group} variant="outline" className={GROUP_STYLES[group]}>
+          {de.distribution.colours[group]}
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * What the afternoon before this one came to, the second of the two jobs the screen has between
+ * afternoons (US-34.8) — the first being the start form above it.
+ *
+ * It is here that a session nobody ended is noticed: one that ran through the night says so in its
+ * two instants. The reopening stands beside it because this is the only screen it is ever reached
+ * from, and it is offered by the state's own answer rather than by this branch happening to be the
+ * one where nothing runs.
+ */
+function LastSessionCard({ ended }: { ended: EndedSession }): React.ReactElement {
+  const words = de.distribution.session.last;
+  return (
+    <Card data-testid="last-session">
+      <CardHeader>
+        <CardTitle className="text-lg">
+          <h2>{words.heading}</h2>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <SessionGroupBadges groups={ended.session.groups} testId="last-session-groups" />
+        <div className="flex flex-col gap-1">
+          <p data-testid="last-session-started">
+            {words.startedAt(germanDateTime(ended.session.startedAt))}
+          </p>
+          {/* `endedAt` is non-null on every session the store reports as the last *ended* one; the
+              guard is how that is said without an assertion. */}
+          {ended.session.endedAt === null ? null : (
+            <p data-testid="last-session-ended">
+              {words.endedAt(germanDateTime(ended.session.endedAt))}
+            </p>
+          )}
+          <p data-testid="last-session-summary">
+            {words.summary(ended.summary.households, ended.summary.totalPaidCents)}
+          </p>
+        </div>
+        {ended.canReopen ? <ReopenSessionControls sessionId={ended.session.id} /> : null}
       </CardContent>
     </Card>
   );
@@ -314,12 +378,16 @@ export default async function DistributionPage({
         ) : null}
 
         {counterReads === null ? (
-          /* Between afternoons the screen has one job: start the next one (US-34.7). The counter
-             lookup and the group tally are not offered, there being nothing to record against — and
-             a `?nummer=` left in the URL is inert for the same reason, never an error. */
-          <StartSessionForm
-            proposed={session.proposedGroups === null ? null : optionFor(session.proposedGroups)}
-          />
+          /* Between afternoons the screen has two jobs: start the next afternoon and say what the
+             last one did (US-34.7, US-34.8). The counter lookup and the group tally are not
+             offered, there being nothing to record against — and a `?nummer=` left in the URL is
+             inert for the same reason, never an error. */
+          <>
+            <StartSessionForm
+              proposed={session.proposedGroups === null ? null : optionFor(session.proposedGroups)}
+            />
+            {session.lastEnded === null ? null : <LastSessionCard ended={session.lastEnded} />}
+          </>
         ) : (
           <>
             <SessionHeader running={counterReads.running} />
