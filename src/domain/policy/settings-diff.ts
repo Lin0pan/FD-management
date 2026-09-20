@@ -3,8 +3,8 @@
  * the changes that produced it, rather than restating every value on every row.
  *
  * Deliberately not `changedSettingsFields` in `settings.ts`, and neither replaces the other: that
- * one names fields as an **audit entry** does, with `weekAnchor` as one field, while this names them
- * as the **form** does, where the anchor's week and its colour are two controls.
+ * one *names* the fields that moved, which is what an audit entry records, while this carries the
+ * values on either side, which is what a history row has to print.
  *
  * `from` and `to` keep the domain's own types and carry no German, so the renderer can `switch`
  * exhaustively and format cents as euros rather than receive text it can only pass through.
@@ -12,14 +12,11 @@
 
 import type { Cents } from "../money";
 import { diffEggRule, type EggRuleRowChange } from "./eggs";
-import type { IsoWeekday, Settings, WeekColour } from "./settings";
+import type { Settings } from "./settings";
 
 /** One field that differs between two versions, with the value on either side of the change. */
 export type SettingsChange =
   | { readonly field: "quotaN"; readonly from: number; readonly to: number }
-  | { readonly field: "weekAnchorIsoWeek"; readonly from: string; readonly to: string }
-  | { readonly field: "weekAnchorColour"; readonly from: WeekColour; readonly to: WeekColour }
-  | { readonly field: "distributionWeekday"; readonly from: IsoWeekday; readonly to: IsoWeekday }
   | { readonly field: "pricePerGrownUp"; readonly from: Cents; readonly to: Cents }
   | { readonly field: "pricePerChild"; readonly from: Cents; readonly to: Cents }
   | { readonly field: "priceCap"; readonly from: Cents | null; readonly to: Cents | null }
@@ -43,27 +40,6 @@ export function diffSettings(previous: Settings, next: Settings): ReadonlyArray<
 
   if (previous.quotaN !== next.quotaN) {
     changes.push({ field: "quotaN", from: previous.quotaN, to: next.quotaN });
-  }
-  if (previous.weekAnchor.isoWeek !== next.weekAnchor.isoWeek) {
-    changes.push({
-      field: "weekAnchorIsoWeek",
-      from: previous.weekAnchor.isoWeek,
-      to: next.weekAnchor.isoWeek,
-    });
-  }
-  if (previous.weekAnchor.colour !== next.weekAnchor.colour) {
-    changes.push({
-      field: "weekAnchorColour",
-      from: previous.weekAnchor.colour,
-      to: next.weekAnchor.colour,
-    });
-  }
-  if (previous.distributionWeekday !== next.distributionWeekday) {
-    changes.push({
-      field: "distributionWeekday",
-      from: previous.distributionWeekday,
-      to: next.distributionWeekday,
-    });
   }
   if (previous.pricePerGrownUp !== next.pricePerGrownUp) {
     changes.push({

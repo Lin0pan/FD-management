@@ -39,7 +39,6 @@ import { registerCustomer } from "../src/application/customers/register-customer
 import { reissueCard } from "../src/application/customers/reissue-card";
 import { renewCertificate } from "../src/application/customers/renew-certificate";
 import { updateNotes } from "../src/application/customers/update-notes";
-import { getWeekColour } from "../src/application/distribution/get-week-colour";
 import { recordAttendance } from "../src/application/distribution/record-attendance";
 import type {
   AuditLog,
@@ -63,10 +62,9 @@ import { receiptFor } from "../src/domain/distribution/handoutReceipt";
 import { createSessionGroups } from "../src/domain/distribution/session";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
 import { freeNumbers } from "../src/domain/customer/customerNumber";
-import { GROUPS, groupOf, inGroup } from "../src/domain/customer/group";
+import { GROUPS, groupOf, inGroup, type Group } from "../src/domain/customer/group";
 import type { Cents } from "../src/domain/money";
-import type { WeekColour } from "../src/domain/policy/settings";
-import { startOfUtcDay } from "../src/domain/distribution/weekColour";
+import { startOfUtcDay } from "../src/domain/calendarDay";
 import { PrismaAuditLog } from "../src/infrastructure/prisma/audit-log";
 import { PrismaCardRepository } from "../src/infrastructure/prisma/card-repository";
 import { PrismaCertificateRepository } from "../src/infrastructure/prisma/certificate-repository";
@@ -627,7 +625,7 @@ async function main(): Promise<void> {
     /** Filled as registrations run; every later event on a household reads its id from here. */
     const customerIds = new Map<string, number>();
     /** Which colour collects on each of the distribution days the history covers. */
-    const distributionDays = await pastDistributionDays(deps);
+    const distributionDays = pastDistributionDays();
 
     const events: DemoEvent[] = [];
 
@@ -802,26 +800,35 @@ function householdEvents(
 /** One past distribution day and the group that collected on it. */
 interface DistributionDay {
   readonly at: Date;
-  readonly colour: WeekColour;
+  readonly colour: Group;
 }
 
+/** `Date`'s own weekday numbering, Sunday = 0 — the afternoon DF has always handed out on. */
+const DEMO_DISTRIBUTION_WEEKDAY = 4;
+
 /**
- * The last {@link DISTRIBUTION_DAYS_OF_HISTORY} distribution days **before** today, oldest first.
+ * The last {@link DISTRIBUTION_DAYS_OF_HISTORY} distribution days **before** today, oldest first,
+ * the two groups taking it in turns.
  *
- * Today is deliberately left without records even when it is a distribution day: an empty counter is
- * what makes the hand-out screen worth opening. Which weekday and which colour each is comes from
- * `getWeekColour`, so the fixture cannot disagree with the alternation the app derives.
+ * Today is deliberately left without records even when it is a Thursday: an empty counter is what
+ * makes the hand-out screen worth opening. The rhythm is the fixture's own — the software knows
+ * which groups a session served and derives nothing about the weeks around it.
  */
-async function pastDistributionDays(deps: DemoDeps): Promise<DistributionDay[]> {
-  const days: DistributionDay[] = [];
-  for (let offset = -1; days.length < DISTRIBUTION_DAYS_OF_HISTORY && offset > -400; offset -= 1) {
+function pastDistributionDays(): DistributionDay[] {
+  const thursdays: Date[] = [];
+  for (
+    let offset = -1;
+    thursdays.length < DISTRIBUTION_DAYS_OF_HISTORY && offset > -400;
+    offset -= 1
+  ) {
     const day = at(offset);
-    const week = await getWeekColour(deps, day);
-    if (week.isDistributionDay) {
-      days.push({ at: day, colour: week.colour });
+    if (day.getUTCDay() === DEMO_DISTRIBUTION_WEEKDAY) {
+      thursdays.push(day);
     }
   }
-  return days.reverse();
+  return thursdays
+    .reverse()
+    .map((day, index) => ({ at: day, colour: index % 2 === 0 ? "RED" : "BLUE" }));
 }
 
 /**

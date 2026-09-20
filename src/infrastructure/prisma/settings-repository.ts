@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { SettingsRepository } from "@/application/ports";
-import { createSettings, parseWeekColour, type SettingsVersion } from "@/domain/policy/settings";
+import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
 
 /** One `EggAllowanceRow` row, as the query below returns it. */
 interface StoredEggRuleRow {
@@ -12,9 +12,6 @@ interface StoredEggRuleRow {
 interface StoredVersion {
   readonly recordedAt: Date;
   readonly quotaN: number;
-  readonly weekAnchorIsoWeek: string;
-  readonly weekAnchorColour: string;
-  readonly distributionWeekday: number;
   readonly pricePerGrownUpCents: number;
   readonly pricePerChildCents: number;
   readonly priceCapCents: number | null;
@@ -30,11 +27,6 @@ function toDomain(row: StoredVersion): SettingsVersion {
     recordedAt: row.recordedAt,
     settings: createSettings({
       quotaN: row.quotaN,
-      weekAnchor: {
-        isoWeek: row.weekAnchorIsoWeek,
-        colour: parseWeekColour(row.weekAnchorColour),
-      },
-      distributionWeekday: row.distributionWeekday,
       pricePerGrownUp: row.pricePerGrownUpCents,
       pricePerChild: row.pricePerChildCents,
       // `?? null` rather than the raw column: the domain spells "no cap" exactly one way, and
@@ -46,6 +38,17 @@ function toDomain(row: StoredVersion): SettingsVersion {
     }),
   };
 }
+
+/**
+ * The three columns US-36.4 drops, still `NOT NULL` in the schema this runs against. Written here
+ * as constants rather than kept on `Settings`: nothing reads them back, and a domain field no rule
+ * uses is one a screen eventually offers to edit again.
+ */
+const RETIRED_WEEK_CYCLE = {
+  weekAnchorIsoWeek: "2026-W02",
+  weekAnchorColour: "RED",
+  distributionWeekday: 4,
+} as const;
 
 /**
  * The SQLite-backed {@link SettingsRepository}. Append-only by construction — no update and no
@@ -89,9 +92,7 @@ export class PrismaSettingsRepository implements SettingsRepository {
       data: {
         recordedAt: version.recordedAt,
         quotaN: settings.quotaN,
-        weekAnchorIsoWeek: settings.weekAnchor.isoWeek,
-        weekAnchorColour: settings.weekAnchor.colour,
-        distributionWeekday: settings.distributionWeekday,
+        ...RETIRED_WEEK_CYCLE,
         pricePerGrownUpCents: settings.pricePerGrownUp,
         pricePerChildCents: settings.pricePerChild,
         priceCapCents: settings.priceCap,

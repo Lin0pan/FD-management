@@ -127,12 +127,12 @@ logic _down_ — logic in `app/` is a smell.
 ## Test-driven development
 
 - `domain/` — strict TDD, pure functions, no I/O. TDD the **invariant-breaking case first**
-  (duplicate customer number, two active cards, out-of-order week colour) before the happy path.
+  (duplicate customer number, two active cards, a descending egg staircase) before the happy path.
 - `application/` — TDD against hand-written fakes (prefer fakes over mock libraries); let `ports.ts`
   interfaces **emerge** from test needs.
 - `infrastructure/` — test-after, thin integration tests vs. a throwaway SQLite file.
 - `app/` — test-after or cover via Playwright E2E.
-- Time-dependent rules (13th birthday, certificate expiry, week alternation, stamping a settings change)
+- Time-dependent rules (13th birthday, certificate expiry, stamping a settings change)
   read "now" through an injectable **clock** so tests are deterministic — never call `new Date()` in
   domain code.
 - **Test data is synthetic only** (Faker) — never real customer or certificate data in fixtures.

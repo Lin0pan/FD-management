@@ -4,54 +4,18 @@
  *
  * A saved change is in force immediately and superseded versions are kept, never overwritten
  * (ADR-005): a distribution record stores what the hand-out cost, not the rule that produced it, so
- * "which colour did that week carry" can only be answered by resolving the version in force then.
+ * "what did a household of four pay that day" can only be answered by resolving the version in
+ * force then.
  */
 
-import { InvalidSettings, NoSettingsInForce } from "../errors";
+import { NoSettingsInForce } from "../errors";
 import type { Cents } from "../money";
 import { createEggRule, diffEggRule, type EggRule, type EggRuleRow } from "./eggs";
 import { requireInteger } from "./require-integer";
 
-/** The two-week distribution cycle alternates between these two groups. */
-export type WeekColour = "RED" | "BLUE";
-
-/** The stored form of the two week colours, in the order they are written to the database. */
-const WEEK_COLOURS: ReadonlyArray<WeekColour> = ["RED", "BLUE"];
-
-/**
- * Narrow a persisted string to a {@link WeekColour} — SQLite has no enum type, so the value re-enters
- * the domain through a check.
- *
- * @throws {InvalidSettings} if the value is not one of the two colours of the cycle.
- */
-export function parseWeekColour(value: string): WeekColour {
-  const colour = WEEK_COLOURS.find((candidate) => candidate === value);
-  if (colour === undefined) {
-    throw new InvalidSettings(
-      "weekAnchor.colour",
-      `must be one of ${WEEK_COLOURS.join(" or ")}, received ${value}`,
-    );
-  }
-  return colour;
-}
-
-/** ISO weekday, Monday = 1 … Sunday = 7. */
-export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
-
-/**
- * The known week of the cycle everything else is counted from, e.g. `2026-W02` was RED, therefore
- * `2026-W03` is BLUE.
- */
-export interface WeekAnchor {
-  readonly isoWeek: string;
-  readonly colour: WeekColour;
-}
-
 /** The complete set of policy values in force at one point in time. */
 export interface Settings {
   readonly quotaN: number;
-  readonly weekAnchor: WeekAnchor;
-  readonly distributionWeekday: IsoWeekday;
   /** What one grown-up and one child each cost at a distribution. The total is derived. */
   readonly pricePerGrownUp: Cents;
   readonly pricePerChild: Cents;
@@ -69,9 +33,8 @@ export interface Settings {
   readonly eggRule: EggRule;
 }
 
-/** The unvalidated shape `createSettings` accepts; the weekday and the egg rule are narrowed there. */
-export interface SettingsInput extends Omit<Settings, "distributionWeekday" | "eggRule"> {
-  readonly distributionWeekday: number;
+/** The unvalidated shape `createSettings` accepts; the egg rule is narrowed there. */
+export interface SettingsInput extends Omit<Settings, "eggRule"> {
   readonly eggRule: ReadonlyArray<EggRuleRow>;
 }
 
@@ -82,13 +45,6 @@ export interface SettingsInput extends Omit<Settings, "distributionWeekday" | "e
 export interface SettingsVersion {
   readonly recordedAt: Date;
   readonly settings: Settings;
-}
-
-/** `2026-W02` — a four-digit ISO year, `W`, and a two-digit week between 01 and 53. */
-const ISO_WEEK = /^\d{4}-W(0[1-9]|[1-4]\d|5[0-3])$/;
-
-function isIsoWeekday(value: number): value is IsoWeekday {
-  return Number.isInteger(value) && value >= 1 && value <= 7;
 }
 
 /**
@@ -103,18 +59,6 @@ export function createSettings(input: SettingsInput): Settings {
   if (input.priceCap !== null) {
     requireInteger("priceCap", input.priceCap, 0);
   }
-  if (!isIsoWeekday(input.distributionWeekday)) {
-    throw new InvalidSettings(
-      "distributionWeekday",
-      `must be an ISO weekday between 1 and 7, received ${input.distributionWeekday}`,
-    );
-  }
-  if (!ISO_WEEK.test(input.weekAnchor.isoWeek)) {
-    throw new InvalidSettings(
-      "weekAnchor.isoWeek",
-      `must be an ISO week such as 2026-W02, received ${input.weekAnchor.isoWeek}`,
-    );
-  }
 
   // Through `createEggRule`, so an invalid rule can never reach a `Settings`. Sorting and the
   // staircase check are that constructor's; repeating either here would be a second answer.
@@ -122,8 +66,6 @@ export function createSettings(input: SettingsInput): Settings {
 
   return {
     quotaN: input.quotaN,
-    weekAnchor: { isoWeek: input.weekAnchor.isoWeek, colour: input.weekAnchor.colour },
-    distributionWeekday: input.distributionWeekday,
     pricePerGrownUp: input.pricePerGrownUp,
     pricePerChild: input.pricePerChild,
     priceCap: input.priceCap,
@@ -156,8 +98,6 @@ export function resolveSettingsAt(versions: ReadonlyArray<SettingsVersion>, date
 /** The policy fields, in the order an audit entry lists them. */
 const SETTINGS_FIELDS = [
   "quotaN",
-  "weekAnchor",
-  "distributionWeekday",
   "pricePerGrownUp",
   "pricePerChild",
   "priceCap",
@@ -167,14 +107,7 @@ const SETTINGS_FIELDS = [
 /** The name of one editable policy field, as it appears in an audit entry. */
 export type SettingsField = (typeof SETTINGS_FIELDS)[number];
 
-function sameWeekAnchor(a: WeekAnchor, b: WeekAnchor): boolean {
-  return a.isoWeek === b.isoWeek && a.colour === b.colour;
-}
-
 function isUnchanged(field: SettingsField, previous: Settings, next: Settings): boolean {
-  if (field === "weekAnchor") {
-    return sameWeekAnchor(previous.weekAnchor, next.weekAnchor);
-  }
   // The rule is an array, so the reference comparison below would report every save as a change to
   // it. Two rules are the same rule when no row differs.
   if (field === "eggRule") {
@@ -197,8 +130,8 @@ export function changedSettingsFields(
 
 /**
  * The three configured price values this derivation reads — a `Pick` rather than the whole of
- * {@link Settings}, so handing the browser preview (US-16.5) the quota and week anchor does not
- * suggest those have something to do with the answer.
+ * {@link Settings}, so handing the browser preview (US-16.5) the quota does not suggest it has
+ * something to do with the answer.
  */
 export type PriceValues = Pick<Settings, "pricePerGrownUp" | "pricePerChild" | "priceCap">;
 

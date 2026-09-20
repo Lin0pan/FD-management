@@ -7,12 +7,12 @@
  *
  * **The date only, no clock time**, which is what keeps this a plain server component: no client
  * boundary, no ticking state, and a page that renders the same under the fixed clock the e2e suite
- * pins. `now` comes from the injected `Clock` through `getWeekColour`.
+ * pins. `now` comes from the injected `Clock`.
  */
 
 import Link from "next/link";
-import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
 import { readDistributionSessionState } from "@/application/distribution/read-distribution-session-state";
+import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DistributionSession } from "@/domain/distribution/session";
@@ -24,37 +24,10 @@ import { SessionGroupBadges } from "./ausgabe/session-group-badges";
 import { SHELL } from "./shell";
 
 /**
- * The date and the next distribution turn over at midnight without anything being written, and a
- * session is started and ended on another workstation — so this screen is never cached.
+ * The date turns over at midnight without anything being written, and a session is started and
+ * ended on another workstation — so this screen is never cached.
  */
 export const dynamic = "force-dynamic";
-
-/**
- * The distribution line: one sentence, set like the date above it, in no container at all. DF asked
- * for no banner and no tint, so the group is carried by the word `(Rot)` / `(Blau)` alone — which
- * loses nothing, the word always having been the part that had to be there (US-03.4).
- *
- * **`nextDistribution.colour`, never `view.colour`**: on a Saturday after a Thursday distribution,
- * "diese Woche ist Rot" and "die nächste Ausgabe ist Blau" are both true, and only the second answers
- * what this screen exists for (PRD §6).
- *
- * The testid stays on a wrapper with exactly one `<p>` inside: `home.spec.ts` asserts its text
- * exactly, so the sentence may neither be split across elements nor joined by a second paragraph.
- */
-function DistributionLine({ view }: { view: WeekColourView }): React.ReactElement {
-  const { date, colour } = view.nextDistribution;
-  const word = de.distribution.colours[colour];
-
-  return (
-    <div data-testid="next-distribution">
-      <p className="text-xl">
-        {view.isDistributionDay
-          ? de.home.distribution.isToday(word)
-          : de.home.distribution.next(germanLongDate(date), word)}
-      </p>
-    </div>
-  );
-}
 
 /**
  * The afternoon under way, on the first screen anybody opens (US-34.9, PRD A-7). Nothing ends a
@@ -115,16 +88,16 @@ function NotConfigured(): React.ReactElement {
 }
 
 /**
- * Today's colours, or `null` when no settings version is in force — a cost to the panel rather than
- * the screen: an error page on the first screen after an install says the software is broken when in
- * fact it is empty.
+ * Whether DF has configured anything yet — caught rather than thrown: an error page on the first
+ * screen after an install says the software is broken when in fact it is empty.
  */
-async function today(): Promise<WeekColourView | null> {
+async function isConfigured(): Promise<boolean> {
   try {
-    return await getWeekColour(distributionDeps);
+    await readCurrentSettings(distributionDeps);
+    return true;
   } catch (error: unknown) {
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
-      return null;
+      return false;
     }
     throw error;
   }
@@ -132,14 +105,12 @@ async function today(): Promise<WeekColourView | null> {
 
 export default async function Home(): Promise<React.ReactElement> {
   // The afternoon is read even on a day nothing is configured: the two answers are independent, and
-  // a session may be running whatever the settings history says about the calendar.
-  const [view, session] = await Promise.all([
-    today(),
+  // a session may be running whatever the settings history holds.
+  const [configured, session] = await Promise.all([
+    isConfigured(),
     readDistributionSessionState(distributionDeps),
   ]);
-  // The looked-up day, or the injected clock's: the date line is the half of this screen that does
-  // not depend on DF having configured anything.
-  const date = view?.date ?? distributionDeps.clock.now();
+  const date = distributionDeps.clock.now();
 
   return (
     <main className={SHELL}>
@@ -149,16 +120,10 @@ export default async function Home(): Promise<React.ReactElement> {
       {/* Above the date and the coming Ausgabe, because an afternoon that is running outranks both:
           they describe the calendar, and this is what is actually happening. */}
       {session.running === null ? null : <RunningSessionPanel session={session.running.session} />}
-      {/* The two facts stand together, a line apart rather than a `gap-6` apart: the date is read as
-          the qualifier of the Ausgabe below it, not as a section of its own. The empty state keeps
-          the shell's full gap, because there the card is a separate thing to act on. */}
-      <div className="flex flex-col gap-1">
-        <p data-testid="today-date" className="text-xl text-muted-foreground">
-          {de.home.today(germanLongDate(date))}
-        </p>
-        {view !== null && <DistributionLine view={view} />}
-      </div>
-      {view === null && <NotConfigured />}
+      <p data-testid="today-date" className="text-xl text-muted-foreground">
+        {de.home.today(germanLongDate(date))}
+      </p>
+      {configured ? null : <NotConfigured />}
     </main>
   );
 }

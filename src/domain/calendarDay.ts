@@ -73,6 +73,15 @@ export function formatCalendarDay(date: Date): string {
   return `${day}.${month}.${date.getUTCFullYear()}`;
 }
 
+/**
+ * The start of the UTC day a date falls on — for comparing a stored *moment* against a stored
+ * *day*. The time must not decide the answer: 23:59 and 00:01 the same morning belong to the same
+ * day (`counterVerdict.certificateExpired`).
+ */
+export function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
 /** `JJJJ-MM-TT` — what the database and the domain compare on, never a display format. */
 export function isoCalendarDay(date: Date): string {
   const day = String(date.getUTCDate()).padStart(2, "0");

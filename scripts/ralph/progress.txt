@@ -7,6 +7,16 @@ bullets that sat under „Where batch 35 starts" are not carried over — they a
 `scripts/ralph/archive/2026-09-20-us-35-session-receipt/progress.txt`.
 
 ## Codebase Patterns
+- **A PRD saying a helper „moves to `<path>`" is not a promise that `<path>` is free.**
+  `src/domain/calendarDay.ts` already held five exports when US-36.3 was told to move
+  `startOfUtcDay` there, and `cat > <path>` destroyed them silently — `git status` showed `M`, not
+  `??`, which is the only tell. `ls` the target before creating any file a story names.
+- **Removing a *field* from a shared type has no green intermediate.** The „change the shape only,
+  never the behaviour" rule that lets a domain signature change land alone needs the old answer to
+  survive one more iteration, and a deleted field has no old answer — every reader breaks in the
+  same commit. What keeps such a commit from swallowing the next three stories is pushing the
+  **writes** down into the adapter: a `const RETIRED_… = { …the NOT NULL columns… }` spread into the
+  `create`, named after the story that drops them, leaves the schema change where it belongs.
 - **A transaction cannot span two ports.** There is no unit of work in this codebase and
   `$transaction` appears only inside adapters, so an invariant across two tables owned by two
   repositories is kept by **ordering plus idempotence**, never by one SQL transaction. State which
@@ -570,3 +580,59 @@ commit would have left the tree red. Story 2's own acceptance criteria are all m
 - **`vitest run` covers the Prisma integration tests too** (`include: ["src/**/*.{test,spec}.ts"]`),
   so a port method added without an adapter test is a gap nothing reports — the suite is green
   because the throwaway database never ran the query.
+
+## 2026-09-20 — US-003 (batch 36)
+
+The week anchor and the distribution weekday leave the domain. The deletion cascaded further than
+the domain in one commit, deliberately: `Settings` losing two fields breaks the settings adapter,
+the settings form and the Start screen at once, and there is no green intermediate — the same
+reason US-001 and US-002 landed together.
+
+- Deleted `src/domain/distribution/weekColour.ts` and `distributionDay.ts` with their tests;
+  `startOfUtcDay` **moved into the existing `src/domain/calendarDay.ts`** (it was not a new file —
+  see the learnings) and gained two named tests there.
+- `Settings` lost `weekAnchor` and `distributionWeekday`; `WeekColour`, `WeekAnchor`, `IsoWeekday`
+  and `parseWeekColour` are gone, `SETTINGS_FIELDS` is down to five, and `settings-diff.ts` lost
+  the three variants the settings screen switched on. `group.ts` lost the paragraph arguing that
+  `Group` and `WeekColour` are deliberately different types.
+- Dragged along, because the tree has to be green: `get-week-colour.ts` and its test file
+  (`distribution.test.ts` held nothing else), the Start screen's „nächste Ausgabe" line, and the
+  settings form's whole `Ausgaberhythmus` section with the three `SettingsChange` cases behind it.
+  The Start screen now asks `readCurrentSettings` whether anything is configured, which is the only
+  thing it used the week-colour view for besides the prediction.
+- Kept for the stories that own them: the three `SettingsVersion` **columns** (US-36.4), the German
+  keys in `de.ts` (US-36.5, they are still read by two specs), the raw `settingsVersion.create`
+  blocks in the adapter's integration test, and `prisma/schema.prisma`.
+- `isoWeekNumber` in `src/i18n/format.ts` went with its only producer (`isoWeekOf`), and
+  `CONTRIBUTING.md`'s two examples naming the week alternation were re-pointed.
+- `prisma/demo-seed.ts` no longer derives its past afternoons from `getWeekColour`: it picks the
+  last eight Thursdays itself and alternates the groups, which is the fixture's own rhythm now that
+  the software has none.
+
+**Learnings for future iterations:**
+
+- **`src/domain/calendarDay.ts` already existed**, and `cat >` over it destroyed a module with five
+  exports before `git status` caught it. A PRD saying a helper „moves to `<path>`" is not a promise
+  that `<path>` is free. `ls` the target — or write with a tool that refuses to overwrite — before
+  creating any file a story names.
+- **A removal story cannot stop at its layer when the removed thing is a *field*.** The „change the
+  shape only, never the behaviour" escape hatch needs the old answer to survive one more iteration,
+  and a deleted field has no old answer. What kept this one commit-sized was pushing the *writes*
+  down into the adapter: `RETIRED_WEEK_CYCLE` fills the three `NOT NULL` columns with constants and
+  names the story that drops them, so the schema change stayed US-36.4's.
+- **The exhaustive `switch` on `SettingsChange` worked exactly as the batch predicted** — removing
+  the three union members produced 18 compile errors in `einstellungen/page.tsx` and nothing else
+  had to be hunted for. `tsc` also found every fixture: a `weekAnchor:` line in eleven test files,
+  removable with one regex over `^\s*(weekAnchor: \{.*\},|distributionWeekday: \d+,)$`.
+- **What `tsc` did not find, and no gate does:** a *count* in prose („All eight values"), a dead
+  formatter whose only producer was deleted (`isoWeekNumber`), and a comment in another module
+  claiming the weekday is half of what the Start screen says (`i18n/format.ts`). Grep the vanished
+  identifier **and** the sentence that described it.
+- **The e2e suite is knowingly red after this commit**: `home.spec.ts` asserts the removed
+  `next-distribution` testid and `settings.spec.ts` drives `#distributionWeekday` (lines ~285–317
+  and 534). US-36.5 and US-36.6 own those files; nothing else in the suite touches the two values.
+- **`npm run start` + `curl` is a cheap smoke check for a screen a story gutted** — the settings
+  page still renders the four remaining fields and the Änderungsverlauf, and `/` still renders
+  `today-date` — but it is not the browser check US-36.5 asks for. And **`pkill -f next-server`
+  still kills the Bash tool** (exit 144), as the pattern above says; kill by pid.
+---

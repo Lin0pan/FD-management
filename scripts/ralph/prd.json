@@ -60,7 +60,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "A deletion story. The failure mode of a deletion in this project is A SURVIVOR — a helper, a type, a dictionary key. Story 5 greps for them; here, make sure nothing re-exports what was removed."
     },
     {
