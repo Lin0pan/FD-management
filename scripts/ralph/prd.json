@@ -199,7 +199,7 @@
         "Lint passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "The whole point of A-7 is a forgotten session being noticed the next morning. 'Prominent' is an effect, not a design instruction — judge it in the browser at DF's window size."
     },
     {

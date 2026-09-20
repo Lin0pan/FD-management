@@ -882,3 +882,47 @@ Files: `src/application/distribution/read-distribution-session-state.ts` (+ four
   It is incomplete rather than wrong, and widening that cell reflows the whole table under Prettier —
   which is the documentation story's diff to own, not this one's.
 ---
+
+## 2026-09-20 — US-009 (US-34.9) A running session on the Start screen
+
+**Implemented.** `/` states the afternoon under way in a panel above the date: „Ausgabe läuft" at
+`text-2xl` with the session's group badges beside it, „Begonnen: 20.09.2026, 14:03" under it, and a
+full-strength „Zur Ausgabe" link to the screen that can end it. With nothing running the screen is
+unchanged, down to the markup — greeting, date, „nächste Ausgabe" (US-36 removes that line, not this
+story). `SessionGroupBadges` moved out of `ausgabe/page.tsx` into `ausgabe/session-group-badges.tsx`,
+now that three panels state the same afternoon, and „Begonnen: …" was lifted to a module-level
+`startedAt` in `de.ts` beside `servedAndTook`.
+
+Files: `src/app/page.tsx`, `src/app/ausgabe/session-group-badges.tsx` (new),
+`src/app/ausgabe/page.tsx`, `src/i18n/de.ts`.
+
+**Learnings for future iterations:**
+
+- **The panel may not be tinted, and the reason is the badges inside it.** „An afternoon is running"
+  is not in `accents.ts`, and §5's rule against nesting a translucent tint inside a tinted container
+  settles it rather than leaving it to taste: a fill behind the red and blue group badges composites
+  into a third colour meaning neither. Prominence came from **position and type size** instead —
+  first after the `h1`, `text-2xl` against the date lines' `text-xl` — which is the cheaper half of
+  §4 and needed no new accent.
+- **The Start screen reads the whole `readDistributionSessionState`, not a narrower question.** It
+  uses only `running.session`, and the summary and `canReopen` beside it are the counter's business —
+  but a second use case answering „is one running" would be a second source of truth, and `app/`
+  may not reach a repository itself. Four extra SQLite reads on a screen that renders three
+  sentences is the right side of that trade in this project.
+- **`Promise.all([today(), readDistributionSessionState(deps)])`**: the two answers are independent,
+  and a session may be running on an installation where no settings version is in force — the panel
+  renders over the „noch nicht hinterlegt" card in that state, which is correct and was not driven in
+  the browser (both branches are proved separately, and reaching the pair needs a pinned clock).
+- **The demo register is the whole verification loop again.** `npm run db:demo -- --reset`, start a
+  session serving both groups on `/ausgabe`, `goto /` → panel with two badges; discard it → the Start
+  screen's accessibility tree is byte-for-byte the three nodes it was. `--reset` is required when the
+  register is already seeded; plain `db:demo` refuses.
+- **Still on US-34.12's list:** chapter 05's `/` row (line 126) still reads „this week's colour, what
+  is waiting to be done" and says nothing about a running session — incomplete rather than wrong,
+  like the `/ausgabe` row US-008 left. The handout section US-34.12 owns explicitly promises „a
+  forgotten one shows on the Start screen", so the whole of this screen's documentation lands there.
+- **No e2e spec was added here.** US-34.10's AC owns it by name („home.spec.ts … gains the
+  running-session panel"), and a spec asserting the panel needs a session the shared register has no
+  helper for until that story writes `tests/e2e/session.ts`. The testids are in place for it:
+  `running-session`, `running-session-groups`, `running-session-started`.
+---
