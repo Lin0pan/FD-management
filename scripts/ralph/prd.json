@@ -20,7 +20,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Small, pure, first. The temptation to resist is storing the group and the formatted card number 'for convenience' — both are derived from values already on the row, and storing them is exactly the fault ADR-017 and ADR-016 were written about."
     },
     {
@@ -43,7 +43,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "THE ONLY STORY IN THIS BATCH THAT TOUCHES prisma/. Tenth batch to regenerate the migration history and the SECOND with two hand-written indexes to put back — that is the single thing most likely to be forgotten."
     },
     {
@@ -64,7 +64,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Order matters inside endDistributionSession: the receipts are built from the state as it is BEFORE endedAt is written and are committed WITH it, so an aborted ending leaves neither. There is no updateReceipt and there must never be one — a change is a thaw and a fresh freeze."
     },
     {
@@ -84,7 +84,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "The CLAUDE.md edit is the part that matters most: the file states there are exactly THREE exceptions to derive-don't-store and exactly TWO deletion exceptions, and after this batch both numbers are wrong. Leaving them is how the next reader concludes the receipt is a mistake."
     }
   ]

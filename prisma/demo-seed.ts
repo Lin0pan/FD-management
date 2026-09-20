@@ -50,6 +50,7 @@ import type {
   CustomerRepository,
   DistributionRecordRepository,
   DistributionSessionRepository,
+  FrozenHandout,
   ReminderLogRepository,
   SettingsRepository,
   WaitingListRepository,
@@ -58,6 +59,7 @@ import { readCurrentSettings } from "../src/application/settings/read-current-se
 import { addToWaitingList } from "../src/application/waiting-list/add-to-waiting-list";
 import { formatCardNumber } from "../src/domain/card/cardNumber";
 import { amountToPay, balanceOf } from "../src/domain/distribution/balance";
+import { receiptFor } from "../src/domain/distribution/handoutReceipt";
 import { createSessionGroups } from "../src/domain/distribution/session";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
 import { freeNumbers } from "../src/domain/customer/customerNumber";
@@ -885,6 +887,8 @@ function distributionEvents(
       // next event runs — the demo register is one DF are handed between distributions, never in the
       // middle of one.
       const session = await deps.sessions.start(createSessionGroups([day.colour]), day.at);
+      /** What the afternoon is frozen with when it is ended (US-35) — one entry per hand-out. */
+      const frozen: FrozenHandout[] = [];
       for (const shape of CAST) {
         const id = customerIds.get(shape.key);
         if (id === undefined) {
@@ -913,6 +917,23 @@ function distributionEvents(
         // `max(0, price − balance)` the counter shows, and the figure both the scripted payments and
         // the tally below are written against.
         const record = await recordAttendance(deps, { customerId: id });
+        // The household as it stands at the end of this afternoon. Nothing edits it between here
+        // and `end` below, so reading it now is reading it then.
+        frozen.push({
+          recordId: record.id,
+          receipt: receiptFor({
+            customer: {
+              customerNumber: customer.customerNumber,
+              firstName: customer.details.firstName,
+              lastName: customer.details.lastName,
+              certificateValidUntil: customer.details.certificate.validUntil,
+              reminderCount: customer.reminderCount,
+            },
+            members: customer.details.householdMembers,
+            card: customer.card,
+            at: day.at,
+          }),
+        });
         const balanceBefore = balances.get(shape.key) ?? 0;
         const askedCents = amountToPay(record.priceCents, balanceBefore);
         const visit = (visits.get(shape.key) ?? 0) + 1;
@@ -954,6 +975,8 @@ function distributionEvents(
           tally.paidAhead += 1;
         }
       }
+      // Frozen before the ending and never after it, exactly as `endDistributionSession` does it.
+      await deps.records.freezeSession(session.id, frozen);
       await deps.sessions.end(session.id, day.at);
     },
   }));

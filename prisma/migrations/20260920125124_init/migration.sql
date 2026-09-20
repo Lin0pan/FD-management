@@ -96,6 +96,22 @@ CREATE TABLE "DistributionRecord" (
 );
 
 -- CreateTable
+CREATE TABLE "HandoutReceipt" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "recordId" INTEGER NOT NULL,
+    "customerNumber" INTEGER NOT NULL,
+    "firstName" TEXT NOT NULL,
+    "lastName" TEXT NOT NULL,
+    "grownUps" INTEGER NOT NULL,
+    "children" INTEGER NOT NULL,
+    "cardCustomerNumber" INTEGER NOT NULL,
+    "cardIndex" INTEGER NOT NULL,
+    "certificateValidUntil" DATETIME NOT NULL,
+    "reminderCount" INTEGER NOT NULL,
+    CONSTRAINT "HandoutReceipt_recordId_fkey" FOREIGN KEY ("recordId") REFERENCES "DistributionRecord" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "DistributionSession" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "startedAt" DATETIME NOT NULL,
@@ -188,6 +204,9 @@ CREATE INDEX "DistributionRecord_sessionId_idx" ON "DistributionRecord"("session
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DistributionRecord_customerId_sessionId_key" ON "DistributionRecord"("customerId", "sessionId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "HandoutReceipt_recordId_key" ON "HandoutReceipt"("recordId");
 
 -- CreateIndex
 CREATE INDEX "DistributionSession_startedAt_idx" ON "DistributionSession"("startedAt");

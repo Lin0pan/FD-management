@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { DistributionRecordRepository } from "@/application/ports";
+import type { DistributionRecordRepository, FrozenHandout } from "@/application/ports";
 import type {
   DistributionRecord,
   NewDistributionRecord,
@@ -137,5 +137,19 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
       }
       throw error;
     }
+  }
+
+  /** Drop whatever the session carries and write the freeze afresh — see the port for why. */
+  async freezeSession(sessionId: number, receipts: ReadonlyArray<FrozenHandout>): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.handoutReceipt.deleteMany({ where: { record: { sessionId } } }),
+      this.prisma.handoutReceipt.createMany({
+        data: receipts.map(({ recordId, receipt }) => ({ recordId, ...receipt })),
+      }),
+    ]);
+  }
+
+  async thawSession(sessionId: number): Promise<void> {
+    await this.prisma.handoutReceipt.deleteMany({ where: { record: { sessionId } } });
   }
 }

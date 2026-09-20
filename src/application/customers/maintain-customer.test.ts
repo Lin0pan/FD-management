@@ -123,6 +123,13 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   remove(): Promise<void> {
     return Promise.reject(new Error("No use case in this file removes a hand-out"));
   }
+  freezeSession(): Promise<void> {
+    return Promise.reject(new Error("Freezing an afternoon has a suite of its own"));
+  }
+
+  thawSession(): Promise<void> {
+    return Promise.reject(new Error("Thawing an afternoon has a suite of its own"));
+  }
 }
 
 /** No reminder has ever been logged here, so this session's is always still open. */

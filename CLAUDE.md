@@ -65,7 +65,7 @@ deliberately and say why in the commit; do not add an inline disable.
   application; `new Date(someValue)` is fine — it transforms a value that was passed in.)
 - **Derive, don't store** anything computable — grown-up/children counts, the price, card
   validity, a household's **group** (US-31: even is BLUE, odd is RED, `groupOf(customerNumber)`).
-  Two sources of truth is the Excel failure we are replacing. There are exactly three exceptions,
+  Two sources of truth is the Excel failure we are replacing. There are exactly four exceptions,
   each with an argument of its own kind:
   - `Card.grownUpsAtIssue` / `childrenAtIssue` — a snapshot of what was _printed_ on a physical card,
     so a birthday that overtook the counts (US-13) or a household that changed size can be spotted.
@@ -88,16 +88,26 @@ deliberately and say why in the commit; do not add an inline disable.
     printing a number twice. Written by the adapter off the customer row in the same transaction as
     the insert and never updated afterwards: what the _household_ holds today is
     `Customer.customerNumber`, which is a different question.
+  - `HandoutReceipt`'s nine columns — a **snapshot of who stood at the counter**, in the sense the
+    two `AtIssue` fields are one (US-35, ADR-021). A past distribution session must show the
+    households as they stood then, and the name and the counts cannot be reconstructed at all
+    afterwards: editing a household overwrites the names and replaces the member rows. Taken at the
+    instant the session is **ended** — while it runs, including a reopened one, every correction
+    still reaches the record — and never updated: a reopening **deletes** the rows and the next
+    ending writes them afresh. Never read as the household's current name, number or counts, and the
+    group and the card number on a receipt stay derived from the two numbers it captured, so the
+    snapshot cannot disagree with itself either. `priceCents` and `paidCents` are not copied here:
+    both are already on the hand-out.
 
-  Any further "just store it" needs an argument of that kind. The **customer balance was asked to
-  be a fourth and refused** — it is `Σ (paidCents − priceCents)` over a household's hand-outs,
-  derived at every read (US-29, ADR-015). A stored balance beside the records that produce it is
-  two answers to one question, and a corrected or removed hand-out would leave them disagreeing
-  silently. The **group** is the third time this has been refused (US-31, ADR-017), after the balance
-  and beside the counts, and the only one that took stored columns away again: `Customer.group` and
-  `Card.groupAtIssue` are gone, so „a household on 37 in group BLUE" is a pair the system cannot
-  express rather than one a rule has to catch. The cost is that a group can be full while the
-  register is not — free slots are counted **per group** wherever capacity is shown.
+  Any further "just store it" needs an argument of that kind. The **customer balance was asked for
+  and refused** — it is `Σ (paidCents − priceCents)` over a household's hand-outs, derived at every
+  read (US-29, ADR-015). A stored balance beside the records that produce it is two answers to one
+  question, and a corrected or removed hand-out would leave them disagreeing silently. The **group**
+  is the third time this has been refused (US-31, ADR-017), after the balance and beside the counts,
+  and the only one that took stored columns away again: `Customer.group` and `Card.groupAtIssue` are
+  gone, so „a household on 37 in group BLUE" is a pair the system cannot express rather than one a
+  rule has to catch. The cost is that a group can be full while the register is not — free slots
+  are counted **per group** wherever capacity is shown.
 
 - **Money is integer cents**, never a float. Format via `src/domain/money.ts`.
 - **Policy values are data, not constants** — the prices per head, the cap and the quota `N` live
@@ -201,13 +211,16 @@ settings screen reporting that nothing is configured.
   A **nullable** relation must say `onDelete: Restrict` out loud: Prisma's default for an optional
   relation is `SetNull`, which the schema test cannot see, so it also greps the generated migration
   SQL. An integration test that clears the register therefore deletes children first — use
-  `clearRegister` from `src/infrastructure/prisma/test-support.ts`. There are exactly two deliberate
-  exceptions. A household's member rows: editing a household **replaces** the set (`updateHousehold`,
-  and `updateDetails` with it — the customer is one of those rows, so their own name lives there
-  too), because no history of past compositions is kept (US-16, FR-2) and what a household was
-  survives on the card that printed its counts. And a `CertificateType` row, deleted when DF take a
-  word off the list, on an argument of its own (US-33, ADR-019). Nothing else in the schema may be
-  deleted.
+  `clearRegister` from `src/infrastructure/prisma/test-support.ts`. There are exactly three
+  deliberate exceptions. A household's member rows: editing a household **replaces** the set
+  (`updateHousehold`, and `updateDetails` with it — the customer is one of those rows, so their own
+  name lives there too), because no history of past compositions is kept (US-16, FR-2) and what a
+  household was survives on the card that printed its counts and on the receipt of every afternoon
+  it was served at (US-35, ADR-021). And a `CertificateType` row, deleted when DF take a word off
+  the list, on an argument of its own (US-33, ADR-019). And a `HandoutReceipt`, deleted when its
+  session is **reopened**: the row is not history but the freeze itself, re-taken whole by the next
+  ending — and a receipt left standing would make the database refuse the hand-out removal a
+  reopening exists to allow. Nothing else in the schema may be deleted.
 - ❌ Don't skip the audit entry on a state change (archive, block, number change, card reissue,
   policy edit, a change to the Nachweis-Arten, ending or reopening a distribution session). With no
   login, the log is the only accountability the system has — and it records _what, when and why_,
