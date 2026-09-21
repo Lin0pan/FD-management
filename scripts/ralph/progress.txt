@@ -531,6 +531,31 @@ bullets that sat under „Where batch 36 starts" are not carried over — they a
   hand-out path.** When a fixture or spec has to satisfy it, reach for an afternoon that already
   exists rather than opening a private one — and if none exists, the timeline is what is wrong.
 
+- **The counting words in `docs/architecture/05-building-block-view.md` are drift no gate sees, and
+  the same count is usually repeated in chapter 12.** „43 use cases", „nine routes", „Exactly four
+  composition roots" — every one of them is a claim a story can falsify without touching the
+  chapter, and „nine routes" was already one short of the ten on `main` before US-37 added two.
+  Count the real thing rather than incrementing the word: `npm run build` prints the route list,
+  `ls src/app/**/page.tsx` counts it too, and use cases are **exported functions**, not files —
+  `grep -cE "^export (async )?function "` summed over `src/application/*/*.ts` (two files export two
+  apiece, which is why 43 files read as 45 use cases). Then `grep -rn` the old wording over `docs/`:
+  the composition-root count sat in chapter 12 as well.
+- **A glossary term the system does not use is vocabulary invented rather than recorded.** A PRD may
+  *propose* a word („add _Ausgabetermin-Übersicht_ and _Detailansicht_ if they are worth fixing");
+  the test is whether `de.ts`, a route or an identifier uses it. Neither did — the heading is
+  `Ausgabetermine` and the detail's is `Ausgabe vom <Datum>` — so both were refused, and the naming
+  *decision* behind the route went into an existing entry instead. The `arc42` skill forbids
+  inventing facts, and a defined word nobody says is the easiest kind to invent.
+- **`docs/handout/` takes no markdown anchor links, no file paths and no npm scripts.** It is printed
+  and handed to DF, so a cross-reference is written the way the file already writes them —
+  „(siehe oben)", „(siehe unten)" — and a link is dead ink on paper. `docs/handout/README.md` states
+  the three rules; read it before adding a section there.
+- **Where a handout paragraph and a new screen explain the same thing, cut the paragraph back to the
+  fact and point at the section.** US-35 explained the freeze under „Ausgabe beenden" in eight lines
+  because there was no screen showing it yet; US-37 built that screen, so the explanation moved to
+  it. Two copies of one argument is the fault this project exists to remove, and the handout is
+  where it is most expensive — DF read it away from the code that would contradict it.
+
 ### Where batch 37 starts
 
 Three batches have made a distribution session something the software knows — started and ended by
@@ -862,4 +887,69 @@ down, in `tasks/README.md`, as the one place a reader finds out US-35 must not b
     counting words — **two** new ports, two use cases, **two** new routes — and the glossary), and
     the chain note in `tasks/README.md`. Chapter 07 is **already done** by this story, since the
     isolated-spec count is part of the change; do not count it twice.
+---
+
+## 2026-09-21 — US-006 (US-37.6: the Betriebsanleitung and the architecture record)
+
+- `docs/handout/betriebsanleitung.md` gains **„Frühere Ausgaben nachschlagen"**: where the list is
+  (`Alle Ausgabetermine`, from both the running afternoon and the last one), what a row says
+  (Datum, Gruppe(n), Haushalte, Summe; the running one on top, `Läuft`, figures `vorläufig`), what
+  the detail view shows — and the one thing neither screen states, that a **beendete Ausgabe shows
+  the households as they were that afternoon**, so next week's name correction does not rewrite last
+  week's table.
+- **The freeze is now explained once.** „Was eine beendete Ausgabe festhält", written by US-35 under
+  „Die Ausgabe starten und beenden", said the same thing in eight lines; it is cut back to the fact
+  (ending holds the state) and points at the new section. The argument belongs beside the screen
+  that shows it — two copies is the fault this project exists to remove.
+- **Chapter 05**: 43 → **45 use cases**; the `distribution/` row names the two new ones; the
+  `DistributionRecordRepository` row names `summariseBySession` (one aggregate) and `listFrozen`;
+  two route rows for `/ausgabetermine` and `/ausgabetermine/[id]`; composition roots four → **five**,
+  with the note that the new one holds no audit log because both its routes only read.
+- **Chapter 12**: composition roots four → five; **Distribution** says why the list is
+  _Ausgabetermine_ and not _Ausgaben_; **Distribution session** names where past ones are read;
+  **Receipt**'s „No screen names it yet — US-37 is the first" is retired for what is actually true —
+  no screen names the *word*, and the detail view shows the households without saying where the
+  figures came from.
+- `tasks/README.md` gains **„Beyond the MVP — and the one chain in it"** below the build order:
+  US-34 → US-35 → US-36 → US-37 in that order, with why US-35 is the one that must not be deferred.
+  Not a row in the index table, which stops at US-16 by design.
+- No ADR. ADR-020 and ADR-021 already carry these decisions and both are cited.
+- Files: `docs/handout/betriebsanleitung.md`, `docs/handout/README.md`,
+  `docs/architecture/05-building-block-view.md`, `docs/architecture/12-glossary.md`,
+  `tasks/README.md`.
+- Gates: `arc42:check` (no errors, the two open TODOs are chapter 07's and predate this batch),
+  lint, typecheck, `format:check`, `test:coverage` (62 files, 1397 tests) and `build` all green.
+
+- **Learnings for future iterations:**
+  - **„Ausgabetermin-Übersicht" and „Detailansicht" were refused as glossary terms.** The PRD wrote
+    them „if the words are worth fixing", and they are not: neither appears in `de.ts`, in a route,
+    or in an identifier — the heading is `Ausgabetermine` and the detail's is `Ausgabe vom <Datum>`.
+    Fixing a word the system does not use is inventing vocabulary, which is the one thing the arc42
+    skill forbids outright. What *was* worth recording is the naming decision behind the route, and
+    that went into the **Distribution** entry beside the _Ausgabe_ collision it exists to avoid.
+  - **Chapter 05's counting words are the drift no gate sees, and one was already wrong.** „nine
+    routes" stood over a table naming ten (the `warteliste` row carries two), so this story moved it
+    to **twelve**, which `npm run build`'s route list verifies directly — that printout is the
+    cheapest check there is for that heading. Before editing any of those headings, count the real
+    thing: `ls src/app/**/page.tsx` for routes, `grep -cE "^export (async )?function "` summed over
+    `src/application/*/*.ts` for use cases (it counts **exported functions**, not files — two files
+    export two apiece, which is why 43 files read as 45 use cases).
+  - **A count in a chapter heading and the same count in the glossary go stale as a pair.**
+    „Exactly four composition roots" sat in both 05 and 12; `grep -rn "Exactly four\|nine routes"`
+    over `docs/` found the second copy. Do that sweep for any number a story changes.
+  - **A printable handout does not take markdown anchor links.** The first draft pointed at the new
+    section with `[…](#frühere-ausgaben-nachschlagen)`; the file's own style is „(siehe oben)" /
+    „(siehe unten)", because a link is dead ink on paper and `docs/handout/README.md` bans anything
+    a reader cannot act on.
+  - **What the handout deliberately does not mention: the pre-US-35 hint.** The detail view's one
+    line („diese Ausgabe wurde beendet, bevor der Stand festgehalten wurde") can only appear for a
+    session ended before US-35 landed, and DF have entered no real data — so DF will never see it.
+    Documenting it would explain a case that cannot arise. Revisit only if that stops being true.
+  - **Prettier re-pads a whole markdown table when one cell grows**, so a two-cell edit to chapter
+    12 lands as a 26-line diff with no wording change in 24 of them. Read such a diff with
+    `git diff -- <file> | grep -E "^[-+]" | cut -c1-200` rather than scrolling it, or run
+    `npm run format` before staging so the reflow is part of the same commit either way.
+  - **Batch 37 is complete** — six stories, and the chain US-34 → US-37 with it. The next batch
+    starts from a system where a past afternoon is readable; `tasks/README.md`'s new section is the
+    place that now says so.
 ---

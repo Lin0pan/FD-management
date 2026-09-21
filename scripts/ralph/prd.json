@@ -125,7 +125,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Last story of the last batch in the chain. The chain note in tasks/README.md is the part worth getting right: four PRDs that must run in order, and one of them with an expiry date."
     }
   ]
