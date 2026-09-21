@@ -18,7 +18,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "One new port method, an aggregate. A per-row query would be ~250 round trips after five years — the register's whole point is that it is small, not that it is slow."
     },
     {
@@ -41,7 +41,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "This is the story the whole of US-35 was built for. The single most important line in it is the one that decides receipt-or-live, and it belongs here and nowhere else."
     },
     {
@@ -63,7 +63,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "A read-only screen and the first one in the application that is not about today. Keep it boring: a table, newest first, one badge, one link."
     },
     {
@@ -86,7 +86,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Nine columns is the risk. The customer list already has width trouble with eight of them and this project capped a column on that list once already (PR #141). Judge it at DF's window size, on a MacBook, and drop Karte if something must go."
     },
     {
@@ -107,7 +107,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "This spec is the only end-to-end proof that US-35 did anything at all. Use the session helper from tests/e2e/session.ts and its own register slice — it archives a number, so it must not share numbers with another spec."
     },
     {
@@ -125,7 +125,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Last story of the last batch in the chain. The chain note in tasks/README.md is the part worth getting right: four PRDs that must run in order, and one of them with an expiry date."
     }
   ]

@@ -15,16 +15,24 @@ export interface NavItem {
   /** Where the item leads — always the section's own root. */
   readonly href: string;
   /**
-   * Every route root the section owns, `href` included. Only the customer hub owns more than one —
-   * the waiting list and the reissue list have no item of their own, and standing on one with no
-   * section marked reads as a broken bar.
+   * Every route root the section owns, `href` included. Two sections own more than one — the
+   * waiting list, the reissue list and the past afternoons have no item of their own, and standing
+   * on one with no section marked reads as a broken bar.
    */
   readonly routes: ReadonlyArray<string>;
 }
 
 export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { section: "start", href: "/", routes: ["/"] },
-  { section: "distribution", href: "/ausgabe", routes: ["/ausgabe"] },
+  {
+    section: "distribution",
+    // `/ausgabetermine` is named in full rather than caught by `/ausgabe`, which owns whole path
+    // segments and would not match it. It has no item of its own: four items is what US-17 settled
+    // on, and the past afternoons are reached from the counter screen, which is where DF stand when
+    // they ask about last Thursday (US-37.3).
+    href: "/ausgabe",
+    routes: ["/ausgabe", "/ausgabetermine"],
+  },
   {
     section: "customers",
     href: "/kunden",

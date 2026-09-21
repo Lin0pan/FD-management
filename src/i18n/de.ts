@@ -105,6 +105,11 @@ function startedAt(instant: string): string {
   return `Begonnen: ${instant}`;
 }
 
+/** When it ended, read beside {@link startedAt} on both screens stating one afternoon in full. */
+function endedAt(instant: string): string {
+  return `Beendet: ${instant}`;
+}
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -1147,7 +1152,7 @@ export const de = {
       last: {
         heading: "Letzte Ausgabe",
         startedAt,
-        endedAt: (instant: string): string => `Beendet: ${instant}`,
+        endedAt,
         summary: (households: number, totalPaidCents: number): string =>
           `${servedAndTook(households, totalPaidCents)}.`,
       },
@@ -1177,6 +1182,54 @@ export const de = {
           notReopenable: "Diese Ausgabe lässt sich nicht mehr öffnen. Bitte die Seite neu laden.",
           unknown: "Die Ausgabe konnte nicht geöffnet werden. Bitte erneut versuchen.",
         },
+      },
+    },
+    /**
+     * The afternoons already held, listed at `/ausgabetermine` (US-37.3) — the first screen in the
+     * application that is not about today.
+     *
+     * `pastSessions` and not `sessions`, which is one letter from the `session` above it: that one
+     * is the afternoon under way, and two keys in one object telling singular from plural is the
+     * misreading the route name was chosen to avoid.
+     */
+    pastSessions: {
+      heading: "Ausgabetermine",
+      /** The way in, from the counter screen — the only screen this one is reached from. */
+      link: "Alle Ausgabetermine",
+      /** The afternoon under way, which is the row at the top. */
+      running: "Läuft",
+      /** What that row's two figures are, in the one word that says it. */
+      provisional: "vorläufig",
+      empty: "Es wurde noch keine Ausgabe erfasst.",
+      table: {
+        date: "Datum",
+        groups: "Gruppe(n)",
+        households: "Haushalte",
+        total: "Summe",
+      },
+      /**
+       * One afternoon and the households that collected at it, at `/ausgabetermine/[id]`
+       * (US-37.4). The table's headings are **not here**: eight of them are the Kundenliste's own
+       * ({@link customerList.table}) and the ninth is the counter's `serve.amount`, because a
+       * second wording of one column is how two screens come to disagree.
+       */
+      detail: {
+        heading: (day: string): string => `Ausgabe vom ${day}`,
+        startedAt,
+        endedAt,
+        summary: (households: number, totalPaidCents: number): string =>
+          `${servedAndTook(households, totalPaidCents)}.`,
+        /** A typed or a stale URL — a discarded afternoon reads the same as one that never was. */
+        notFound: "Dieser Ausgabetermin wurde nicht gefunden.",
+        empty: "An dieser Ausgabe hat niemand etwas abgeholt.",
+        /**
+         * The one hint this screen earns, on an afternoon ended before the capture existed
+         * (US-35): it says what the table cannot, that these figures are today's rather than that
+         * afternoon's.
+         */
+        live:
+          "Diese Ausgabe wurde beendet, bevor der Stand festgehalten wurde — die Tabelle zeigt " +
+          "die Haushalte, wie sie heute im Register stehen.",
       },
     },
     /**

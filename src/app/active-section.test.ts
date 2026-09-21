@@ -20,6 +20,16 @@ describe("activeSection", () => {
     expect(activeSection("/ausgabe")).toBe("distribution");
   });
 
+  // The past afternoons are reached from the counter screen and have no item of their own, so the
+  // Ausgabe tab is what has to stay marked while one of them is open.
+  it("marks Ausgabe on the list of past distributions, which it owns", () => {
+    expect(activeSection("/ausgabetermine")).toBe("distribution");
+  });
+
+  it("marks Ausgabe while one past distribution is open", () => {
+    expect(activeSection("/ausgabetermine/7")).toBe("distribution");
+  });
+
   it("marks Einstellungen on the settings screen", () => {
     expect(activeSection("/einstellungen")).toBe("settings");
   });

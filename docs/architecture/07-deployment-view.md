@@ -64,8 +64,11 @@ nor leave one _group_ full, which since US-31 is a second way a register can run
 is BLUE and an odd one RED, so either half can be exhausted on its own). The second is **how many
 afternoons have been held**, which since US-36 is what a household's missed-distribution count is
 walked over: in the shared register a dozen specs start, end and seed sessions, so „missed two"
-could only be asserted there as a delta. Three specs share it for those reasons — `no-shows`,
-`number-group` and `waiting-list` — each emptying it in its own `beforeAll` before it starts.
+could only be asserted there as a delta. The third is **which afternoons `/ausgabetermine` lists**
+(US-37), for the same reason one level up: the overview is that list, and in the shared register it
+could only ever be asserted as a delta. Four specs share it for those reasons — `no-shows`,
+`number-group`, `session-detail` and `waiting-list` — each emptying it in its own `beforeAll` before
+it starts.
 
 The engine is chosen **per invocation**, not per Playwright project: `npm run test:e2e` drives
 Chromium and `npm run test:e2e:webkit` drives WebKit, each over registers of its own, so neither can

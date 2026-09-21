@@ -97,3 +97,26 @@ costs rather than what a household is asked to pay off.
 **Recommended build order** (dependency chain, not tier order):
 US-14 → US-01 → US-02 → US-03 → US-07 → US-04 → US-05 → US-06 → US-08 → US-09 → US-10 → US-13 →
 US-11 → US-12 → US-15 → US-16.
+
+## Beyond the MVP — and the one chain in it
+
+The index stops at US-16 **by design**: it is the MVP. Everything numbered above it is an extension,
+written one at a time against a system that already runs, and almost all of them stand alone.
+
+**US-34 → US-35 → US-36 → US-37 do not.** They are one chain and only make sense in that order:
+
+1. **US-34** makes a distribution something the software knows — started and ended by hand, and the
+   thing a hand-out belongs to instead of a calendar day
+   ([ADR-020](../docs/architecture/adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
+2. **US-35** captures each household it served **as it stood**, at the instant the session is ended
+   ([ADR-021](../docs/architecture/adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)).
+3. **US-36** takes the calendar away — the week colour, its anchor and the distribution weekday —
+   now that a session carries the groups it serves.
+4. **US-37** is the first thing that reads any of it back: the list of afternoons held, and one
+   afternoon with the households that collected at it.
+
+**US-35 is the one that must not be skipped or deferred.** What it captures cannot be reconstructed
+afterwards — editing a household overwrites its names and replaces its member rows — so every
+afternoon ended while it is missing can only ever show today's record, and US-37's detail view says
+so on the screen rather than pretending otherwise. Building US-37 without it produces two screens
+that work and a promise they cannot keep.

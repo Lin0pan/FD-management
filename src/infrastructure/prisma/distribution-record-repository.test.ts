@@ -349,6 +349,42 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
   });
 });
 
+describe("PrismaDistributionRecordRepository.summariseBySession", () => {
+  it("counts the households of each session and sums what they handed over", async () => {
+    const one = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    await repository.create(handOut(one, { paidCents: PART_PAYMENT }));
+    await repository.create(handOut(other, { paidCents: OVERPAYMENT }));
+    await repository.create(handOut(one, { sessionId: nextSession, date: NEXT_WEEK }));
+
+    const summaries = await repository.summariseBySession();
+
+    expect(summaries.get(thisSession)).toEqual({
+      households: 2,
+      totalPaidCents: PART_PAYMENT + OVERPAYMENT,
+    });
+    expect(summaries.get(nextSession)).toEqual({ households: 1, totalPaidCents: PRICE });
+  });
+
+  it("sums a payment of nothing as nothing rather than dropping the household from the count", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId, { paidCents: 0 as Cents }));
+
+    expect(await repository.summariseBySession()).toEqual(
+      new Map([[thisSession, { households: 1, totalPaidCents: 0 }]]),
+    );
+  });
+
+  it("leaves a session nobody collected at out of the map, rather than answering it as a zero", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId));
+
+    const summaries = await repository.summariseBySession();
+
+    expect(summaries.has(nextSession)).toBe(false);
+  });
+});
+
 describe("PrismaDistributionRecordRepository freezing and thawing a session", () => {
   it("round-trips every captured detail of a household, unchanged", async () => {
     const customerId = await insertCustomer(50);
@@ -409,6 +445,35 @@ describe("PrismaDistributionRecordRepository freezing and thawing a session", ()
 
     expect(await prisma.handoutReceipt.count()).toBe(0);
     expect(await repository.findById(record.id)).toEqual(record);
+  });
+
+  it("reads an afternoon back with every receipt beside the hand-out it describes", async () => {
+    const [first, second] = [await insertCustomer(50), await insertCustomer(52)];
+    const records = [
+      await repository.create(handOut(first)),
+      await repository.create(handOut(second)),
+    ];
+    const captured = receipt({ lastName: "Aalto" });
+    await repository.freezeSession(thisSession, [
+      { recordId: records[0].id, receipt: captured },
+      { recordId: records[1].id, receipt: receipt() },
+    ]);
+
+    const frozen = await repository.listFrozen(thisSession);
+
+    expect(frozen).toHaveLength(2);
+    expect(frozen).toContainEqual({ recordId: records[0].id, receipt: captured });
+  });
+
+  it("reads back nothing for an afternoon that was never frozen, and nothing of another's", async () => {
+    const [served, elsewhere] = [await insertCustomer(50), await insertCustomer(54)];
+    await repository.create(handOut(served));
+    const other = await repository.create(handOut(elsewhere, { sessionId: nextSession }));
+    await repository.freezeSession(nextSession, [{ recordId: other.id, receipt: receipt() }]);
+
+    // The two empties a caller has to tell apart — a session still running and one ended before the
+    // capture existed — look the same here, and the reader tells them apart (US-37.2).
+    expect(await repository.listFrozen(thisSession)).toEqual([]);
   });
 
   it("refuses to remove a hand-out its receipt still points at, and allows it once thawed", async () => {

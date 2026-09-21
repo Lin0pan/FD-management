@@ -22,7 +22,11 @@ import type {
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
 import type { HandoutReceipt } from "@/domain/distribution/handoutReceipt";
-import type { DistributionSession, SessionGroups } from "@/domain/distribution/session";
+import type {
+  DistributionSession,
+  SessionGroups,
+  SessionSummary,
+} from "@/domain/distribution/session";
 import type { Cents } from "@/domain/money";
 import type { SettingsVersion } from "@/domain/policy/settings";
 
@@ -371,6 +375,15 @@ export interface DistributionRecordRepository {
    * collected?" (US-23) reads the afternoon once instead of once per household.
    */
   listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>>;
+  /**
+   * What every session came to, keyed by session, in **one** aggregate query — the overview of past
+   * afternoons (US-37.1) states the households and the sum of each of them, and reading the
+   * hand-outs of one session at a time is a round trip per row for as long as the register lives.
+   *
+   * A session **absent** from the map was collected at by nobody, which is honest where a zero
+   * written down for every afternoon ever held is not; callers read the absence as an empty summary.
+   */
+  summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>>;
   /** The record with this surrogate id, or `null` if the id belongs to none. */
   findById(recordId: number): Promise<DistributionRecord | null>;
   /**
@@ -394,6 +407,16 @@ export interface DistributionRecordRepository {
    * what lets a second ending follow a reopening whose {@link thawSession} did not land.
    */
   freezeSession(sessionId: number, receipts: ReadonlyArray<FrozenHandout>): Promise<void>;
+  /**
+   * The receipts one session was frozen with, each beside the hand-out it describes — how a past
+   * afternoon is read back as it stood (US-37.2, ADR-021).
+   *
+   * **Empty is two different answers and the caller tells them apart from the hand-outs it holds**:
+   * a session that is running or has been reopened carries no receipts because nothing is frozen
+   * until an afternoon is closed, and a session ended before the capture existed (US-35) carries
+   * none because none was ever taken.
+   */
+  listFrozen(sessionId: number): Promise<ReadonlyArray<FrozenHandout>>;
   /**
    * Drop a session's receipts, which only a reopening does. It is what keeps the correction window
    * open: a receipt still pointing at a hand-out would make the store refuse to remove it.

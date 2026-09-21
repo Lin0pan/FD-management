@@ -16,7 +16,11 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
-import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
+import {
+  createSessionGroups,
+  type DistributionSession,
+  type SessionSummary,
+} from "@/domain/distribution/session";
 import {
   CustomerArchived,
   CustomerNotFound,
@@ -133,6 +137,14 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
 
   thawSession(): Promise<void> {
     return Promise.reject(new Error("Thawing an afternoon has a suite of its own"));
+  }
+
+  summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>> {
+    return Promise.reject(new Error("The overview of past afternoons has a suite of its own"));
+  }
+
+  listFrozen(): Promise<never> {
+    return Promise.reject(new Error("Reading a past afternoon back has a suite of its own"));
   }
 }
 

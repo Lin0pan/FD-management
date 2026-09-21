@@ -29,7 +29,7 @@ import {
 import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
@@ -86,6 +86,14 @@ function SessionHeader({ running }: { running: RunningSession }): React.ReactEle
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-base font-medium">{de.distribution.session.running}</p>
           <SessionGroupBadges groups={running.session.groups} testId="session-groups" />
+          {/* One of the two ways to the afternoons already held (US-37.3), which have no item in
+              the nav bar. Borderless and pushed to the far edge: it navigates, and it must not read
+              as a third thing to do to the afternoon under way. */}
+          <Button variant="ghost" asChild className="ml-auto">
+            <Link href="/ausgabetermine" data-testid="session-past-link">
+              {de.distribution.pastSessions.link}
+            </Link>
+          </Button>
         </div>
         <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard} />
       </CardContent>
@@ -110,6 +118,15 @@ function LastSessionCard({ ended }: { ended: EndedSession }): React.ReactElement
         <CardTitle className="text-lg">
           <h2>{words.heading}</h2>
         </CardTitle>
+        {/* The other way to the afternoons already held: this card answers what the last one came
+            to, and the list is where the same question about the one before it is answered. */}
+        <CardAction>
+          <Button variant="ghost" asChild>
+            <Link href="/ausgabetermine" data-testid="last-session-past-link">
+              {de.distribution.pastSessions.link}
+            </Link>
+          </Button>
+        </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <SessionGroupBadges groups={ended.session.groups} testId="last-session-groups" />

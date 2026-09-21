@@ -414,6 +414,12 @@ bullets that sat under „Where batch 36 starts" are not carried over — they a
   half a dozen PRDs, so a reader meeting it needs to be told it is gone and what replaced it — which
   a deleted row cannot do. Chapter 01's **non-goals** table and chapter 09's **reversed decisions**
   table are the same mechanism one level up, and a withdrawn PRD's banner one level down.
+- **An e2e spec that reopens an afternoon, or states the overview's list of them, owns a register.**
+  „Ausgabe wieder öffnen" acts on the afternoon that ended *last* in the whole register and
+  `/ausgabetermine` **is** that list, so on the shared register both could only ever be deltas. That
+  is the third reason for `ISOLATED_SPECS` (four globs now) after the quota and the no-show count —
+  and the register a spec inherits there carries the **quota** the file before it set, so a spec
+  needing a particular slot offered sets its own through `/einstellungen` in `beforeAll`.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
@@ -525,6 +531,31 @@ bullets that sat under „Where batch 36 starts" are not carried over — they a
   hand-out path.** When a fixture or spec has to satisfy it, reach for an afternoon that already
   exists rather than opening a private one — and if none exists, the timeline is what is wrong.
 
+- **The counting words in `docs/architecture/05-building-block-view.md` are drift no gate sees, and
+  the same count is usually repeated in chapter 12.** „43 use cases", „nine routes", „Exactly four
+  composition roots" — every one of them is a claim a story can falsify without touching the
+  chapter, and „nine routes" was already one short of the ten on `main` before US-37 added two.
+  Count the real thing rather than incrementing the word: `npm run build` prints the route list,
+  `ls src/app/**/page.tsx` counts it too, and use cases are **exported functions**, not files —
+  `grep -cE "^export (async )?function "` summed over `src/application/*/*.ts` (two files export two
+  apiece, which is why 43 files read as 45 use cases). Then `grep -rn` the old wording over `docs/`:
+  the composition-root count sat in chapter 12 as well.
+- **A glossary term the system does not use is vocabulary invented rather than recorded.** A PRD may
+  *propose* a word („add _Ausgabetermin-Übersicht_ and _Detailansicht_ if they are worth fixing");
+  the test is whether `de.ts`, a route or an identifier uses it. Neither did — the heading is
+  `Ausgabetermine` and the detail's is `Ausgabe vom <Datum>` — so both were refused, and the naming
+  *decision* behind the route went into an existing entry instead. The `arc42` skill forbids
+  inventing facts, and a defined word nobody says is the easiest kind to invent.
+- **`docs/handout/` takes no markdown anchor links, no file paths and no npm scripts.** It is printed
+  and handed to DF, so a cross-reference is written the way the file already writes them —
+  „(siehe oben)", „(siehe unten)" — and a link is dead ink on paper. `docs/handout/README.md` states
+  the three rules; read it before adding a section there.
+- **Where a handout paragraph and a new screen explain the same thing, cut the paragraph back to the
+  fact and point at the section.** US-35 explained the freeze under „Ausgabe beenden" in eight lines
+  because there was no screen showing it yet; US-37 built that screen, so the explanation moved to
+  it. Two copies of one argument is the fault this project exists to remove, and the handout is
+  where it is most expensive — DF read it away from the code that would contradict it.
+
 ### Where batch 37 starts
 
 Three batches have made a distribution session something the software knows — started and ended by
@@ -589,3 +620,336 @@ is the rule (root `CLAUDE.md`: where the argument is already recorded, cite it a
 
 **This is the last of the four** — 34 → 35 → 36 → 37 — and story 6 is where that chain gets written
 down, in `tasks/README.md`, as the one place a reader finds out US-35 must not be skipped.
+
+## 2026-09-21 — US-001 (US-37.1: the list of sessions)
+
+- New use case `src/application/distribution/list-distribution-sessions.ts`: every afternoon on
+  record, newest first, the running one at the top with `running: true` and provisional figures.
+  `ListedSession` carries `{ id, startedAt, endedAt, groups, households, totalPaidCents, running }`.
+- New port method `DistributionRecordRepository.summariseBySession()` — one `groupBy` over the
+  hand-outs (`_count._all`, `_sum.paidCents`), keyed by session, in the shape
+  `CardRepository.highestIndexByNumber` already takes. A session **absent** from the map was
+  collected at by nobody; the use case reads the absence as `summariseSession([])`.
+- **No new session port method.** The list is `findRunning()` + `listEnded()`; both already filter
+  discarded sessions (ADR-010), so „discarded never appear" costs the use case no line of its own.
+- Files: `src/application/ports.ts`, `src/application/distribution/list-distribution-sessions.ts`
+  (+ its suite), `src/infrastructure/prisma/distribution-record-repository.ts` (+ three tests in its
+  suite), and the `summariseBySession` stub in the eight hand-written
+  `FakeDistributionRecordRepository`s.
+- Gates: lint, typecheck, `test:coverage` (61 files, 1377 tests, application and domain at 100%) and
+  `build` all green.
+
+- **Learnings for future iterations:**
+  - **The fake count is eight, not the seven a `grep` for the class name suggests** — the port is
+    implemented in `maintain-customer`, `lookup-customer`, `customers`, `change-customer-number`,
+    `correct-attendance`, `read-group-roster`, `record-attendance` and `distribution-session` test
+    files. `grep -rln "implements DistributionRecordRepository" src/` is the reliable list, and the
+    stub insertion point is the class's own first `\n}\n` (a script over `s.index(...)` from the
+    class header, not the file's first).
+  - **A `?? fallback` over a map lookup keeps both branches reachable here**, unlike the
+    unreachable-fallback trap in the patterns above: a running session that nobody has collected at
+    yet is a real row of the overview, so the „absent from the map" arm is covered by the
+    `puts the running session at the top` test rather than by a case that cannot arise.
+  - **Prisma's `groupBy` needs `_count: { _all: true }`** to count rows (a `_count: { id: true }`
+    would count a nullable column instead), and `_sum` is typed nullable even though a `groupBy`
+    cannot produce an empty group — the `?? 0` beside it is `summariseSession`'s own reading, not an
+    assertion, and the comment says so.
+  - **Spreading a domain value object into a read model reads well and typechecks**:
+    `...(summaries.get(id) ?? summariseSession([]))` puts `households` and `totalPaidCents` on the
+    row without restating either name, so a third figure added to `SessionSummary` arrives here by
+    itself.
+  - Story 2's `read-distribution-session.ts` needs the receipt-or-live `if` and
+    `DistributionSessionNotFound` (the batch's one domain edit, three files:
+    `src/domain/errors.ts` ×2 + `TIERS` in `src/app/notice-tier.ts`, whose header comment counts the
+    codes and goes stale silently).
+  - Documentation is deliberately untouched: chapter 05 (the two use cases, the two routes, the
+    aggregate port method) and the counting words in it belong to story 6, which owns the arc42 pass
+    for the whole batch.
+---
+
+## 2026-09-21 — US-002 (US-37.2: one session, with the households that collected at it)
+
+- New use case `src/application/distribution/read-distribution-session.ts`: a session by id plus one
+  row per hand-out (`CollectedHousehold`), ordered by **customer number** — the order a register is
+  read in, never the order the afternoon served people.
+- **The receipt-or-live decision is one `if`, on `isRunning(session)`** (E-5). An ended afternoon is
+  read off the receipts US-35 wrote; a running *or reopened* one off the customer, household, card
+  and certificate as they stand. `group` is `groupOf` of whichever number the row carries (ADR-017)
+  and `cardNumber` is `formatCardNumber` over whichever card slot it carries (ADR-016); neither is
+  stored anywhere. `priceCents`/`paidCents` always come off the hand-out. No balance is returned.
+- `frozen: boolean` on the result is the flag an ended session with **no** receipts needs (E-10):
+  `!isRunning(session) && handouts.every(receipt-present)`. The screen reads `ended && !frozen` as
+  „these figures are today's".
+- **A second new port method after all: `DistributionRecordRepository.listFrozen(sessionId)`.** The
+  PRD says US-37.1's aggregate is the batch's only one — that is wrong, and nothing in the batch
+  could have worked without this: `freezeSession`/`thawSession` could write and drop receipts, and
+  no method could read one back. Adapter + two integration tests; stubbed in nine hand-written
+  fakes.
+- `DistributionSessionNotFound` — the batch's one domain edit, in three files as promised
+  (`errors.ts` union + class, `TIERS` in `notice-tier.ts`, red: a stale link, not a retryable
+  refusal) plus its `errors.test.ts` case.
+- Files: `src/application/distribution/read-distribution-session.ts` (+ its suite),
+  `src/application/ports.ts`, `src/domain/errors.ts` (+ suite), `src/app/notice-tier.ts`,
+  `src/infrastructure/prisma/distribution-record-repository.ts` (+ suite), and the `listFrozen` stub
+  in nine fakes.
+- Gates: lint, typecheck, `test:coverage` (62 files, 1392 tests, application and domain at 100%) and
+  `build` all green.
+
+- **Learnings for future iterations:**
+  - **A "no new port method" claim in a PRD is a claim about the *writes* somebody already built.**
+    US-35 was specified as a capture and its port grew `freezeSession` and `thawSession` and no
+    reader, because nothing read a receipt until this story. Before trusting such a line, grep the
+    port for a method that *returns* the thing the story has to show.
+  - **The fake count is now nine, not eight** — `list-distribution-sessions.test.ts` joined the
+    eight `grep -rln "implements DistributionRecordRepository" src/` names last iteration. The
+    script that inserts a stub before the class's own first `\n}\n` (from `s.index(<class header>)`,
+    never the file's first) patched all nine in one pass.
+  - **Destructuring a row's surrogate `id` away trips `no-unused-vars`** (a warning, and `lint` is
+    clean otherwise so it reads as an error). Prisma's `omit: { id: true }` on the `findMany` says
+    the same thing in the query instead — the adapter suite already used `omit` in an assertion.
+  - **A reopened session is proved by leaving the receipts in the fake store.** Thawing removes
+    them, so a fake that also thaws would pass whether the `if` asked about the session or about
+    the receipts. Leaving them behind is what pins the decision to `isRunning`.
+  - **A live row needs a `Clock`.** The counts are `composition(members, now)` like everywhere else,
+    so the use case takes the clock even though a frozen row never reads it — the alternative,
+    deriving the counts at the hand-out's own date, would be a third answer to „as they stood".
+  - `CustomerNotFound` is reachable here only through a hand-out naming a household the register
+    does not hold, which nothing can produce (no row is ever deleted). It still needs its test: the
+    `=== null` branch is real code and application coverage is gated at 100%.
+  - Story 3 (`/ausgabetermine`) wires the first of the two screens. Neither use case is in
+    `distributionDeps` yet — the composition root is the presentation stories' work.
+  - Documentation is again deliberately untouched: chapter 05's counting words (ports, use cases,
+    routes) and the glossary belong to story 6, which owns the arc42 pass for the whole batch. Note
+    for it: **the ports table gains two rows this batch, not one** — `summariseBySession` and
+    `listFrozen`.
+---
+
+## 2026-09-21 — US-003 (US-37.3: the overview page)
+
+- New route `/ausgabetermine` — `page.tsx` and a `deps.ts` holding the two read-only stores and no
+  audit log. One table, newest first: `Datum`, `Gruppe(n)`, `Haushalte`, `Summe`, each row's date
+  linking to `/ausgabetermine/<id>`. Money through `formatEuros`, the day through a new
+  `germanDayOf`, the group badges through `SessionGroupBadges` — the counter's own component, so the
+  colours cannot drift between the two screens.
+- The running afternoon is the first row, marked with a grey `Läuft` badge, and its sum carries
+  `vorläufig` **under** it rather than beside it. Beside it, the one figure still moving was pushed
+  ~60px out of line with the eight below — measured in the browser, not guessed.
+- `germanDayOf(instant)` in `src/i18n/format.ts` (+ three named tests): `germanDate` reads UTC
+  because a stored day is midnight UTC, so it would name the day before for an afternoon that ran
+  past midnight in Berlin. The column is a day; the detail view's header is where the two instants
+  are written out in full.
+- **No fifth nav item** — the decision the PRD left to the finished screen. Four is what US-17
+  settled on; the afternoons are reached from `/ausgabe`, where DF stand when they ask about last
+  Thursday: the running session's header (far right of the header row, ghost) and the last-session
+  card (`CardAction`). `/ausgabetermine` is added to the **distribution** section's `routes`
+  instead, so the Ausgabe tab stays marked while one is open (+ two cases in
+  `active-section.test.ts`).
+- German under `distribution.pastSessions`, as the PRD names it — never `distribution.sessions`.
+- Files: `src/app/ausgabetermine/{page.tsx,deps.ts}`, `src/app/ausgabe/page.tsx`,
+  `src/app/active-section.ts` (+ suite), `src/i18n/{de.ts,format.ts,format.test.ts}`.
+- Gates: lint, typecheck, `test:coverage` (62 files, 1397 tests) and `build` all green. Driven in
+  WebKit against `npm run start` over the demo register at 1440×900 and 390×844.
+
+- **Learnings for future iterations:**
+  - **A word set beside a figure in a right-aligned money column breaks the column.** The figures are
+    read by scanning down the right edge, so anything appended on the same line shifts that one
+    number left. `className="block"` under the figure keeps the edge — and it fixes the accessible
+    name for free: two inline spans come out as `5,00 €vorläufig` with no separator, a block puts
+    the space in. Assert the right edges, not the look:
+    `[...document.querySelectorAll('[data-testid=x]')].map(s => s.getBoundingClientRect().right)`
+    should be one value.
+  - **A new route has to be given to a nav section explicitly.** `owns()` matches whole path
+    segments, so `/ausgabe` does **not** claim `/ausgabetermine` — it has to be named in `routes`
+    or the bar marks nothing and reads as broken. The two are one letter apart and the near miss
+    looks like it works.
+  - **The empty state of a list screen is one `npm run db:reset` away**, no `local_only/` script
+    needed: the reset seeds settings only, so every list in the application is empty against it.
+    Restart the server after (a running one keeps serving the deleted inode) and `npm run db:demo`
+    to put the register back.
+  - **The trailing `alert` node in every playwright-cli snapshot is not yours.** It is outside the
+    document — `document.querySelector('[role=alert]')` returns `null` — and it appears on every
+    page of this application including ones this batch never touched.
+  - Story 4 (`/ausgabetermine/[id]`) extends `pastSessionDeps`: `readDistributionSession` needs the
+    customers, certificates and a `Clock` on top of the two stores here. Its headings come from
+    `de.customerList.table` wherever they are the same words.
+  - Documentation is still deliberately untouched: chapter 05's counting words (**two** new ports,
+    two use cases, **two** new routes) and the glossary belong to story 6, which owns the arc42 pass
+    for the whole batch. Note for it: the nav decision is recorded in `active-section.ts`'s own
+    comment, so chapter 05's route list should not invent a fifth section.
+---
+
+## 2026-09-21 — US-004 (US-37.4: the detail view)
+
+- New route `/ausgabetermine/[id]`: the afternoon in a header card (group badges, both instants in
+  full, `servedAndTook`'s one-clause summary) and one table of the households that collected — Nr.,
+  Name, Karte, Gruppe, Erw. + Kinder, Preis, Nachweis bis, Erinnerungen, Betrag. Nothing editable,
+  no Status column, no absent households and no blocks (C-6) — and nothing on the page explaining
+  any of those absences.
+- **The receipt-or-live question is never asked here.** The page reads `detail.households` as given
+  and `detail.frozen` for the one hint it carries. `isRunning(session)` is read twice, for the
+  `Läuft` badge and the `vorläufig` mark, and neither decides what a row says.
+- **The two header figures come from the domain**, `summariseSession(detail.households)` — its
+  parameter is structural (`{ paidCents }[]`), so a `CollectedHousehold[]` satisfies it and the
+  detail and the overview cannot word the same afternoon differently.
+- **Width, decided in the browser as the PRD required: all nine columns stay, Karte included.** The
+  table's min-content is **847px** (the Kundenliste needs ~1000 for the same nine — this one has no
+  Status column), so at 1440, 1280 and 1024 it reads side by side with no scroll inside its
+  container, and below that it scrolls in its own `overflow-x-auto` box. `scrollWidth -
+  clientWidth` on the page is **0** at 1440, 1280, 1024, 800 and 390. No sticky header, unlike the
+  Kundenliste: one afternoon fits on a screen, and the three `overflow` overrides that stickiness
+  costs buy nothing here.
+- German under `distribution.pastSessions.detail`. `endedAt` is **lifted to a module helper beside
+  `startedAt`** and `session.last` now points at it — two screens stating one afternoon in full.
+  Eight headings are read from `customerList.table` and the ninth from `distribution.serve.amount`.
+- Files: `src/app/ausgabetermine/[id]/page.tsx` (new), `src/app/ausgabetermine/deps.ts`,
+  `src/i18n/de.ts`.
+- Gates: lint, typecheck, `test:coverage` (62 files, 1397 tests), `build` and `format:check` all
+  green. Driven in WebKit against `npm run start` at 1440×900, 1280, 1024, 800 and 390×844.
+
+- **Learnings for future iterations:**
+  - **A read-only screen still needs its four states built by hand.** The demo register holds only
+    ended-and-frozen afternoons, so the running one, the pre-US-35 one (ended, no receipts) and the
+    ended-but-empty one came from a `local_only/` script writing rows straight through Prisma —
+    `npx tsx local_only/<x>.ts` from the repo, never `/tmp`. **Delete them again before finishing**:
+    a *running* session left in `data/fd.db` would refuse every e2e spec that starts one, since only
+    one may run at a time. That is a trap no gate catches and the next iteration pays for.
+  - **`summariseSession` takes a structural `{ paidCents }[]`**, which is why a read model may be
+    summarised without a second derivation in the page. Look for that shape before reducing in a
+    component — a `reduce` over money in `app/` is business logic in the wrong layer.
+  - **An ended session with no hand-outs is `frozen: true` vacuously** (`handouts.every(...)` over
+    an empty list), so the „these figures are today's" hint correctly stays away from it and the
+    one-line empty state stands alone. Worth knowing before adding a fourth branch that guards it.
+  - **A row links by `customerId`, never by the number it shows.** A slot given to another household
+    since would otherwise open the wrong record — and the frozen name beside today's record is
+    exactly the comparison the link is worth making.
+  - Story 5 writes `tests/e2e/session-detail.spec.ts`. The testids are `session-detail-{header,
+    groups,started,ended,summary,running,provisional,live,empty,not-found,back}` and
+    `session-household-{row,number,name,card,group,grown-ups,children,price,certificate,reminders,
+    paid}`; each row carries `data-customer-id`. Remember `tests/e2e/session.ts` and a register band
+    of its own — the spec archives a number.
+  - Documentation is still deliberately untouched, as in the three stories before: chapter 05's
+    counting words (**two** new ports, two use cases, **two** new routes) and the glossary belong to
+    story 6. Note for it: the width verdict above is worth a line in
+    `ui_styling_guide.md` §3 only if it is ever revisited — **no column was dropped**, so the PRD's
+    „record the outcome" clause did not fire, and the pre-US-35 hint is a new entry for §8's list of
+    hints that earn their place.
+---
+
+## 2026-09-21 — US-005 (US-37.5: the state as it stood, proved end to end)
+
+- New `tests/e2e/session-detail.spec.ts`, seven tests in one narrative: serve two households and
+  read them live off `/ausgabetermine/[id]` while the afternoon runs, end it and watch the figures
+  hold, **correct the surname and renew the certificate** and watch last week's table keep the old
+  ones (E-2, E-3), reopen and watch the rows follow the record again (E-5, H-2), end it a second
+  time and watch it freeze on the new values, then **archive one household and hand its number to
+  the next** — the row still names the household that was served, under the `3k1` it was printed
+  (E-4). The last test reads the overview: two afternoons, the running one on top and marked, and
+  still newest-first once both are closed.
+- Everything is driven through the screens — the counter, the record, the intake, `/ausgabe` and the
+  two new ones — because a freeze that is only true of the fakes is worth nothing. The only Prisma
+  writes are the two seeded households.
+- **It owns the isolated register** (`ISOLATED_SPECS`, now four globs): the overview is asserted as
+  *the* list of afternoons rather than as a delta, and the archived number has to come back as a
+  slot the intake offers. `clearRegister` in its own `beforeAll`, and the **quota is set on the
+  settings screen** rather than inherited from `number-group.spec.ts`, which leaves six.
+- Files: `tests/e2e/session-detail.spec.ts` (new), `tests/e2e/registers.ts`,
+  `docs/architecture/07-deployment-view.md` (the paragraph counting the isolated specs and their
+  reasons — three became four).
+- Gates: lint, typecheck, `format:check`, `test:coverage` (62 files, 1397 tests), `build`, and both
+  engines green — `npm run test:e2e` and `npm run test:e2e:webkit`, 229 passed each.
+
+- **Learnings for future iterations:**
+  - **The record has no testid for the certificate on file**, only the renewal *form*'s empty
+    `renewal-valid-until` box. A renewal is read back off the sentence in the Nachweis section:
+    `page.getByText(`${de.customers.card.validUntil} ${typedDay(day)}`)`. Asserting the form field
+    instead fails with `Received: ""` and looks like a save that did not land.
+  - **A spec that reopens an afternoon needs the register emptied, not just its own numbers freed.**
+    „Ausgabe wieder öffnen" acts on the afternoon that ended *last* in the whole register, so on the
+    shared one it would reopen whatever the file before it closed. That, plus the overview being an
+    absolute list, is the third reason to take the isolated register (recorded in chapter 07).
+  - **Inheriting the quota from the spec that ran before you is a silent coupling.** The isolated
+    register carries `number-group`'s six into everything behind it, so a spec that has to be
+    offered a particular slot sets its own quota through `/einstellungen` in `beforeAll` — cheap
+    (one `fillSticky` + save on a hook page) and the only version of the claim that stays true when
+    the file ahead changes its own number.
+  - **`HookFixtures` is exported from `tests/e2e/session.ts`** and is the type for any `beforeAll`
+    helper that has to drive a screen — `beforeAll` refuses the `page` fixture, and a page built
+    from `browser` inherits no `baseURL`.
+  - **Two money columns from one read.** A spec that sets no policy reads the Betrag field with
+    `parseEuros` and asserts every later figure against it; where the household carries no earlier
+    hand-out the amount asked **is** the bare price, so Preis and Betrag are the same figure and the
+    comment says why rather than the spec stating a number.
+  - **`reminders.spec.ts` flaked once on the shared register** („Rentenbescheid30.06.2025" in the
+    Sonstiges box — a fill landing in the previous field's value), passed alone and passed on the
+    next full run. Same family as the WebKit nav flake already in the patterns above; nothing in
+    this story touches that project.
+  - Story 6 is the documentation: the Betriebsanleitung section, the arc42 pass (chapter 05's
+    counting words — **two** new ports, two use cases, **two** new routes — and the glossary), and
+    the chain note in `tasks/README.md`. Chapter 07 is **already done** by this story, since the
+    isolated-spec count is part of the change; do not count it twice.
+---
+
+## 2026-09-21 — US-006 (US-37.6: the Betriebsanleitung and the architecture record)
+
+- `docs/handout/betriebsanleitung.md` gains **„Frühere Ausgaben nachschlagen"**: where the list is
+  (`Alle Ausgabetermine`, from both the running afternoon and the last one), what a row says
+  (Datum, Gruppe(n), Haushalte, Summe; the running one on top, `Läuft`, figures `vorläufig`), what
+  the detail view shows — and the one thing neither screen states, that a **beendete Ausgabe shows
+  the households as they were that afternoon**, so next week's name correction does not rewrite last
+  week's table.
+- **The freeze is now explained once.** „Was eine beendete Ausgabe festhält", written by US-35 under
+  „Die Ausgabe starten und beenden", said the same thing in eight lines; it is cut back to the fact
+  (ending holds the state) and points at the new section. The argument belongs beside the screen
+  that shows it — two copies is the fault this project exists to remove.
+- **Chapter 05**: 43 → **45 use cases**; the `distribution/` row names the two new ones; the
+  `DistributionRecordRepository` row names `summariseBySession` (one aggregate) and `listFrozen`;
+  two route rows for `/ausgabetermine` and `/ausgabetermine/[id]`; composition roots four → **five**,
+  with the note that the new one holds no audit log because both its routes only read.
+- **Chapter 12**: composition roots four → five; **Distribution** says why the list is
+  _Ausgabetermine_ and not _Ausgaben_; **Distribution session** names where past ones are read;
+  **Receipt**'s „No screen names it yet — US-37 is the first" is retired for what is actually true —
+  no screen names the *word*, and the detail view shows the households without saying where the
+  figures came from.
+- `tasks/README.md` gains **„Beyond the MVP — and the one chain in it"** below the build order:
+  US-34 → US-35 → US-36 → US-37 in that order, with why US-35 is the one that must not be deferred.
+  Not a row in the index table, which stops at US-16 by design.
+- No ADR. ADR-020 and ADR-021 already carry these decisions and both are cited.
+- Files: `docs/handout/betriebsanleitung.md`, `docs/handout/README.md`,
+  `docs/architecture/05-building-block-view.md`, `docs/architecture/12-glossary.md`,
+  `tasks/README.md`.
+- Gates: `arc42:check` (no errors, the two open TODOs are chapter 07's and predate this batch),
+  lint, typecheck, `format:check`, `test:coverage` (62 files, 1397 tests) and `build` all green.
+
+- **Learnings for future iterations:**
+  - **„Ausgabetermin-Übersicht" and „Detailansicht" were refused as glossary terms.** The PRD wrote
+    them „if the words are worth fixing", and they are not: neither appears in `de.ts`, in a route,
+    or in an identifier — the heading is `Ausgabetermine` and the detail's is `Ausgabe vom <Datum>`.
+    Fixing a word the system does not use is inventing vocabulary, which is the one thing the arc42
+    skill forbids outright. What *was* worth recording is the naming decision behind the route, and
+    that went into the **Distribution** entry beside the _Ausgabe_ collision it exists to avoid.
+  - **Chapter 05's counting words are the drift no gate sees, and one was already wrong.** „nine
+    routes" stood over a table naming ten (the `warteliste` row carries two), so this story moved it
+    to **twelve**, which `npm run build`'s route list verifies directly — that printout is the
+    cheapest check there is for that heading. Before editing any of those headings, count the real
+    thing: `ls src/app/**/page.tsx` for routes, `grep -cE "^export (async )?function "` summed over
+    `src/application/*/*.ts` for use cases (it counts **exported functions**, not files — two files
+    export two apiece, which is why 43 files read as 45 use cases).
+  - **A count in a chapter heading and the same count in the glossary go stale as a pair.**
+    „Exactly four composition roots" sat in both 05 and 12; `grep -rn "Exactly four\|nine routes"`
+    over `docs/` found the second copy. Do that sweep for any number a story changes.
+  - **A printable handout does not take markdown anchor links.** The first draft pointed at the new
+    section with `[…](#frühere-ausgaben-nachschlagen)`; the file's own style is „(siehe oben)" /
+    „(siehe unten)", because a link is dead ink on paper and `docs/handout/README.md` bans anything
+    a reader cannot act on.
+  - **What the handout deliberately does not mention: the pre-US-35 hint.** The detail view's one
+    line („diese Ausgabe wurde beendet, bevor der Stand festgehalten wurde") can only appear for a
+    session ended before US-35 landed, and DF have entered no real data — so DF will never see it.
+    Documenting it would explain a case that cannot arise. Revisit only if that stops being true.
+  - **Prettier re-pads a whole markdown table when one cell grows**, so a two-cell edit to chapter
+    12 lands as a 26-line diff with no wording change in 24 of them. Read such a diff with
+    `git diff -- <file> | grep -E "^[-+]" | cut -c1-200` rather than scrolling it, or run
+    `npm run format` before staging so the reflow is part of the same commit either way.
+  - **Batch 37 is complete** — six stories, and the chain US-34 → US-37 with it. The next batch
+    starts from a system where a past afternoon is readable; `tasks/README.md`'s new section is the
+    place that now says so.
+---
