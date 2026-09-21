@@ -59,7 +59,7 @@ function SessionRow({ session }: { session: ListedSession }): React.ReactElement
           {germanDayOf(session.startedAt)}
         </Link>
         {/* Grey, not an alarm: an afternoon under way is the ordinary state of the top row on a
-            Thursday. The word carries the meaning and the badge only makes it findable (§12). */}
+            Thursday. The word carries the meaning and the badge only makes it findable (§5). */}
         {session.running ? (
           <Badge variant="secondary" data-testid="past-session-running" className="ml-2">
             {words.running}

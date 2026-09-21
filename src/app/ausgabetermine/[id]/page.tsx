@@ -235,7 +235,7 @@ export default async function PastSessionPage({
           {words.heading(germanDayOf(detail.session.startedAt))}
         </h1>
         {/* The overview's badge, so an afternoon under way is recognised by the same mark on both
-            screens (`ui_styling_guide.md` §12). */}
+            screens (`ui_styling_guide.md` §5). */}
         {running ? (
           <Badge variant="secondary" data-testid="session-detail-running">
             {de.distribution.pastSessions.running}
