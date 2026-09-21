@@ -129,14 +129,9 @@ wurde — keine Lebensmittel, keine Erinnerung — bietet der Bildschirm **Ausga
 verworfene Ausgabe hat es für die Software nie gegeben; es wird nichts darüber festgehalten. Sobald
 der erste Haushalt erfasst ist, verschwindet diese Möglichkeit und es bleibt nur das Beenden.
 
-**Was eine beendete Ausgabe festhält.** Zu jeder beendeten Ausgabe hält die Software fest, welche
-Haushalte versorgt wurden — mit Name, Nummer, Karte, Erwachsenen und Kindern, Nachweisdatum und
-Erinnerungen **so, wie sie an jenem Nachmittag waren**, nicht wie sie heute sind. Wer später
-heiratet, umzieht oder eine neue Nummer bekommt, steht dort weiterhin mit dem, was damals galt.
-**Solange die Ausgabe läuft, kommt jede Korrektur noch an** — ein Name, der erst nach der Erfassung
-als falsch geschrieben auffällt, wird auch dort richtiggestellt. **Mit dem Beenden ist dieser Stand
-festgehalten**; beim Wiederöffnen gilt wieder der aktuelle, und das nächste Beenden hält ihn erneut
-fest.
+**Was eine beendete Ausgabe festhält.** Mit dem Beenden hält die Software fest, welche Haushalte
+versorgt wurden und wie sie an jenem Nachmittag aussahen. Nachzulesen ist das unter
+**Frühere Ausgaben nachschlagen** (siehe unten).
 
 **Zu früh beendet: wieder öffnen.** Solange **keine neue** Ausgabe läuft, lässt sich die **zuletzt
 beendete** unter **Ausgabe** über **Ausgabe wieder öffnen** noch einmal öffnen. Dafür ist ein Grund
@@ -146,6 +141,30 @@ erforderlich, der protokolliert wird. Danach sind ihre Einträge wieder zu korri
 **Solange keine Ausgabe läuft**, zeigt der Ausgabe-Bildschirm nur den Start und die letzte Ausgabe
 mit ihren Zahlen. Eine Kundennummer lässt sich dann nicht nachschlagen — Kunden anlegen, sperren,
 ändern und Karten ausstellen geht wie immer.
+
+## Frühere Ausgaben nachschlagen
+
+**Wo die Liste steht.** Unter **Ausgabe** führt **Alle Ausgabetermine** zu einer Liste aller
+Ausgaben, die neueste zuoberst. Der Weg dorthin steht sowohl bei der laufenden Ausgabe als auch bei
+der zuletzt beendeten.
+
+**Was eine Zeile sagt.** Datum, Gruppe(n), wie viele Haushalte abgeholt haben und wie viel
+eingenommen wurde. Läuft gerade eine Ausgabe, steht sie oben und ist mit **Läuft** gekennzeichnet;
+ihre beiden Zahlen sind **vorläufig** und wachsen weiter, solange erfasst wird.
+
+**Was ein Ausgabetermin zeigt.** Ein Klick auf eine Zeile öffnet den Nachmittag: oben Beginn, Ende,
+Gruppe(n), Haushalte und Summe, darunter eine Zeile je Haushalt, der etwas abgeholt hat — mit
+Nummer, Name, Karte, Gruppe, Erwachsenen und Kindern, Preis, Nachweisdatum, Erinnerungen und dem
+gezahlten Betrag. Wer nicht gekommen ist, steht nicht in der Tabelle, und Sperrungen und
+Archivierungen des Nachmittags stehen dort ebenfalls nicht — die stehen beim Haushalt selbst.
+Ändern lässt sich hier nichts; Korrekturen laufen weiter über **Ausgabe**.
+
+> **Eine beendete Ausgabe zeigt die Haushalte so, wie sie an jenem Nachmittag waren** — mit dem
+> Namen, der Nummer, der Karte, den Erwachsenen und Kindern, dem Nachweisdatum und den
+> Erinnerungen, die damals galten. Wird ein Name nächste Woche berichtigt, ein neuer Nachweis
+> eingetragen oder eine Nummer geändert, ändert das **nichts** an der Tabelle der letzten Ausgabe.
+> Bei der laufenden und bei einer wieder geöffneten Ausgabe ist es umgekehrt: dort gilt der
+> aktuelle Stand, und jede Korrektur kommt noch an.
 
 ## Verpasste Ausgaben
 
