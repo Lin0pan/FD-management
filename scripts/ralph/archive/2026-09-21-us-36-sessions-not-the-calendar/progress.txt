@@ -1,10 +1,10 @@
 # Ralph Progress Log
-Started: Mon Sep 21 2026 (batch 37 — US-37 the session overview and the detail view)
+Started: Sun Sep 20 2026 (batch 36 — US-36 the derived rules follow sessions, not the calendar)
 
 The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on purpose
-(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-36-specific
-bullets that sat under „Where batch 36 starts" are not carried over — they are in
-`scripts/ralph/archive/2026-09-21-us-36-sessions-not-the-calendar/progress.txt`.
+(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-35-specific
+bullets that sat under „Where batch 35 starts" are not carried over — they are in
+`scripts/ralph/archive/2026-09-20-us-35-session-receipt/progress.txt`.
 
 ## Codebase Patterns
 - **A PRD saying a helper „moves to `<path>`" is not a promise that `<path>` is free.**
@@ -515,77 +515,404 @@ bullets that sat under „Where batch 36 starts" are not carried over — they a
   value silently rewinds while the state says otherwise, on a save *and* on a refusal.
   `number-control.tsx` states the argument in full; `certificate-type-field.tsx` and
   `registration-form.tsx`'s group radio both carry the same three lines.
-- **An ended session holding nobody's hand-out is one every household of its groups has missed.**
-  Since US-36 that is what the no-show count means, so anything that *starts a session* — a fixture,
-  a spec, a helper — is writing a distribution into everybody's record. `prisma/demo-seed.ts` opened
-  one per certificate reminder, on arbitrary weekdays, serving both groups, and the seeded register
-  then said „1 Ausgabe in Folge verpasst" beside every red household that had collected at the last
-  distribution (fixed 2026-09-21). Give a reminder at an afternoon that took place; never invent one.
-- **`recordReminder` needs a session *running*, and that is the only reason to start one off the
-  hand-out path.** When a fixture or spec has to satisfy it, reach for an afternoon that already
-  exists rather than opening a private one — and if none exists, the timeline is what is wrong.
 
-### Where batch 37 starts
 
-Three batches have made a distribution session something the software knows — started and ended by
-hand (US-34), its hand-outs belonging to it (US-34), the households it served captured as they stood
-when it closed (US-35) — **and none of it is visible anywhere**. DF cannot open last Thursday. This
-batch is the two screens that make a past afternoon readable.
+### Where batch 36 starts
 
-- **`/ausgabetermine`** — the overview: one table, newest first, `Datum`, `Gruppe(n)`, `Haushalte`,
-  `Summe`, the running session at the top and marked.
-- **`/ausgabetermine/[id]`** — the detail view: one row per household that collected, with `Nr.`,
-  `Name`, `Karte`, `Gruppe`, `Erw. + Kinder`, `Preis`, `Nachweis bis`, `Erinnerungen`, `Betrag`.
+US-34 made a hand-out belong to a **session** and US-35 froze the households it served. **Two things
+still read the calendar**, and this batch removes both.
 
-Requirements: `local_only/manually-start-ausgabe/refined-requirements.md` requirements **C** and
-**E-1…E-4, E-6**. Full PRD: `tasks/prd-us-37-session-overview-and-detail.md`. Six stories.
+**First, the no-show count.** „How many of their own distributions has this household missed in a
+row" is counted today by walking backwards through the calendar a fortnight at a time, asking the
+week anchor which colour each week carried — so **every cancelled week in that walk is a miss nobody
+made**. It now counts the sessions that actually took place: a session counts against a household
+when it has **ended**, its groups **include** the household's group, it **started after** they joined
+the register, and it holds **no hand-out** for them. The running session never counts. The figure
+stays **display only** — no threshold, no automatic archive — and a block is still deliberately not
+excluded.
 
-**Two decisions shape the detail view and both are DF's.** It shows **who was there and nothing
-else** — not the households that stayed away, and not the blocks and archivings carried out during
-the afternoon, which are properties of a household and readable on its own record. That deliberately
-supersedes the source specification's §3, and **nothing on the page explains their absence**
-(`ui_styling_guide.md` §8). And it shows **the state as it stood**: the name, counts, number, card
-and certificate date of that afternoon — except where the session is still running or has been
-reopened, when the same screen shows today's live values, because nothing is frozen until the
-afternoon is closed.
+**Second, the settings screen.** It still holds a week anchor („KW 02/2026 war Rot") and a
+distribution weekday. After US-34 nothing reads the weekday at all and the anchor is read by exactly
+one line on the Start screen. Both go **without replacement**: a settings value with no effect is one
+that eventually gets maintained wrongly, and a screen predicting „die nächste Ausgabe ist am
+Donnerstag (Rot)" makes a promise the software has no way to keep.
+
+Requirements: `local_only/manually-start-ausgabe/refined-requirements.md` requirement **D**.
+Full PRD: `tasks/prd-us-36-sessions-not-the-calendar.md`. Seven stories.
+
+What changes, in one line each:
+
+- **`noShows.ts`** rewritten around `{ sessions, attendedSessionIds, customerGroup, registeredOn }`
+  — no settings, no weekday, no anchor, no clock.
+- **`listEnded()`** on `DistributionSessionRepository`; `countNoShows` loses its `SettingsRepository`
+  dependency and the callers pass the attended ids off records they already load.
+- **`weekColour.ts`, `distributionDay.ts`, `get-week-colour.ts` deleted**, `WeekColour`, `WeekAnchor`
+  and `IsoWeekday` with them; `startOfUtcDay` **moves** to `src/domain/calendarDay.ts`.
+- **Three `SettingsVersion` columns dropped**, two form controls and three `SettingsChange` variants
+  with them; the Start screen stops predicting.
+- **No new ADR.** ADR-020 already recorded this removal as its own consequence — a story that writes
+  one has misread the batch.
+
+**The order is load-bearing:** inside-out for the rule half (1, 2), **outside-in for the removal
+half** (3 domain, 4 schema, 5 screens). Built the other way round, story 3 breaks every caller at
+once. The exhaustive `switch` on `SettingsChange` is the safety net: the build fails until the
+settings screen stops rendering the three removed kinds.
 
 **The three things most likely to go wrong:**
 
-- **The receipt-or-live decision is one `if`, in `read-distribution-session.ts`, and nowhere else.**
-  Is this session ended? If that question is asked again in a component, the screen shows a frozen
-  name in one column beside a live one in another — the table nobody can check (E-8). This is the
-  single most important line in the batch and the reason US-35 was built.
-- **`DistributionSessionNotFound` does not exist yet.** It is the batch's **one** edit to
-  `src/domain/`, and a three-file change: the union and the class in `src/domain/errors.ts`, and
-  `TIERS` in `src/app/notice-tier.ts`, whose `Record` over the union fails the **build** until the
-  code is tiered. A typed error is not a domain *rule* — nothing else in `src/domain/` moves, and
-  nothing in `prisma/` moves at all.
-- **Nine columns is the risk, and it is decided in the browser, not on paper.** The customer list
-  already has width trouble with eight, and this project capped a column on that list once (PR #141).
-  Judge it at DF's window size on a MacBook with the `playwright-cli` accessibility snapshot, and if
-  one has to go, **`Karte` goes first** — a card number is the customer number plus an issue count,
-  so it partly repeats the first column. Record the outcome in `ui_styling_guide.md` if a column is
-  dropped.
+- **`berlinDayKey` STAYS.** The PRD was written believing the no-show walk was its last caller; it is
+  not. `householdComposition.ts` has called it since US-13.1, because the 13-year boundary turns over
+  at **Berlin** midnight. What leaves is the Berlin-day *matching of attended days* inside
+  `noShows.ts` — attendance is matched by **session id** from here on. Deleting `berlinDayKey` moves
+  the age boundary to UTC and breaks the boundary tests; corrected in §US-36.1 and in this batch's
+  acceptance criteria (2026-09-20).
+- **Migrations are regenerated again** (the eleventh time, ADR-009), so **both** hand-written indexes
+  have to be re-added by hand: `Customer_customerNumber_onRegister_key` **and** `one_running_session`
+  from US-34.3. `schema.test.ts` greps for both. `npm run db:reset` after, or the first symptom is
+  the settings screen reporting that nothing is configured.
+- **The failure mode of a removal is a survivor** — a dictionary key, a comment, a test helper. Story
+  5 makes a grep an acceptance criterion, exactly as US-27 did for the portion allowance. Sweep
+  `src/`, `tests/` and `prisma/` (`demo-seed.ts` imports `startOfUtcDay` from the module story 3
+  deletes).
 
-**Two names chosen against their near neighbours, so do not "tidy" either:**
+**A household's group is unchanged:** still `groupOf(customerNumber)`, even is BLUE and odd is RED
+(ADR-017), shown everywhere it is shown today. Only the statement „this week is RED" disappears.
 
-- The route is **`/ausgabetermine`**, not `/ausgaben`, which is one letter from the counter screen
-  `/ausgabe` and would be misread in the address bar and in every conversation about the code.
-- The dictionary key is **`de.distribution.pastSessions`**, not `distribution.sessions`, which is one
-  letter from the `distribution.session` US-34 wrote for the afternoon under way.
+**This is one piece of work in four parts** — 34 → 35 → 36 → 37. US-37 is the session overview and
+detail view, and it is the batch that proves US-35's freeze through a screen. A story here that finds
+itself building `/ausgabetermine` has picked up US-37's work.
 
-**Story 5's spec is the only end-to-end proof that US-35 did anything at all.** Serve, end, rename
-the household, and watch the old surname still stand; reopen and watch the row follow the record
-again. It **archives a number and re-registers on it**, so it owns its register — add its glob to
-`ISOLATED_SPECS` (three there today) and clear the register in its own `beforeAll`, like
-`no-shows.spec.ts`. Build it on `tests/e2e/session.ts` rather than a second way of starting a session.
+## 2026-09-20 — US-001 and US-002 (batch 36)
 
-**`npm run db:demo` already has something to show it.** The demo register holds eight ended
-afternoons with their receipts, so the two screens can be looked at against real-looking data from
-the first story that renders them.
+A no-show is a session that was missed, and the seam both screens read loads the afternoons rather
+than the settings. **Two stories in one commit**, deliberately: the domain signature cannot change
+without `listEnded()` to feed it, and `readCustomer` had no session port at all, so a domain-only
+commit would have left the tree red. Story 2's own acceptance criteria are all met.
 
-**No new ADR.** ADR-020 and ADR-021 already carry the decisions these screens render, and citing them
-is the rule (root `CLAUDE.md`: where the argument is already recorded, cite it and stop).
+- `src/domain/distribution/noShows.ts` rewritten around
+  `{ sessions, attendedSessionIds, customerGroup, registeredOn }` — no settings, no clock, no
+  calendar. A session counts when it has ended, serves the household's group, started after they
+  joined and holds no hand-out for them; the walk goes newest first and stops at the first one they
+  collected at. Seven named tests, written first and red before the module was replaced.
+- `berlinDayKey` **stayed** in `attendance.ts` (its comment now names `householdComposition.ts` as
+  the one caller), and `src/i18n/format.ts` lost the sentence claiming the attendance rules count a
+  Berlin day — they count a session.
+- `DistributionSessionRepository.listEnded()`, the Prisma adapter (`endedAt desc, id desc`, the same
+  ordering `lastEnded` uses) and two integration tests: the ordering, and that the running and the
+  discarded session are both left out.
+- `countNoShows` lost its `SettingsRepository` and its `deps`/`today` arguments — it is now a pure
+  three-argument function. `lookupCustomer` and `readCustomer` pass the attended ids off the records
+  they already load; `readCustomer` gained a read-only `sessions` dep, and `customerDeps` with it.
+- Named application test for the bug: „counts no miss for a fortnight no afternoon was held in".
 
-**This is the last of the four** — 34 → 35 → 36 → 37 — and story 6 is where that chain gets written
-down, in `tasks/README.md`, as the one place a reader finds out US-35 must not be skipped.
+**Learnings for future iterations:**
+
+- **A domain story whose behaviour changes cannot stop at the domain.** The „change the shape only,
+  never the behaviour" rule that lets a signature change land alone does not apply when the story
+  *is* the behaviour change: there is no green intermediate, so the story that feeds the new input
+  has to land in the same commit. Check early whether the next story owns the only source of the new
+  argument — here `listEnded` — and say so in the commit body rather than shipping a red tree or a
+  fake-green one (every count reading 0 for one commit).
+- **`readCustomer` and `lookupCustomer` are not symmetric in their deps.** The counter already held
+  `sessions`; the record screen held none, so `ReadCustomerDeps` and `customerDeps` both grew. A
+  „both screens read the same seam" story should check both composition roots before estimating.
+- **Adding a method to `DistributionSessionRepository` breaks nine test files**, not eight: seven
+  hand-written fakes plus the two `Deps` object literals that structural typing had been carrying.
+  The house stub is the usual `Promise.reject(new Error("… has a suite of its own"))` — but check
+  `grep -c "lookupCustomer(\|readCustomer(" <file>` first: `maintain-customer.test.ts` drives the
+  lookup for its notes test, so a rejecting stub fails it and `Promise.resolve([])` is the honest
+  fixture. And keep the fake's rule identical to the adapter's: a fake whose `listEnded` returns
+  rows while its `lastEnded` returns `null` is a fixture that can contradict itself.
+- **A fixture keyed on a calendar day has to be re-keyed on a session id.** `attend(id, iso)` in
+  `customers.test.ts` wrote every hand-out under one `SESSION_ID`, which made every no-show test
+  read 0 once the rule matched by session. It now takes the id as a fourth argument, and the five
+  „own Thursdays" became five ended sessions, newest first. Where a suite's household number decides
+  the group (50 is even, so BLUE), give the fixture sessions **both** groups rather than guessing —
+  `lookup-customer.test.ts`'s old comment called its Thursdays RED for a BLUE household and nothing
+  had ever caught it.
+- **`vitest run` covers the Prisma integration tests too** (`include: ["src/**/*.{test,spec}.ts"]`),
+  so a port method added without an adapter test is a gap nothing reports — the suite is green
+  because the throwaway database never ran the query.
+
+## 2026-09-20 — US-003 (batch 36)
+
+The week anchor and the distribution weekday leave the domain. The deletion cascaded further than
+the domain in one commit, deliberately: `Settings` losing two fields breaks the settings adapter,
+the settings form and the Start screen at once, and there is no green intermediate — the same
+reason US-001 and US-002 landed together.
+
+- Deleted `src/domain/distribution/weekColour.ts` and `distributionDay.ts` with their tests;
+  `startOfUtcDay` **moved into the existing `src/domain/calendarDay.ts`** (it was not a new file —
+  see the learnings) and gained two named tests there.
+- `Settings` lost `weekAnchor` and `distributionWeekday`; `WeekColour`, `WeekAnchor`, `IsoWeekday`
+  and `parseWeekColour` are gone, `SETTINGS_FIELDS` is down to five, and `settings-diff.ts` lost
+  the three variants the settings screen switched on. `group.ts` lost the paragraph arguing that
+  `Group` and `WeekColour` are deliberately different types.
+- Dragged along, because the tree has to be green: `get-week-colour.ts` and its test file
+  (`distribution.test.ts` held nothing else), the Start screen's „nächste Ausgabe" line, and the
+  settings form's whole `Ausgaberhythmus` section with the three `SettingsChange` cases behind it.
+  The Start screen now asks `readCurrentSettings` whether anything is configured, which is the only
+  thing it used the week-colour view for besides the prediction.
+- Kept for the stories that own them: the three `SettingsVersion` **columns** (US-36.4), the German
+  keys in `de.ts` (US-36.5, they are still read by two specs), the raw `settingsVersion.create`
+  blocks in the adapter's integration test, and `prisma/schema.prisma`.
+- `isoWeekNumber` in `src/i18n/format.ts` went with its only producer (`isoWeekOf`), and
+  `CONTRIBUTING.md`'s two examples naming the week alternation were re-pointed.
+- `prisma/demo-seed.ts` no longer derives its past afternoons from `getWeekColour`: it picks the
+  last eight Thursdays itself and alternates the groups, which is the fixture's own rhythm now that
+  the software has none.
+
+**Learnings for future iterations:**
+
+- **`src/domain/calendarDay.ts` already existed**, and `cat >` over it destroyed a module with five
+  exports before `git status` caught it. A PRD saying a helper „moves to `<path>`" is not a promise
+  that `<path>` is free. `ls` the target — or write with a tool that refuses to overwrite — before
+  creating any file a story names.
+- **A removal story cannot stop at its layer when the removed thing is a *field*.** The „change the
+  shape only, never the behaviour" escape hatch needs the old answer to survive one more iteration,
+  and a deleted field has no old answer. What kept this one commit-sized was pushing the *writes*
+  down into the adapter: `RETIRED_WEEK_CYCLE` fills the three `NOT NULL` columns with constants and
+  names the story that drops them, so the schema change stayed US-36.4's.
+- **The exhaustive `switch` on `SettingsChange` worked exactly as the batch predicted** — removing
+  the three union members produced 18 compile errors in `einstellungen/page.tsx` and nothing else
+  had to be hunted for. `tsc` also found every fixture: a `weekAnchor:` line in eleven test files,
+  removable with one regex over `^\s*(weekAnchor: \{.*\},|distributionWeekday: \d+,)$`.
+- **What `tsc` did not find, and no gate does:** a *count* in prose („All eight values"), a dead
+  formatter whose only producer was deleted (`isoWeekNumber`), and a comment in another module
+  claiming the weekday is half of what the Start screen says (`i18n/format.ts`). Grep the vanished
+  identifier **and** the sentence that described it.
+- **The e2e suite is knowingly red after this commit**: `home.spec.ts` asserts the removed
+  `next-distribution` testid and `settings.spec.ts` drives `#distributionWeekday` (lines ~285–317
+  and 534). US-36.5 and US-36.6 own those files; nothing else in the suite touches the two values.
+- **`npm run start` + `curl` is a cheap smoke check for a screen a story gutted** — the settings
+  page still renders the four remaining fields and the Änderungsverlauf, and `/` still renders
+  `today-date` — but it is not the browser check US-36.5 asks for. And **`pkill -f next-server`
+  still kills the Bash tool** (exit 144), as the pattern above says; kill by pid.
+---
+
+## 2026-09-20 — US-004 (batch 36)
+
+The three `SettingsVersion` columns leave the schema. A small story by design: US-36.3 had already
+taken the two fields off `Settings` and pushed the writes down into the adapter as
+`RETIRED_WEEK_CYCLE`, so nothing but the schema, the adapter and two raw fixtures still named them.
+
+- `prisma/schema.prisma` lost `weekAnchorIsoWeek`, `weekAnchorColour` and `distributionWeekday`;
+  the model's doc comment now names the egg allowance as the third thing a version carries.
+- **Migrations regenerated** (ADR-009, the eleventh time) and **both** hand-written partial unique
+  indexes re-added by hand — `Customer_customerNumber_onRegister_key` and `one_running_session`.
+  `npm run db:reset`, then both verified in `sqlite_master` rather than by reading the file.
+- `settings-repository.ts` lost `RETIRED_WEEK_CYCLE` and its spread; its `toDomain` comment stopped
+  claiming the rebuild guards against "an impossible weekday". The two raw `settingsVersion.create`
+  fixtures in its integration test lost the three lines.
+- `prisma/seed.ts` and `demo-seed.ts` needed **no change**: the seed writes through the repository,
+  and US-36.3 had already cut `demo-seed`'s week-colour dependency. `updateSettings` and
+  `readCurrentSettings` were likewise already clean, and `get-week-colour.ts` was deleted in
+  US-36.3 — four of this story's acceptance criteria were met before it started.
+- `tasks/README.md`'s seed table lost the „Week-cycle anchor" and „Distribution weekday" rows.
+
+**Learnings for future iterations:**
+
+- **Verify a regenerated migration with `diff` against the old one, and it is a two-line report.**
+  `git show HEAD:<old>/migration.sql > /tmp/old.sql` before `rm -rf prisma/migrations`, then diff
+  the new file after appending the hand-written tail: the whole output was the three dropped
+  columns. Anything else would have been Prisma drifting the DDL under the commit. Slice the tail
+  off the *old* file by index (`s.index("-- CreateIndex (hand-written")`) rather than retyping it —
+  both indexes and their comments come back byte-identical, which is what `schema.test.ts` greps.
+- **`sqlite3` is not installed in this sandbox.** Query `sqlite_master` through
+  `npx tsx -e` with `$queryRawUnsafe` instead — and check the *columns* of a seeded row in the same
+  script (`Object.keys(rows[0])`), which proves the reset actually re-applied the new schema rather
+  than serving an old file.
+- **`prisma migrate dev` wants `--skip-seed`** here, or it runs the seed against a database the
+  hand-written indexes have not been appended to yet. `npm run db:reset` afterwards is still what
+  makes the committed SQL and the database agree.
+- **A story whose predecessor "dragged along" half of it is still worth reading end to end.** Four
+  of the seven acceptance criteria were already satisfied by US-36.3's commit. Grep each one before
+  implementing it rather than after — the risk is re-deleting something and reviewing a diff that
+  is mostly noise.
+- **Removing a form control leaves a count in prose that no gate sees, and it is not always in the
+  screen's own file.** Two survived US-36.3: „The eight fields of the settings form" in
+  `save-settings-state.ts` and „not the seven values that did not" in `list-settings-versions.ts`
+  (five `SETTINGS_FIELDS` now, so four unmoved). The counting-word sweep is
+  `grep -rniE "(three|four|…|ten) (policy )?(values|settings|fields|rows|columns)"` over `src/` and
+  `docs/` — and ADR-005's „a wall of eight columns turned out to be unreadable" is a **past-tense
+  observation about the decision** and was deliberately left alone.
+- **Prettier re-flows a markdown table when its widest row is the one removed.** The two dropped
+  rows were the widest in `tasks/README.md`'s seed table, so every remaining row shifted two columns
+  left. `npx prettier --write` the file *before* reading the diff, as the pattern above says.
+---
+
+## 2026-09-20 — US-005 (batch 36)
+
+The screens stop predicting. US-36.3 had already taken the Start screen's two prediction lines and
+the settings form's whole `Ausgaberhythmus` section out — it had to, because `Settings` losing two
+fields has no green intermediate. What was left for this story is what a removal actually leaves
+behind: dictionary keys nothing reads, a count in prose, and comments describing controls that are
+no longer on the screen.
+
+- `de.home.distribution` is down to `notConfigured`, and its **German changed**: „Der
+  Ausgaberhythmus ist noch nicht hinterlegt." named the one thing that is no longer a setting, so
+  the unconfigured Start card now says „Die Einstellungen sind noch nicht hinterlegt." — the quota
+  and the prices are what is missing there (the AC's own wording).
+- `de.settings` lost `rhythmHeading`, the three week fields, their three `errorFields` entries, and
+  the `colours` / `weekdays` label tables — the latter two had **no reader in `src/` at all** after
+  US-36.3 and were found by grepping the key, not by any gate.
+- Comments corrected where they described a screen that has changed: `page.tsx` (three of them),
+  `ausgabe/deps.ts` („the week colour is derived from the settings history"), `ausgabe/page.tsx`
+  (two), `serve-controls.tsx` („what the household draws this week" → „at this Ausgabe"),
+  `settings-form.tsx` („between the amounts and the rhythm").
+- **The amounts grid needed no re-spanning.** Its four fields are `lg:col-span-3` each and already
+  fill a row of twelve — the hole US-27 had to tidy up does not exist here. Verified in the browser
+  at 1280 and 390 rather than reasoned about.
+- `home.spec.ts` and `settings.spec.ts` lost the assertions that drove the removed controls. Both
+  files pass on chromium; US-36.6 still owns the no-show spec and the two-engine run.
+
+**Learnings for future iterations:**
+
+- **A deleted dictionary key is a typecheck failure in `tests/`, not only in `src/`.** `tsconfig`
+  includes `**/*.ts`, so `de.settings.weekdays[4]` in a spec breaks `npm run typecheck` the moment
+  the key goes. That is what pulled US-36.6's first two acceptance criteria into this commit: a
+  presentation story that removes dictionary keys **cannot** leave the specs to the story after it.
+  Plan for it — the e2e story is then the *new* specs and the engines, not the deletions.
+- **Removing the last `<select>` from a form orphans an Enter-guard spec.** `settings.spec.ts`
+  pressed Enter in `#distributionWeekday` precisely because it was the only native `<select>` on a
+  guarded form; with it gone the press was re-pointed at `#quotaN` and the sentence claiming the
+  form holds a `<select>` was deleted. `guardEnter` still covers `SELECT` — no form on this screen
+  has one any more, which is a fact about the screen and not about the guard.
+- **„load-bearing ids" has a definition and it is countable**: `ui_styling_guide.md` §7 — an id a
+  spec reaches by CSS selector. `grep -rhno '#[a-zA-Z][a-zA-Z0-9.]*' tests/e2e/<spec>.ts | cut -d:
+  -f2 | sort -u` answers it in one command, which is how `settings-form.tsx`'s „four of them
+  load-bearing" became five. The same sweep is worth running whenever a field is added or removed.
+- **The unconfigured Start screen is reachable without emptying a table.** `SettingsVersion` has
+  children, so `deleteMany()` fails on a foreign key — but `npm run start` honours
+  `FD_FIXED_NOW_FILE`, so `FD_FIXED_NOW_FILE=/tmp/now.txt npm run start` with an instant *before*
+  the seeded version's `effectiveFrom` renders the „nothing configured" state against the real
+  build. Cheaper and safer than a script that mutates the register.
+- **A comment stating a deliberate refusal is worth one clause, not a paragraph.** The Start
+  screen's header says „It names no coming Ausgabe: nothing in the software knows when the next one
+  is (ADR-020)" — citing the record and stopping, rather than narrating that the line used to be
+  there. Root `CLAUDE.md` forbids the second form; the first is one of the four things a comment may
+  say.
+---
+
+## 2026-09-20 — US-006 (batch 36)
+
+The suite proves the no-show count over sessions. US-36.5 had already taken the anchor and weekday
+assertions out of `settings.spec.ts` and `home.spec.ts` — it had to, a deleted `de.ts` key breaking
+`npm run typecheck` in `tests/` as well as `src/` — so the first acceptance criterion was met before
+this story started and what was left is the new spec and the two engine runs.
+
+- `tests/e2e/no-shows.spec.ts`: two RED households registered on the same day, two RED afternoons
+  held, one BLUE one between them, and a fourth afternoon started through the real control. Four
+  tests: the household that came to neither reads „2 Ausgaben" on the record, the one that collected
+  at the last of them reads no line at all, the BLUE afternoon changes nothing, and the running one
+  changes nothing either — read on the record **and** at the counter, which is where DF sees it.
+- **It owns the isolated register** and empties it in `beforeAll`. In the shared one the figure is a
+  function of every session a dozen other specs have left behind, so „missed two" could only have
+  been a delta — and one that moves whenever a file sorting earlier holds one afternoon more.
+  `ISOLATED_SPECS` is now three globs and its criterion is stated as what it always was: a figure
+  the whole register decides.
+- **It pins no clock**, deliberately and as the header says: the count stopped being a function of
+  today in US-36.1, so a spec that had to pin a day to assert it would be evidence the calendar was
+  still in there somewhere. `distribution.spec.ts` made the same argument in US-34.
+- Both engines green over the whole suite, 222 passed: `npm run test:e2e` and
+  `npm run test:e2e:webkit`. A baseline run on clean `HEAD` first, which was also green — the new
+  rule had not disturbed the households the other specs seed, because a session only counts against
+  a household registered *before* it and every spec registers its own on a day of its own.
+- Three survivors of the removal, none of them in US-36.5's grep because it matched
+  `weekcolour|weekanchor` without the space: `playwright.config.ts`'s claim that the pinned clock is
+  „how the week-colour banner can be asserted at all", and `warteliste/actions.ts` (twice) saying
+  `page.tsx` „now renders the week colour and nothing else". Plus the record screen's „the quota and
+  the week anchor bear on neither…". All four corrected.
+- `docs/architecture/07-deployment-view.md`: the isolated server now has two reasons and three
+  specs, which is a deployment fact and was wrong the moment `ISOLATED_SPECS` grew.
+
+**Learnings for future iterations:**
+
+- **A removal's grep is only as wide as its spelling.** US-36.5's criterion was
+  `wochenfarbe|weekcolour|weekanchor|distributionweekday|nächste ausgabe` and it passed honestly —
+  „week colour" and „week anchor" with a space were three comments away from it, in two files no
+  story in this batch had any reason to open. Sweep the **phrasing** as well as the identifier, and
+  over `tests/` and the root config files as well as `src/`.
+- **Every isolated spec must empty the register itself, even the one that runs first.** The database
+  is fresh at boot, so the `clearRegister` in `beforeAll` looks redundant — until a CI retry replays
+  the block against what the failed attempt left, and the seeded afternoons are counted a second
+  time. That is the same argument `releaseNumbers` makes for the shared register.
+- **Seeding an afternoon takes two rows and a helper already exists**: `seedEndedSession` in
+  `tests/e2e/seeding.ts` writes the *past* session a seeded hand-out hangs on, with `groups` as the
+  column value (`RED`, `BLUE`, `RED,BLUE`). A session a spec wants **running** is started through
+  `startSession` and never through Prisma — the screen is the thing under test.
+- **An e2e spec proving a derived figure wants a household that contradicts it.** Two households on
+  the same afternoons, one of which collected at the last one, is what separates „counts the
+  sessions" from „counts the sessions with no hand-out": without the second household the first
+  test passes against a rule that ignores hand-outs entirely.
+---
+
+## 2026-09-20 — US-007 (batch 36)
+
+The documents stop describing a cycle. A documentation story, and the largest part of it was the
+sweep rather than the writing: eleven arc42 files, two records of a withdrawn requirement, the
+handout, and eighteen comments in `src/`, `tests/` and `prisma/` that still explained a screen or a
+fixture by a week colour nobody computes any more.
+
+- `tasks/prd-us-03-week-colour.md` is **withdrawn** at the top, dated, naming US-34 and US-36, in
+  the shape `prd-us-21-step-through-group.md` carries. Body untouched. `docs/archiv/
+  user_stories_mvp.md`'s US-03 got the one-line dated blockquote after the criteria block; nothing
+  else in the archive was touched.
+- arc42, driven with the `arc42` skill: **08** (the three columns out of the ER diagram, the
+  two-calendars bullet rewritten — Berlin day for the age boundary, UTC day for the certificate
+  comparison — and the session bullet now states what a no-show counts), **05** (27 domain modules,
+  43 use cases, `calendarDay.ts` named in the root-modules row, `listEnded` on the session port,
+  the Start screen's row), **12** (Wochenfarbe marked **historical** rather than deleted, Ausgabetag
+  the same, `Group` no longer „deliberately not the same type as week colour"), **09** (three log
+  rows marked ⚠️ reversed/moot and a new „week rhythm as configured data" row in the reversed
+  table), **01** (the alternation bullet deleted, a non-goal row added), **03**, **04**, **02**,
+  **06**, **07** (the seeded values no longer claim „Thursday, anchored at 2026-W02 RED").
+  **11 needed nothing** — no risk row ever mentioned the anchor.
+- **No new ADR** (ADR-020 predicted this). ADR-020 itself got a dated `> **Note**` under its
+  consequences: the prediction landed, and one sentence in it was **wrong when written** —
+  `berlinDayKey`'s surviving reader is the 13-year boundary, not the no-show count.
+- `docs/handout/betriebsanleitung.md`: a new section **„Verpasste Ausgaben"** saying what the figure
+  counts (ended afternoons the household's group was served at, with no hand-out; a cancelled week
+  counts nothing, nor does the running one) and that nothing follows from it. The settings section
+  never described the two values, so there was nothing to remove — the handout only ever documented
+  the eggs and the Nachweis-Arten.
+- Eighteen comments corrected, all of them false rather than merely dated: five e2e specs explained
+  their pinned Thursday by „anchor `2026-W02` = RED, distributions on ISO weekday 4", six more said
+  a date stays a literal „because a distribution day … is decided by dates", two said „only a RED
+  household is clear to serve in a RED week", and `lookup-customer.test.ts` and
+  `maintain-customer.test.ts` still anchored their fixtures' weeks.
+- Gates: lint, typecheck, `test:coverage` (60 files, 1369 tests, domain and application at 100%),
+  `build`, and `arc42.py check` — clean but for chapter 07's two long-standing TODOs. **The e2e
+  suite was not re-run**: every change under `tests/` is a comment, proved with
+  `git diff -U0 -- tests/ | grep -v '^[+-]\s*\*'` returning nothing, and US-006 ran both engines
+  green on the same specs.
+
+**Learnings for future iterations:**
+
+- **A documentation sweep for a removed concept has to grep the *explanations*, not just the
+  identifier.** `weekanchor|weekcolour|distributionweekday` was clean in `src/` and `tests/` before
+  this story started — US-36.5 and US-36.6 had both run it. What it could never find was
+  „anchor `2026-W02` = RED, distributions on ISO weekday 4" spelled out in prose in five spec
+  headers, or „a distribution day … is decided by dates" in six. The sweep that found them was
+  `grep -rniE "wrong week|red week|this week|distribution day|anchor" src/ tests/ prisma/` — the
+  *vocabulary* of the removed rule, run over the whole tree rather than over the story's own files.
+- **An accepted ADR whose prediction came true needs a note, not a rewrite.** ADR-020 said „removed
+  in US-36 … until then a deliberate one-batch-long intermediate state", which reads as a pending
+  promise for as long as it stands. A dated `> **Note (YYYY-MM-DD).**` under the consequences says
+  the prediction landed and corrects the one claim that was wrong, while the decision and its
+  reasoning stay exactly as they were argued.
+- **A glossary entry for a removed word is worth keeping, marked historical.** „Wochenfarbe" appears
+  in years of commits and in half a dozen PRDs; a reader meeting it needs to be told it is gone and
+  what replaced it, which a deleted row cannot do. The row says **Historical**, names the story and
+  says what a household's **group** is instead — deletion would have left the word findable only in
+  code that no longer exists.
+- **Two arc42 chapters were stale in ways US-36 did not cause**, and both were fixed here because
+  the sweep opened them anyway: chapter 05 had never listed `calendarDay.ts` among the root domain
+  modules, and its use-case count needed re-deriving rather than decrementing
+  (`grep -rn "^export async function \|^export function " src/application | grep -v test`, 43 —
+  the file count, 41, is a different number and not the one the heading states).
+- **Chapter 01's non-goals table is where a withdrawn requirement goes to stay named.** The portion
+  allowance row (US-27) is the pattern: what was withdrawn, the date, and DF's own reason. „A
+  calendar of distributions" now sits beside it, so the next person to propose a week anchor meets
+  the argument rather than a gap — the same job the withdrawn PRD banner does one level down.
+---

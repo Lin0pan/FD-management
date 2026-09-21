@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 36**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 37**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -364,7 +364,12 @@ ended by a human being.
   US-13.1, because a birthday turns over at Berlin midnight. What leaves is the Berlin-day
   _matching_ of attended days inside the walk (corrected in both documents, 2026-09-20).
 - **37 (US-37)** is the two screens: `/ausgabetermine` and `/ausgabetermine/[id]`. No schema change,
-  no new domain rule, no new ADR.
+  no new domain rule, no new ADR — the one edit to `src/domain/` is the `DistributionSessionNotFound`
+  code, a typed error rather than a rule, which `TIERS` in `src/app/notice-tier.ts` fails the build
+  over until it is tiered. Its two names are chosen against their near neighbours and neither may be
+  tidied: the route is `/ausgabetermine` and not `/ausgaben`, one letter from the counter screen, and
+  the dictionary key is `distribution.pastSessions` and not `distribution.sessions`, one letter from
+  the `distribution.session` US-34 wrote for the afternoon under way.
 
 Three things to hold on to across the four. **The order is the requirement's own** (§4 of the
 document): A+B, then the freeze, then D, then the screens — and 35 is the one that cannot be
