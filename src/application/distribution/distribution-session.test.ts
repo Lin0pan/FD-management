@@ -14,6 +14,7 @@ import {
   createSessionGroups,
   type DistributionSession,
   type SessionGroups,
+  type SessionSummary,
 } from "@/domain/distribution/session";
 import {
   CustomerNotFound,
@@ -211,6 +212,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   thawSession(sessionId: number): Promise<void> {
     this.frozen.delete(sessionId);
     return Promise.resolve();
+  }
+
+  summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>> {
+    return Promise.reject(new Error("The overview of past afternoons has a suite of its own"));
   }
 }
 

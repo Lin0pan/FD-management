@@ -22,7 +22,11 @@ import type {
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
 import type { HandoutReceipt } from "@/domain/distribution/handoutReceipt";
-import type { DistributionSession, SessionGroups } from "@/domain/distribution/session";
+import type {
+  DistributionSession,
+  SessionGroups,
+  SessionSummary,
+} from "@/domain/distribution/session";
 import type { Cents } from "@/domain/money";
 import type { SettingsVersion } from "@/domain/policy/settings";
 
@@ -371,6 +375,15 @@ export interface DistributionRecordRepository {
    * collected?" (US-23) reads the afternoon once instead of once per household.
    */
   listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>>;
+  /**
+   * What every session came to, keyed by session, in **one** aggregate query — the overview of past
+   * afternoons (US-37.1) states the households and the sum of each of them, and reading the
+   * hand-outs of one session at a time is a round trip per row for as long as the register lives.
+   *
+   * A session **absent** from the map was collected at by nobody, which is honest where a zero
+   * written down for every afternoon ever held is not; callers read the absence as an empty summary.
+   */
+  summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>>;
   /** The record with this surrogate id, or `null` if the id belongs to none. */
   findById(recordId: number): Promise<DistributionRecord | null>;
   /**

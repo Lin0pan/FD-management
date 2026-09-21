@@ -22,7 +22,11 @@ import {
   MissingRequiredField,
   NotesTooLong,
 } from "@/domain/errors";
-import { createSessionGroups, type DistributionSession } from "@/domain/distribution/session";
+import {
+  createSessionGroups,
+  type DistributionSession,
+  type SessionSummary,
+} from "@/domain/distribution/session";
 import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
@@ -129,6 +133,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
 
   thawSession(): Promise<void> {
     return Promise.reject(new Error("Thawing an afternoon has a suite of its own"));
+  }
+
+  summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>> {
+    return Promise.reject(new Error("The overview of past afternoons has a suite of its own"));
   }
 }
 

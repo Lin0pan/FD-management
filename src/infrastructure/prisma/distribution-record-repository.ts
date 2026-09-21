@@ -4,6 +4,7 @@ import type {
   DistributionRecord,
   NewDistributionRecord,
 } from "@/domain/distribution/distributionRecord";
+import type { SessionSummary } from "@/domain/distribution/session";
 import { AlreadyServedInSession, DistributionRecordNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 
@@ -68,6 +69,27 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
   async listForSession(sessionId: number): Promise<ReadonlyArray<DistributionRecord>> {
     const rows = await this.prisma.distributionRecord.findMany({ where: { sessionId } });
     return rows.map(toRecord);
+  }
+
+  /** What every session came to, in one aggregate query — see the port for why (US-37.1). */
+  async summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>> {
+    const groups = await this.prisma.distributionRecord.groupBy({
+      by: ["sessionId"],
+      _count: { _all: true },
+      _sum: { paidCents: true },
+    });
+
+    // `_sum` is nullable for an empty group, which a `groupBy` cannot produce; `?? 0` states
+    // `summariseSession`'s own reading of an afternoon nobody collected at, not an assertion.
+    return new Map(
+      groups.map((group) => [
+        group.sessionId,
+        {
+          households: group._count._all,
+          totalPaidCents: (group._sum.paidCents ?? 0) as Cents,
+        },
+      ]),
+    );
   }
 
   /** The record with this surrogate id, or `null` if the id belongs to none. */

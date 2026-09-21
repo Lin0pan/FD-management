@@ -349,6 +349,42 @@ describe("PrismaDistributionRecordRepository reads and corrections", () => {
   });
 });
 
+describe("PrismaDistributionRecordRepository.summariseBySession", () => {
+  it("counts the households of each session and sums what they handed over", async () => {
+    const one = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    await repository.create(handOut(one, { paidCents: PART_PAYMENT }));
+    await repository.create(handOut(other, { paidCents: OVERPAYMENT }));
+    await repository.create(handOut(one, { sessionId: nextSession, date: NEXT_WEEK }));
+
+    const summaries = await repository.summariseBySession();
+
+    expect(summaries.get(thisSession)).toEqual({
+      households: 2,
+      totalPaidCents: PART_PAYMENT + OVERPAYMENT,
+    });
+    expect(summaries.get(nextSession)).toEqual({ households: 1, totalPaidCents: PRICE });
+  });
+
+  it("sums a payment of nothing as nothing rather than dropping the household from the count", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId, { paidCents: 0 as Cents }));
+
+    expect(await repository.summariseBySession()).toEqual(
+      new Map([[thisSession, { households: 1, totalPaidCents: 0 }]]),
+    );
+  });
+
+  it("leaves a session nobody collected at out of the map, rather than answering it as a zero", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId));
+
+    const summaries = await repository.summariseBySession();
+
+    expect(summaries.has(nextSession)).toBe(false);
+  });
+});
+
 describe("PrismaDistributionRecordRepository freezing and thawing a session", () => {
   it("round-trips every captured detail of a household, unchanged", async () => {
     const customerId = await insertCustomer(50);
