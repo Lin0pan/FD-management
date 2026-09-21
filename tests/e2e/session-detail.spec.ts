@@ -10,6 +10,13 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { formatEuros, parseEuros } from "@/domain/money";
 import { clearRegister } from "@/infrastructure/prisma/test-support";
 import { fillDay, fillSticky, hydrated, typedDay } from "./day";
+import {
+  BELOW_BREAKPOINT,
+  GATE_WIDTH,
+  expectNoHorizontalOverflow,
+  expectTruncated,
+  expectWithin,
+} from "./layout";
 import { ISOLATED } from "./registers";
 import { fillCertificateTypeControl, fillPersonalData, type Person } from "./registration-form";
 import {
@@ -82,12 +89,26 @@ const RENEWAL_TYPE_FIELD = "renewal-type-field";
  */
 const QUOTA = 8;
 
-/** The two slots this spec uses. Both **odd and therefore RED** (US-31), which is the afternoon. */
+/** The slots this spec uses. All **odd and therefore RED** (US-31), which is the afternoon. */
 const NUMBERS = {
   /** Collects, is then renamed and its certificate renewed — the household the freeze is about. */
   corrected: 1,
   /** Collects, is archived, and has its number handed to somebody else (E-4). */
   handedOn: 3,
+  /** Collects at an afternoon of its own, wearing the name the name column has to cut. */
+  longName: 5,
+} as const;
+
+/**
+ * A name wider than the column that shows it, in the shape German names reach that width in.
+ *
+ * Not from Faker, and the one fixture here that is not: the width **is** the assertion, and a draw
+ * that came back short one run would turn {@link expectTruncated} green without cutting anything.
+ * Synthetic all the same — two real place-names compounded into a household nobody has.
+ */
+const LONG_NAME: Person = {
+  firstName: "Maximiliane-Friederike",
+  lastName: "Schmiedeberg-Oberhausenkirchner",
 } as const;
 
 /** Why the household gave its number back, and why the afternoon was opened again — the records. */
@@ -110,10 +131,15 @@ interface Household extends Person {
   readonly customerNumber: number;
 }
 
-/** Insert one active, one-person household with a current certificate and the card that took it. */
-async function seedHousehold(customerNumber: number): Promise<Household> {
-  const firstName = faker.person.firstName();
-  const lastName = faker.person.lastName();
+/**
+ * Insert one active, one-person household with a current certificate and the card that took it.
+ *
+ * `name` is for the one household whose width is the point rather than its contents; everybody else
+ * takes Faker's, and the draw order the fixed seed fixes is theirs alone.
+ */
+async function seedHousehold(customerNumber: number, name?: Person): Promise<Household> {
+  const firstName = name?.firstName ?? faker.person.firstName();
+  const lastName = name?.lastName ?? faker.person.lastName();
   const birthDate = new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`);
 
   const customer = await prisma.customer.create({
@@ -493,5 +519,89 @@ test.describe("Ein vergangener Ausgabetermin", () => {
     );
     await expect(rows.first().getByTestId("past-session-running")).toHaveCount(0);
     await expect(rows.nth(1)).toHaveAttribute("data-session-id", String(sessionId));
+  });
+
+  /**
+   * Nine columns, on the window DF have (`docs/guideline/ui_styling_guide.md` §3).
+   *
+   * The detail table took the Kundenliste's column count **and** its answer to it — the fixed-width
+   * name column, scrolling inside its own container — so it takes the Kundenliste's assertions too.
+   * §3 is explicit that the two are needed together: a ceiling set wide enough to cut nothing
+   * satisfies the overflow check for ever while the ellipsis that earned it has quietly stopped
+   * appearing. This is the table with one column more than the list §3 says already has width
+   * trouble, and the precedent is in the guide: `/kunden` hid the register's first row at every
+   * window under 1280px for weeks with every spec green.
+   *
+   * **An afternoon of its own**, at the end of the file: the narrative above asserts the overview as
+   * *the* list of afternoons and counts the rows of its own table, and a third household collecting
+   * would move both.
+   */
+  test.describe("Neun Spalten auf DFs Fenster", () => {
+    let longNamed: Household;
+
+    test.beforeAll(async ({ browser, baseURL }) => {
+      longNamed = await seedHousehold(NUMBERS.longName, LONG_NAME);
+      await startSessionInHook({ browser, baseURL }, "RED");
+
+      const page = await browser.newPage({ baseURL });
+      try {
+        await lookUp(page, NUMBERS.longName);
+        await serveForAmountAsked(page);
+      } finally {
+        await page.close();
+      }
+    });
+
+    test.afterAll(async ({ browser, baseURL }) => {
+      await endSessionInHook({ browser, baseURL });
+    });
+
+    /** The afternoon just served, opened the way DF reach it — off the top of the overview. */
+    async function openNewestSession(page: Page): Promise<void> {
+      await page.goto("/ausgabetermine");
+      await page.getByTestId("past-session-link").first().click();
+      await expect(rowOf(page, longNamed)).toHaveCount(1);
+    }
+
+    test("unterhalb des Breakpoints bleibt die letzte Spalte auf dem Schirm", async ({ page }) => {
+      await page.setViewportSize(BELOW_BREAKPOINT);
+      await openNewestSession(page);
+
+      const container = page.locator('[data-slot="table-container"]');
+      await expectNoHorizontalOverflow(container, "die Tabelle des Ausgabetermins");
+      await expectWithin(
+        rowOf(page, longNamed).getByTestId("session-household-paid"),
+        container,
+        "die Spalte „Betrag“",
+      );
+    });
+
+    test("auf der Zielbreite bleibt die Tabelle in ihrer Karte", async ({ page }) => {
+      await page.setViewportSize({ width: GATE_WIDTH, height: 720 });
+      await openNewestSession(page);
+
+      await expectWithin(
+        page.getByTestId("session-households-table"),
+        page.locator('[data-slot="card"]').last(),
+        "die Tabelle des Ausgabetermins",
+      );
+      await expectNoHorizontalOverflow(page.locator("html"), "die Seite");
+    });
+
+    test("der lange Name wird abgeschnitten gezeigt und bleibt vollständig gespeichert", async ({
+      page,
+    }) => {
+      await page.setViewportSize(BELOW_BREAKPOINT);
+      await openNewestSession(page);
+
+      const name = rowOf(page, longNamed).getByTestId("session-household-name");
+      const whole = `${LONG_NAME.lastName}, ${LONG_NAME.firstName}`;
+      await expectTruncated(name, "der lange Name");
+      // Cut on screen and whole in the DOM: the name is still what the row is called, still what a
+      // screen reader reads, and still what the `title` spells out for somebody who cannot tell two
+      // households apart from the part they can see.
+      await expect(name).toHaveText(whole);
+      await expect(name).toHaveAttribute("title", whole);
+    });
   });
 });
