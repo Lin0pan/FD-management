@@ -746,3 +746,60 @@ down, in `tasks/README.md`, as the one place a reader finds out US-35 must not b
     for the whole batch. Note for it: the nav decision is recorded in `active-section.ts`'s own
     comment, so chapter 05's route list should not invent a fifth section.
 ---
+
+## 2026-09-21 — US-004 (US-37.4: the detail view)
+
+- New route `/ausgabetermine/[id]`: the afternoon in a header card (group badges, both instants in
+  full, `servedAndTook`'s one-clause summary) and one table of the households that collected — Nr.,
+  Name, Karte, Gruppe, Erw. + Kinder, Preis, Nachweis bis, Erinnerungen, Betrag. Nothing editable,
+  no Status column, no absent households and no blocks (C-6) — and nothing on the page explaining
+  any of those absences.
+- **The receipt-or-live question is never asked here.** The page reads `detail.households` as given
+  and `detail.frozen` for the one hint it carries. `isRunning(session)` is read twice, for the
+  `Läuft` badge and the `vorläufig` mark, and neither decides what a row says.
+- **The two header figures come from the domain**, `summariseSession(detail.households)` — its
+  parameter is structural (`{ paidCents }[]`), so a `CollectedHousehold[]` satisfies it and the
+  detail and the overview cannot word the same afternoon differently.
+- **Width, decided in the browser as the PRD required: all nine columns stay, Karte included.** The
+  table's min-content is **847px** (the Kundenliste needs ~1000 for the same nine — this one has no
+  Status column), so at 1440, 1280 and 1024 it reads side by side with no scroll inside its
+  container, and below that it scrolls in its own `overflow-x-auto` box. `scrollWidth -
+  clientWidth` on the page is **0** at 1440, 1280, 1024, 800 and 390. No sticky header, unlike the
+  Kundenliste: one afternoon fits on a screen, and the three `overflow` overrides that stickiness
+  costs buy nothing here.
+- German under `distribution.pastSessions.detail`. `endedAt` is **lifted to a module helper beside
+  `startedAt`** and `session.last` now points at it — two screens stating one afternoon in full.
+  Eight headings are read from `customerList.table` and the ninth from `distribution.serve.amount`.
+- Files: `src/app/ausgabetermine/[id]/page.tsx` (new), `src/app/ausgabetermine/deps.ts`,
+  `src/i18n/de.ts`.
+- Gates: lint, typecheck, `test:coverage` (62 files, 1397 tests), `build` and `format:check` all
+  green. Driven in WebKit against `npm run start` at 1440×900, 1280, 1024, 800 and 390×844.
+
+- **Learnings for future iterations:**
+  - **A read-only screen still needs its four states built by hand.** The demo register holds only
+    ended-and-frozen afternoons, so the running one, the pre-US-35 one (ended, no receipts) and the
+    ended-but-empty one came from a `local_only/` script writing rows straight through Prisma —
+    `npx tsx local_only/<x>.ts` from the repo, never `/tmp`. **Delete them again before finishing**:
+    a *running* session left in `data/fd.db` would refuse every e2e spec that starts one, since only
+    one may run at a time. That is a trap no gate catches and the next iteration pays for.
+  - **`summariseSession` takes a structural `{ paidCents }[]`**, which is why a read model may be
+    summarised without a second derivation in the page. Look for that shape before reducing in a
+    component — a `reduce` over money in `app/` is business logic in the wrong layer.
+  - **An ended session with no hand-outs is `frozen: true` vacuously** (`handouts.every(...)` over
+    an empty list), so the „these figures are today's" hint correctly stays away from it and the
+    one-line empty state stands alone. Worth knowing before adding a fourth branch that guards it.
+  - **A row links by `customerId`, never by the number it shows.** A slot given to another household
+    since would otherwise open the wrong record — and the frozen name beside today's record is
+    exactly the comparison the link is worth making.
+  - Story 5 writes `tests/e2e/session-detail.spec.ts`. The testids are `session-detail-{header,
+    groups,started,ended,summary,running,provisional,live,empty,not-found,back}` and
+    `session-household-{row,number,name,card,group,grown-ups,children,price,certificate,reminders,
+    paid}`; each row carries `data-customer-id`. Remember `tests/e2e/session.ts` and a register band
+    of its own — the spec archives a number.
+  - Documentation is still deliberately untouched, as in the three stories before: chapter 05's
+    counting words (**two** new ports, two use cases, **two** new routes) and the glossary belong to
+    story 6. Note for it: the width verdict above is worth a line in
+    `ui_styling_guide.md` §3 only if it is ever revisited — **no column was dropped**, so the PRD's
+    „record the outcome" clause did not fire, and the pre-US-35 hint is a new entry for §8's list of
+    hints that earn their place.
+---

@@ -86,7 +86,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Nine columns is the risk. The customer list already has width trouble with eight of them and this project capped a column on that list once already (PR #141). Judge it at DF's window size, on a MacBook, and drop Karte if something must go."
     },
     {
