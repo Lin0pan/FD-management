@@ -28,7 +28,10 @@ export interface NoShowInput {
   readonly attendedSessionIds: ReadonlyArray<number>;
   /** The group the customer is in **now** — a move takes their schedule with it (PRD §US-10.1). */
   readonly customerGroup: Group;
-  /** The day the household joined the register; no session before it was theirs to attend. */
+  /**
+   * The **instant** the household joined the register — their first card's issue, not a midnight.
+   * An afternoon already under way when they registered was never theirs to attend.
+   */
   readonly registeredOn: Date;
 }
 
