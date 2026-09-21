@@ -29,7 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { isRunning, summariseSession } from "@/domain/distribution/session";
 import { DomainError } from "@/domain/errors";
 import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
@@ -165,11 +164,7 @@ function HouseholdTable({
  */
 function SessionHeader({ detail }: { detail: DistributionSessionDetail }): React.ReactElement {
   const words = de.distribution.pastSessions.detail;
-  const { session } = detail;
-  const running = isRunning(session);
-  // The domain's own reading of a list of hand-outs, so the two figures here and the two on the
-  // overview cannot come out different (US-37.1).
-  const summary = summariseSession(detail.households);
+  const { session, summary } = detail;
 
   return (
     <Card data-testid="session-detail-header">
@@ -190,7 +185,7 @@ function SessionHeader({ detail }: { detail: DistributionSessionDetail }): React
           {/* The overview's word, on the overview's terms: the figures of an afternoon still under
               way are what it has taken so far. Nothing beside it explains that they may still
               change — that is what the word says. */}
-          {running ? (
+          {detail.running ? (
             <p data-testid="session-detail-provisional" className="text-sm text-muted-foreground">
               {de.distribution.pastSessions.provisional}
             </p>
@@ -226,7 +221,6 @@ export default async function PastSessionPage({
   }
 
   const words = de.distribution.pastSessions.detail;
-  const running = isRunning(detail.session);
 
   return (
     <main className={SHELL}>
@@ -236,7 +230,7 @@ export default async function PastSessionPage({
         </h1>
         {/* The overview's badge, so an afternoon under way is recognised by the same mark on both
             screens (`ui_styling_guide.md` §5). */}
-        {running ? (
+        {detail.running ? (
           <Badge variant="secondary" data-testid="session-detail-running">
             {de.distribution.pastSessions.running}
           </Badge>
@@ -248,7 +242,7 @@ export default async function PastSessionPage({
       {/* The one hint this screen carries, and only where it says something the table cannot: an
           afternoon ended before the capture existed (US-35) has no receipts, so its rows are
           today's record rather than that afternoon's. */}
-      {running || detail.frozen ? null : (
+      {detail.running || detail.frozen ? null : (
         <Alert role="status">
           <AlertDescription data-testid="session-detail-live">{words.live}</AlertDescription>
         </Alert>

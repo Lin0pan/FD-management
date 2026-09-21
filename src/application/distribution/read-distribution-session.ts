@@ -14,7 +14,12 @@ import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { composition } from "@/domain/customer/householdComposition";
 import type { DistributionRecord } from "@/domain/distribution/distributionRecord";
 import type { HandoutReceipt } from "@/domain/distribution/handoutReceipt";
-import { isRunning, type DistributionSession } from "@/domain/distribution/session";
+import {
+  isRunning,
+  summariseSession,
+  type DistributionSession,
+  type SessionSummary,
+} from "@/domain/distribution/session";
 import { CustomerNotFound, DistributionSessionNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import type {
@@ -55,8 +60,12 @@ export interface CollectedHousehold {
 /** One afternoon and the households it served. */
 export interface DistributionSessionDetail {
   readonly session: DistributionSession;
+  /** Whether the afternoon is still under way, and its two figures therefore still provisional. */
+  readonly running: boolean;
   /** The households that collected, **in customer-number order** — how a register is read. */
   readonly households: ReadonlyArray<CollectedHousehold>;
+  /** What the afternoon came to, the same reading `ListedSession` carries for the overview's row. */
+  readonly summary: SessionSummary;
   /**
    * Whether the rows are the households *as they stood*. False while the afternoon is open, nothing
    * being frozen until it closes, and false for one ended before the capture existed (US-35): those
@@ -129,11 +138,12 @@ export async function readDistributionSession(
     throw new DistributionSessionNotFound(sessionId);
   }
 
+  const running = isRunning(session);
   const handouts = await deps.records.listForSession(session.id);
   // The one place the two sources are told apart (E-5): an ended afternoon is read off the receipts
   // taken when it closed, and a running — or reopened — one off the register, because nothing is
   // frozen until the afternoon is over.
-  const frozen = isRunning(session)
+  const frozen = running
     ? new Map<number, HandoutReceipt>()
     : new Map(
         (await deps.records.listFrozen(session.id)).map(({ recordId, receipt }) => [
@@ -157,11 +167,17 @@ export async function readDistributionSession(
     }),
   );
 
+  const collected = [...households].sort((one, other) => one.customerNumber - other.customerNumber);
+
   return {
     session,
-    households: [...households].sort((one, other) => one.customerNumber - other.customerNumber),
+    running,
+    households: collected,
+    // Summed here rather than on the screen, so the figures under one afternoon and the figures on
+    // its row in the overview are one reading of one rule (US-37.1) and not two that agree today.
+    summary: summariseSession(collected),
     // A session ended before US-35 carries no receipt for its hand-outs, which is the one way an
     // ended afternoon still reads live — and the screen has to say so (E-10).
-    frozen: !isRunning(session) && handouts.every((handout) => frozen.has(handout.id)),
+    frozen: !running && handouts.every((handout) => frozen.has(handout.id)),
   };
 }

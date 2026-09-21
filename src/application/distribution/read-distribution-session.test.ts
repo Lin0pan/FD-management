@@ -517,6 +517,55 @@ describe("readDistributionSession", () => {
 
     expect(detail.households).toEqual([]);
     expect(detail.frozen).toBe(true);
+    expect(detail.summary).toEqual({ households: 0, totalPaidCents: 0 });
+  });
+
+  it("sums what the afternoon came to, so the screen states it rather than works it out", async () => {
+    const detail = await readDistributionSession(
+      {
+        sessions: new FakeDistributionSessionRepository(ended()),
+        records: new FakeDistributionRecordRepository(
+          [handout(1, 1, { paidCents: 700 as Cents }), handout(2, 2, { paidCents: 250 as Cents })],
+          [receipt(1, { customerNumber: 49 }), receipt(2, { customerNumber: 51 })],
+        ),
+        customers: new FakeCustomerRepository(customerRecord()),
+        clock: fakeClock(TODAY),
+      },
+      SESSION_ID,
+    );
+
+    // The sum handed over, never the sum asked for: the two differ on every corrected hand-out.
+    expect(detail.summary).toEqual({ households: 2, totalPaidCents: 950 });
+  });
+
+  it("says an ended afternoon is not running", async () => {
+    const detail = await readDistributionSession(
+      {
+        sessions: new FakeDistributionSessionRepository(ended()),
+        records: new FakeDistributionRecordRepository([handout(1, 1)], [receipt(1)]),
+        customers: new FakeCustomerRepository(customerRecord()),
+        clock: fakeClock(TODAY),
+      },
+      SESSION_ID,
+    );
+
+    expect(detail.running).toBe(false);
+  });
+
+  it("says an afternoon still under way is running", async () => {
+    const detail = await readDistributionSession(
+      {
+        sessions: new FakeDistributionSessionRepository(running()),
+        records: new FakeDistributionRecordRepository([handout(1, 1)]),
+        customers: new FakeCustomerRepository(customerRecord()),
+        clock: fakeClock(TODAY),
+      },
+      SESSION_ID,
+    );
+
+    // The flag the screen prints „vorläufig“ off, read here so the overview's row and this
+    // afternoon's header cannot disagree about which one is open (US-37.1).
+    expect(detail.running).toBe(true);
   });
 
   it("refuses an id the register holds no session under", async () => {
