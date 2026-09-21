@@ -249,7 +249,7 @@ export default async function PastSessionPage({
           afternoon ended before the capture existed (US-35) has no receipts, so its rows are
           today's record rather than that afternoon's. */}
       {running || detail.frozen ? null : (
-        <Alert>
+        <Alert role="status">
           <AlertDescription data-testid="session-detail-live">{words.live}</AlertDescription>
         </Alert>
       )}
