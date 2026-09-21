@@ -171,6 +171,15 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
     ]);
   }
 
+  /** The receipts of one session, each beside the hand-out it describes (US-37.2). */
+  async listFrozen(sessionId: number): Promise<ReadonlyArray<FrozenHandout>> {
+    const rows = await this.prisma.handoutReceipt.findMany({
+      where: { record: { sessionId } },
+      omit: { id: true },
+    });
+    return rows.map(({ recordId, ...receipt }) => ({ recordId, receipt }));
+  }
+
   async thawSession(sessionId: number): Promise<void> {
     await this.prisma.handoutReceipt.deleteMany({ where: { record: { sessionId } } });
   }

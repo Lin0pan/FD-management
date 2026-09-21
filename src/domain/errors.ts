@@ -31,6 +31,7 @@ export type DomainErrorCode =
   | "DistributionSessionAlreadyRunning"
   | "DistributionSessionNotEmpty"
   | "DistributionSessionNotReopenable"
+  | "DistributionSessionNotFound"
   | "CertificateStillValid"
   | "CertificateValidUntilInPast"
   | "CertificateExpired"
@@ -489,6 +490,21 @@ export class DistributionSessionNotReopenable extends DomainError {
 
   constructor(sessionId: number) {
     super(`Distribution session ${sessionId} is not the one that may be reopened`);
+    this.sessionId = sessionId;
+  }
+}
+
+/**
+ * An afternoon was read back under an id the register does not hold — or holds only as discarded
+ * (ADR-010), which is the same absence to every reader (US-37.2). The overview links to the
+ * sessions it lists, so this is a stale link rather than an everyday outcome.
+ */
+export class DistributionSessionNotFound extends DomainError {
+  readonly code = "DistributionSessionNotFound";
+  readonly sessionId: number;
+
+  constructor(sessionId: number) {
+    super(`No distribution session has the id ${sessionId}`);
     this.sessionId = sessionId;
   }
 }

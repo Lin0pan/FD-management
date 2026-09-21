@@ -408,6 +408,16 @@ export interface DistributionRecordRepository {
    */
   freezeSession(sessionId: number, receipts: ReadonlyArray<FrozenHandout>): Promise<void>;
   /**
+   * The receipts one session was frozen with, each beside the hand-out it describes — how a past
+   * afternoon is read back as it stood (US-37.2, ADR-021).
+   *
+   * **Empty is two different answers and the caller tells them apart from the hand-outs it holds**:
+   * a session that is running or has been reopened carries no receipts because nothing is frozen
+   * until an afternoon is closed, and a session ended before the capture existed (US-35) carries
+   * none because none was ever taken.
+   */
+  listFrozen(sessionId: number): Promise<ReadonlyArray<FrozenHandout>>;
+  /**
    * Drop a session's receipts, which only a reopening does. It is what keeps the correction window
    * open: a receipt still pointing at a hand-out would make the store refuse to remove it.
    */

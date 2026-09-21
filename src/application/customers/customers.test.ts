@@ -494,6 +494,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>> {
     return Promise.reject(new Error("The overview of past afternoons has a suite of its own"));
   }
+
+  listFrozen(): Promise<never> {
+    return Promise.reject(new Error("Reading a past afternoon back has a suite of its own"));
+  }
 }
 
 /** An afternoon that took place: started at `iso`, ended three hours later, serving RED. */

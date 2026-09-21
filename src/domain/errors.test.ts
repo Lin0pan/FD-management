@@ -4,6 +4,7 @@ import {
   CardNumberTaken,
   DistributionSessionAlreadyRunning,
   DistributionSessionNotEmpty,
+  DistributionSessionNotFound,
   DistributionSessionNotReopenable,
   DomainError,
   MissingAuditReason,
@@ -62,8 +63,9 @@ describe("OverpaymentNotConfirmed", () => {
 });
 
 /**
- * The six session errors (US-34.1). Their callers arrive with the session table and the four use
- * cases (US-34.3 to US-34.5); covered here so each rule stays stated until then.
+ * The six session errors of US-34.1, and the seventh a session read back by id needs (US-37.2). The
+ * first six are covered here so each rule stays stated until its caller arrives with the session
+ * table and the four use cases (US-34.3 to US-34.5).
  */
 describe("the distribution session errors", () => {
   it("names the session a household was already served at", () => {
@@ -120,5 +122,14 @@ describe("the distribution session errors", () => {
     expect(error.code).toBe("DistributionSessionNotReopenable");
     expect(error.sessionId).toBe(11);
     expect(error.message).toContain("11");
+  });
+
+  it("names the session an id resolved to none of", () => {
+    const error = new DistributionSessionNotFound(37);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("DistributionSessionNotFound");
+    expect(error.sessionId).toBe(37);
+    expect(error.message).toContain("37");
   });
 });

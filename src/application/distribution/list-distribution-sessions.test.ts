@@ -123,6 +123,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
   thawSession(): Promise<never> {
     return Promise.reject(new Error("Reopening a session has a suite of its own"));
   }
+
+  listFrozen(): Promise<never> {
+    return Promise.reject(new Error("Reading a past afternoon back has a suite of its own"));
+  }
 }
 
 function summary(households: number, totalPaidCents: number): SessionSummary {

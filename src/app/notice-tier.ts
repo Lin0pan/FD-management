@@ -72,6 +72,7 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   CustomerNotFound: "error",
   WaitingListEntryNotFound: "error",
   DistributionRecordNotFound: "error",
+  DistributionSessionNotFound: "error",
   NoSettingsInForce: "error",
   InvalidCardNumber: "error",
   CardIndexTaken: "error",

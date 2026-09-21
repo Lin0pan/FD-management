@@ -447,6 +447,35 @@ describe("PrismaDistributionRecordRepository freezing and thawing a session", ()
     expect(await repository.findById(record.id)).toEqual(record);
   });
 
+  it("reads an afternoon back with every receipt beside the hand-out it describes", async () => {
+    const [first, second] = [await insertCustomer(50), await insertCustomer(52)];
+    const records = [
+      await repository.create(handOut(first)),
+      await repository.create(handOut(second)),
+    ];
+    const captured = receipt({ lastName: "Aalto" });
+    await repository.freezeSession(thisSession, [
+      { recordId: records[0].id, receipt: captured },
+      { recordId: records[1].id, receipt: receipt() },
+    ]);
+
+    const frozen = await repository.listFrozen(thisSession);
+
+    expect(frozen).toHaveLength(2);
+    expect(frozen).toContainEqual({ recordId: records[0].id, receipt: captured });
+  });
+
+  it("reads back nothing for an afternoon that was never frozen, and nothing of another's", async () => {
+    const [served, elsewhere] = [await insertCustomer(50), await insertCustomer(54)];
+    await repository.create(handOut(served));
+    const other = await repository.create(handOut(elsewhere, { sessionId: nextSession }));
+    await repository.freezeSession(nextSession, [{ recordId: other.id, receipt: receipt() }]);
+
+    // The two empties a caller has to tell apart — a session still running and one ended before the
+    // capture existed — look the same here, and the reader tells them apart (US-37.2).
+    expect(await repository.listFrozen(thisSession)).toEqual([]);
+  });
+
   it("refuses to remove a hand-out its receipt still points at, and allows it once thawed", async () => {
     // Why the thaw exists at all: a reopened session must stay correctable (US-34, FR-14), and the
     // database — not the use case — is what would otherwise refuse the correction.
