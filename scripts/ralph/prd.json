@@ -41,7 +41,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "This is the story the whole of US-35 was built for. The single most important line in it is the one that decides receipt-or-live, and it belongs here and nowhere else."
     },
     {

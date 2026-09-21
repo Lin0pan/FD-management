@@ -635,3 +635,60 @@ down, in `tasks/README.md`, as the one place a reader finds out US-35 must not b
     aggregate port method) and the counting words in it belong to story 6, which owns the arc42 pass
     for the whole batch.
 ---
+
+## 2026-09-21 — US-002 (US-37.2: one session, with the households that collected at it)
+
+- New use case `src/application/distribution/read-distribution-session.ts`: a session by id plus one
+  row per hand-out (`CollectedHousehold`), ordered by **customer number** — the order a register is
+  read in, never the order the afternoon served people.
+- **The receipt-or-live decision is one `if`, on `isRunning(session)`** (E-5). An ended afternoon is
+  read off the receipts US-35 wrote; a running *or reopened* one off the customer, household, card
+  and certificate as they stand. `group` is `groupOf` of whichever number the row carries (ADR-017)
+  and `cardNumber` is `formatCardNumber` over whichever card slot it carries (ADR-016); neither is
+  stored anywhere. `priceCents`/`paidCents` always come off the hand-out. No balance is returned.
+- `frozen: boolean` on the result is the flag an ended session with **no** receipts needs (E-10):
+  `!isRunning(session) && handouts.every(receipt-present)`. The screen reads `ended && !frozen` as
+  „these figures are today's".
+- **A second new port method after all: `DistributionRecordRepository.listFrozen(sessionId)`.** The
+  PRD says US-37.1's aggregate is the batch's only one — that is wrong, and nothing in the batch
+  could have worked without this: `freezeSession`/`thawSession` could write and drop receipts, and
+  no method could read one back. Adapter + two integration tests; stubbed in nine hand-written
+  fakes.
+- `DistributionSessionNotFound` — the batch's one domain edit, in three files as promised
+  (`errors.ts` union + class, `TIERS` in `notice-tier.ts`, red: a stale link, not a retryable
+  refusal) plus its `errors.test.ts` case.
+- Files: `src/application/distribution/read-distribution-session.ts` (+ its suite),
+  `src/application/ports.ts`, `src/domain/errors.ts` (+ suite), `src/app/notice-tier.ts`,
+  `src/infrastructure/prisma/distribution-record-repository.ts` (+ suite), and the `listFrozen` stub
+  in nine fakes.
+- Gates: lint, typecheck, `test:coverage` (62 files, 1392 tests, application and domain at 100%) and
+  `build` all green.
+
+- **Learnings for future iterations:**
+  - **A "no new port method" claim in a PRD is a claim about the *writes* somebody already built.**
+    US-35 was specified as a capture and its port grew `freezeSession` and `thawSession` and no
+    reader, because nothing read a receipt until this story. Before trusting such a line, grep the
+    port for a method that *returns* the thing the story has to show.
+  - **The fake count is now nine, not eight** — `list-distribution-sessions.test.ts` joined the
+    eight `grep -rln "implements DistributionRecordRepository" src/` names last iteration. The
+    script that inserts a stub before the class's own first `\n}\n` (from `s.index(<class header>)`,
+    never the file's first) patched all nine in one pass.
+  - **Destructuring a row's surrogate `id` away trips `no-unused-vars`** (a warning, and `lint` is
+    clean otherwise so it reads as an error). Prisma's `omit: { id: true }` on the `findMany` says
+    the same thing in the query instead — the adapter suite already used `omit` in an assertion.
+  - **A reopened session is proved by leaving the receipts in the fake store.** Thawing removes
+    them, so a fake that also thaws would pass whether the `if` asked about the session or about
+    the receipts. Leaving them behind is what pins the decision to `isRunning`.
+  - **A live row needs a `Clock`.** The counts are `composition(members, now)` like everywhere else,
+    so the use case takes the clock even though a frozen row never reads it — the alternative,
+    deriving the counts at the hand-out's own date, would be a third answer to „as they stood".
+  - `CustomerNotFound` is reachable here only through a hand-out naming a household the register
+    does not hold, which nothing can produce (no row is ever deleted). It still needs its test: the
+    `=== null` branch is real code and application coverage is gated at 100%.
+  - Story 3 (`/ausgabetermine`) wires the first of the two screens. Neither use case is in
+    `distributionDeps` yet — the composition root is the presentation stories' work.
+  - Documentation is again deliberately untouched: chapter 05's counting words (ports, use cases,
+    routes) and the glossary belong to story 6, which owns the arc42 pass for the whole batch. Note
+    for it: **the ports table gains two rows this batch, not one** — `summariseBySession` and
+    `listFrozen`.
+---
