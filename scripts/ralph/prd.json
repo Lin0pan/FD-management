@@ -63,7 +63,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "A read-only screen and the first one in the application that is not about today. Keep it boring: a table, newest first, one badge, one link."
     },
     {

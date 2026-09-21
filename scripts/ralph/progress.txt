@@ -692,3 +692,57 @@ down, in `tasks/README.md`, as the one place a reader finds out US-35 must not b
     for it: **the ports table gains two rows this batch, not one** — `summariseBySession` and
     `listFrozen`.
 ---
+
+## 2026-09-21 — US-003 (US-37.3: the overview page)
+
+- New route `/ausgabetermine` — `page.tsx` and a `deps.ts` holding the two read-only stores and no
+  audit log. One table, newest first: `Datum`, `Gruppe(n)`, `Haushalte`, `Summe`, each row's date
+  linking to `/ausgabetermine/<id>`. Money through `formatEuros`, the day through a new
+  `germanDayOf`, the group badges through `SessionGroupBadges` — the counter's own component, so the
+  colours cannot drift between the two screens.
+- The running afternoon is the first row, marked with a grey `Läuft` badge, and its sum carries
+  `vorläufig` **under** it rather than beside it. Beside it, the one figure still moving was pushed
+  ~60px out of line with the eight below — measured in the browser, not guessed.
+- `germanDayOf(instant)` in `src/i18n/format.ts` (+ three named tests): `germanDate` reads UTC
+  because a stored day is midnight UTC, so it would name the day before for an afternoon that ran
+  past midnight in Berlin. The column is a day; the detail view's header is where the two instants
+  are written out in full.
+- **No fifth nav item** — the decision the PRD left to the finished screen. Four is what US-17
+  settled on; the afternoons are reached from `/ausgabe`, where DF stand when they ask about last
+  Thursday: the running session's header (far right of the header row, ghost) and the last-session
+  card (`CardAction`). `/ausgabetermine` is added to the **distribution** section's `routes`
+  instead, so the Ausgabe tab stays marked while one is open (+ two cases in
+  `active-section.test.ts`).
+- German under `distribution.pastSessions`, as the PRD names it — never `distribution.sessions`.
+- Files: `src/app/ausgabetermine/{page.tsx,deps.ts}`, `src/app/ausgabe/page.tsx`,
+  `src/app/active-section.ts` (+ suite), `src/i18n/{de.ts,format.ts,format.test.ts}`.
+- Gates: lint, typecheck, `test:coverage` (62 files, 1397 tests) and `build` all green. Driven in
+  WebKit against `npm run start` over the demo register at 1440×900 and 390×844.
+
+- **Learnings for future iterations:**
+  - **A word set beside a figure in a right-aligned money column breaks the column.** The figures are
+    read by scanning down the right edge, so anything appended on the same line shifts that one
+    number left. `className="block"` under the figure keeps the edge — and it fixes the accessible
+    name for free: two inline spans come out as `5,00 €vorläufig` with no separator, a block puts
+    the space in. Assert the right edges, not the look:
+    `[...document.querySelectorAll('[data-testid=x]')].map(s => s.getBoundingClientRect().right)`
+    should be one value.
+  - **A new route has to be given to a nav section explicitly.** `owns()` matches whole path
+    segments, so `/ausgabe` does **not** claim `/ausgabetermine` — it has to be named in `routes`
+    or the bar marks nothing and reads as broken. The two are one letter apart and the near miss
+    looks like it works.
+  - **The empty state of a list screen is one `npm run db:reset` away**, no `local_only/` script
+    needed: the reset seeds settings only, so every list in the application is empty against it.
+    Restart the server after (a running one keeps serving the deleted inode) and `npm run db:demo`
+    to put the register back.
+  - **The trailing `alert` node in every playwright-cli snapshot is not yours.** It is outside the
+    document — `document.querySelector('[role=alert]')` returns `null` — and it appears on every
+    page of this application including ones this batch never touched.
+  - Story 4 (`/ausgabetermine/[id]`) extends `pastSessionDeps`: `readDistributionSession` needs the
+    customers, certificates and a `Clock` on top of the two stores here. Its headings come from
+    `de.customerList.table` wherever they are the same words.
+  - Documentation is still deliberately untouched: chapter 05's counting words (**two** new ports,
+    two use cases, **two** new routes) and the glossary belong to story 6, which owns the arc42 pass
+    for the whole batch. Note for it: the nav decision is recorded in `active-section.ts`'s own
+    comment, so chapter 05's route list should not invent a fifth section.
+---
