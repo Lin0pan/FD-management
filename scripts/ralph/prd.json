@@ -107,7 +107,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "This spec is the only end-to-end proof that US-35 did anything at all. Use the session helper from tests/e2e/session.ts and its own register slice — it archives a number, so it must not share numbers with another spec."
     },
     {

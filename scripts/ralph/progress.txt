@@ -414,6 +414,12 @@ bullets that sat under „Where batch 36 starts" are not carried over — they a
   half a dozen PRDs, so a reader meeting it needs to be told it is gone and what replaced it — which
   a deleted row cannot do. Chapter 01's **non-goals** table and chapter 09's **reversed decisions**
   table are the same mechanism one level up, and a withdrawn PRD's banner one level down.
+- **An e2e spec that reopens an afternoon, or states the overview's list of them, owns a register.**
+  „Ausgabe wieder öffnen" acts on the afternoon that ended *last* in the whole register and
+  `/ausgabetermine` **is** that list, so on the shared register both could only ever be deltas. That
+  is the third reason for `ISOLATED_SPECS` (four globs now) after the quota and the no-show count —
+  and the register a spec inherits there carries the **quota** the file before it set, so a spec
+  needing a particular slot offered sets its own through `/einstellungen` in `beforeAll`.
 - **Prior runs' patterns are in the archive**, not in this file:
   `scripts/ralph/archive/2026-09-17-us-33-certificate-types-from-settings/progress.txt` is the most
   recent (a vocabulary DF maintain themselves, a table deliberately outside the versioned settings,
@@ -802,4 +808,58 @@ down, in `tasks/README.md`, as the one place a reader finds out US-35 must not b
     `ui_styling_guide.md` §3 only if it is ever revisited — **no column was dropped**, so the PRD's
     „record the outcome" clause did not fire, and the pre-US-35 hint is a new entry for §8's list of
     hints that earn their place.
+---
+
+## 2026-09-21 — US-005 (US-37.5: the state as it stood, proved end to end)
+
+- New `tests/e2e/session-detail.spec.ts`, seven tests in one narrative: serve two households and
+  read them live off `/ausgabetermine/[id]` while the afternoon runs, end it and watch the figures
+  hold, **correct the surname and renew the certificate** and watch last week's table keep the old
+  ones (E-2, E-3), reopen and watch the rows follow the record again (E-5, H-2), end it a second
+  time and watch it freeze on the new values, then **archive one household and hand its number to
+  the next** — the row still names the household that was served, under the `3k1` it was printed
+  (E-4). The last test reads the overview: two afternoons, the running one on top and marked, and
+  still newest-first once both are closed.
+- Everything is driven through the screens — the counter, the record, the intake, `/ausgabe` and the
+  two new ones — because a freeze that is only true of the fakes is worth nothing. The only Prisma
+  writes are the two seeded households.
+- **It owns the isolated register** (`ISOLATED_SPECS`, now four globs): the overview is asserted as
+  *the* list of afternoons rather than as a delta, and the archived number has to come back as a
+  slot the intake offers. `clearRegister` in its own `beforeAll`, and the **quota is set on the
+  settings screen** rather than inherited from `number-group.spec.ts`, which leaves six.
+- Files: `tests/e2e/session-detail.spec.ts` (new), `tests/e2e/registers.ts`,
+  `docs/architecture/07-deployment-view.md` (the paragraph counting the isolated specs and their
+  reasons — three became four).
+- Gates: lint, typecheck, `format:check`, `test:coverage` (62 files, 1397 tests), `build`, and both
+  engines green — `npm run test:e2e` and `npm run test:e2e:webkit`, 229 passed each.
+
+- **Learnings for future iterations:**
+  - **The record has no testid for the certificate on file**, only the renewal *form*'s empty
+    `renewal-valid-until` box. A renewal is read back off the sentence in the Nachweis section:
+    `page.getByText(`${de.customers.card.validUntil} ${typedDay(day)}`)`. Asserting the form field
+    instead fails with `Received: ""` and looks like a save that did not land.
+  - **A spec that reopens an afternoon needs the register emptied, not just its own numbers freed.**
+    „Ausgabe wieder öffnen" acts on the afternoon that ended *last* in the whole register, so on the
+    shared one it would reopen whatever the file before it closed. That, plus the overview being an
+    absolute list, is the third reason to take the isolated register (recorded in chapter 07).
+  - **Inheriting the quota from the spec that ran before you is a silent coupling.** The isolated
+    register carries `number-group`'s six into everything behind it, so a spec that has to be
+    offered a particular slot sets its own quota through `/einstellungen` in `beforeAll` — cheap
+    (one `fillSticky` + save on a hook page) and the only version of the claim that stays true when
+    the file ahead changes its own number.
+  - **`HookFixtures` is exported from `tests/e2e/session.ts`** and is the type for any `beforeAll`
+    helper that has to drive a screen — `beforeAll` refuses the `page` fixture, and a page built
+    from `browser` inherits no `baseURL`.
+  - **Two money columns from one read.** A spec that sets no policy reads the Betrag field with
+    `parseEuros` and asserts every later figure against it; where the household carries no earlier
+    hand-out the amount asked **is** the bare price, so Preis and Betrag are the same figure and the
+    comment says why rather than the spec stating a number.
+  - **`reminders.spec.ts` flaked once on the shared register** („Rentenbescheid30.06.2025" in the
+    Sonstiges box — a fill landing in the previous field's value), passed alone and passed on the
+    next full run. Same family as the WebKit nav flake already in the patterns above; nothing in
+    this story touches that project.
+  - Story 6 is the documentation: the Betriebsanleitung section, the arc42 pass (chapter 05's
+    counting words — **two** new ports, two use cases, **two** new routes — and the glossary), and
+    the chain note in `tasks/README.md`. Chapter 07 is **already done** by this story, since the
+    isolated-spec count is part of the change; do not count it twice.
 ---
