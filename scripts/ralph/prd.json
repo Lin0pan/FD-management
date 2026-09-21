@@ -18,7 +18,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "One new port method, an aggregate. A per-row query would be ~250 round trips after five years — the register's whole point is that it is small, not that it is slow."
     },
     {

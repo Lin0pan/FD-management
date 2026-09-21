@@ -589,3 +589,49 @@ is the rule (root `CLAUDE.md`: where the argument is already recorded, cite it a
 
 **This is the last of the four** — 34 → 35 → 36 → 37 — and story 6 is where that chain gets written
 down, in `tasks/README.md`, as the one place a reader finds out US-35 must not be skipped.
+
+## 2026-09-21 — US-001 (US-37.1: the list of sessions)
+
+- New use case `src/application/distribution/list-distribution-sessions.ts`: every afternoon on
+  record, newest first, the running one at the top with `running: true` and provisional figures.
+  `ListedSession` carries `{ id, startedAt, endedAt, groups, households, totalPaidCents, running }`.
+- New port method `DistributionRecordRepository.summariseBySession()` — one `groupBy` over the
+  hand-outs (`_count._all`, `_sum.paidCents`), keyed by session, in the shape
+  `CardRepository.highestIndexByNumber` already takes. A session **absent** from the map was
+  collected at by nobody; the use case reads the absence as `summariseSession([])`.
+- **No new session port method.** The list is `findRunning()` + `listEnded()`; both already filter
+  discarded sessions (ADR-010), so „discarded never appear" costs the use case no line of its own.
+- Files: `src/application/ports.ts`, `src/application/distribution/list-distribution-sessions.ts`
+  (+ its suite), `src/infrastructure/prisma/distribution-record-repository.ts` (+ three tests in its
+  suite), and the `summariseBySession` stub in the eight hand-written
+  `FakeDistributionRecordRepository`s.
+- Gates: lint, typecheck, `test:coverage` (61 files, 1377 tests, application and domain at 100%) and
+  `build` all green.
+
+- **Learnings for future iterations:**
+  - **The fake count is eight, not the seven a `grep` for the class name suggests** — the port is
+    implemented in `maintain-customer`, `lookup-customer`, `customers`, `change-customer-number`,
+    `correct-attendance`, `read-group-roster`, `record-attendance` and `distribution-session` test
+    files. `grep -rln "implements DistributionRecordRepository" src/` is the reliable list, and the
+    stub insertion point is the class's own first `\n}\n` (a script over `s.index(...)` from the
+    class header, not the file's first).
+  - **A `?? fallback` over a map lookup keeps both branches reachable here**, unlike the
+    unreachable-fallback trap in the patterns above: a running session that nobody has collected at
+    yet is a real row of the overview, so the „absent from the map" arm is covered by the
+    `puts the running session at the top` test rather than by a case that cannot arise.
+  - **Prisma's `groupBy` needs `_count: { _all: true }`** to count rows (a `_count: { id: true }`
+    would count a nullable column instead), and `_sum` is typed nullable even though a `groupBy`
+    cannot produce an empty group — the `?? 0` beside it is `summariseSession`'s own reading, not an
+    assertion, and the comment says so.
+  - **Spreading a domain value object into a read model reads well and typechecks**:
+    `...(summaries.get(id) ?? summariseSession([]))` puts `households` and `totalPaidCents` on the
+    row without restating either name, so a third figure added to `SessionSummary` arrives here by
+    itself.
+  - Story 2's `read-distribution-session.ts` needs the receipt-or-live `if` and
+    `DistributionSessionNotFound` (the batch's one domain edit, three files:
+    `src/domain/errors.ts` ×2 + `TIERS` in `src/app/notice-tier.ts`, whose header comment counts the
+    codes and goes stale silently).
+  - Documentation is deliberately untouched: chapter 05 (the two use cases, the two routes, the
+    aggregate port method) and the counting words in it belong to story 6, which owns the arc42 pass
+    for the whole batch.
+---
