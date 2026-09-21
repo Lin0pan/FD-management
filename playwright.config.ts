@@ -19,9 +19,10 @@ import {
  * register and only ever adds to it, which keeps the run short and the setup honest. A spec that has
  * to make the register *full*, though, cannot share it with anybody: the quota is a single global
  * number, and the shared database holds customers on numbers well above any quota this suite would
- * set, so "every slot is taken" is unreachable there at any price short of hundreds of rows. Those
- * specs get the `isolated` project below — their own port, their own database, freshly seeded and
- * empty.
+ * set, so "every slot is taken" is unreachable there at any price short of hundreds of rows. The
+ * same holds for a figure the whole register decides — how many afternoons a household has missed
+ * is one. Those specs get the `isolated` project below — their own port, their own database,
+ * freshly seeded and empty.
  *
  * **Which engine, and which registers, is `tests/e2e/registers.ts`'s to say** — the specs seed the
  * same files this config serves, so neither may state a path the other cannot see. One engine runs
@@ -55,8 +56,8 @@ function webServer(server: Register) {
       // Relative SQLite urls resolve against the schema directory, hence the `../`.
       DATABASE_URL: `file:../${server.database}`,
       // The test-only clock seam (src/infrastructure/clock.ts). While this file holds an ISO
-      // instant the app believes it is that moment, which is how the week-colour banner — a pure
-      // function of the calendar — can be asserted at all. A spec that writes it deletes it again.
+      // instant the app believes it is that moment, which is how a certificate's validity, a card's
+      // age and a 13th birthday can be asserted at all. A spec that writes it deletes it again.
       FD_FIXED_NOW_FILE: server.now,
     },
   };

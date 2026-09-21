@@ -137,6 +137,13 @@ shared spreadsheet.
    analysis does not say what the app shows off-day; without this the screen would be blank or
    misleading four days out of five.
 
+> **Note (2026-09-20).** This story is **withdrawn in full** — see
+> [`tasks/prd-us-03-week-colour.md`](../../tasks/prd-us-03-week-colour.md) and
+> [`tasks/prd-us-36-sessions-not-the-calendar.md`](../../tasks/prd-us-36-sessions-not-the-calendar.md).
+> A hand-out belongs to the distribution session a staff member starts and ends, so the week anchor,
+> the distribution weekday and the alternation are gone and no screen names a coming Ausgabe. A
+> household's group is unaffected: it is the parity of its customer number.
+
 **Related:** US-04, US-05
 
 **Open dependency:** the anchor week and the distribution weekday must be configured once at

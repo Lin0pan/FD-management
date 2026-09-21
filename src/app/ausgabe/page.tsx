@@ -70,9 +70,9 @@ function permitsServing(verdict: Verdict): boolean {
 export const dynamic = "force-dynamic";
 
 /**
- * The afternoon, where the week-colour banner stood (US-34.7). Two facts and no third: that an
- * Ausgabe is under way, and which group or groups it serves — a badge each, wearing what the
- * Kundenliste and a customer's record wear, so one colour means one thing application-wide.
+ * The afternoon (US-34.7). Two facts and no third: that an Ausgabe is under way, and which group
+ * or groups it serves — a badge each, wearing what the Kundenliste and a customer's record wear, so
+ * one colour means one thing application-wide.
  *
  * The groups cannot be changed while it runs, and nothing here says so: a control that is not on the
  * screen needs no sentence explaining its absence (`ui_styling_guide.md` §8).
@@ -369,8 +369,8 @@ export default async function DistributionPage({
 
             {/* How far through the group the afternoon is (US-23), between the session header and the
           counter: it is a fact about the afternoon, like the header, and it must be readable without
-          scrolling past the field staff type into. The group(s) it names are the running session's,
-          which is what the calendar week has stopped deciding (US-34.6).
+          scrolling past the field staff type into. The group(s) it names are the running
+          session's.
 
           Keyed by the number looked up, because a `<details>` keeps `open` through any re-render and
           only a remount closes it (`docs/guideline/ui_styling_guide.md` §6): clicking a name in the list is a

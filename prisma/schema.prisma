@@ -26,7 +26,7 @@ datasource db {
 }
 
 /// One immutable set of the policy values DF can change without a deploy: the customer quota, the
-/// price per head and the week-cycle anchor.
+/// price per head and the egg allowance.
 ///
 /// Versions are **append-only**: the sole way to answer "what would that household owe under the
 /// policy of last March" is to resolve the version that was in force then
@@ -42,15 +42,6 @@ model SettingsVersion {
 
   /// The maximum number of customer slots DF hands out.
   quotaN Int
-
-  /// The known week of the two-week cycle everything else is counted from, e.g. `2026-W02`, and the
-  /// group that collected in it (`RED` or `BLUE`). SQLite has no enum type, so the colour is a
-  /// string the domain validates on the way in and out.
-  weekAnchorIsoWeek String
-  weekAnchorColour  String
-
-  /// Distribution day as an ISO weekday, Monday = 1 … Sunday = 7.
-  distributionWeekday Int
 
   /// What one grown-up and one child each pay, in whole euro cents. DF charges per head, so what a
   /// household owes is derived — `grownUps × pricePerGrownUpCents + children × pricePerChildCents`,

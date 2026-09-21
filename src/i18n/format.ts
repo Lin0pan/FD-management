@@ -21,28 +21,11 @@ export function germanDate(date: Date): string {
 }
 
 /**
- * The week number out of an ISO week string — `2026-W02` becomes `02`.
- *
- * `isoWeekOf` produces the full `JJJJ-Www` form because that is what the anchor setting is typed and
- * stored in; on the counter's banner the ISO year is noise, since the date beside it already carries
- * the year. The leading zero stays: staff read this against a wall calendar, which prints two digits.
- *
- * A string without a `W` is handed back whole rather than refused. This is a formatter on the
- * counter's critical path, and a banner showing an odd-looking week is a smaller failure than a
- * screen that will not render.
- */
-export function isoWeekNumber(isoWeek: string): string {
-  const at = isoWeek.lastIndexOf("W");
-  return at === -1 ? isoWeek : isoWeek.slice(at + 1);
-}
-
-/**
  * A date written out, as `Donnerstag, 30. Juli 2026`.
  *
  * The long form exists for the one place a date is *read as a sentence* rather than looked up in a
- * column: the Start dashboard, where the weekday is half the answer to "when is the next Ausgabe"
- * (US-17.3). Everywhere else — tables, fields, the card — stays on the compact {@link germanDate},
- * which is what staff copy off a form.
+ * column: the Start dashboard (US-17.3). Everywhere else — tables, fields, the card — stays on the
+ * compact {@link germanDate}, which is what staff copy off a form.
  *
  * Read in UTC for the same reason as {@link germanDate}: these are days, not instants.
  */
@@ -63,8 +46,7 @@ export function germanLongDate(date: Date): string {
  *
  * Unlike {@link germanDate}, a hand-out is an *instant*, not a day: the time a customer was served
  * has to read as the local clock the staff saw, so it follows the Berlin offset (and its DST
- * changes) rather than UTC. The same zone the attendance rules count the day in (`berlinDayKey`), so
- * "served at 23:59" and "already served today" cannot disagree about which day that was.
+ * changes) rather than UTC.
  */
 const berlinTime = new Intl.DateTimeFormat("de-DE", {
   timeZone: "Europe/Berlin",

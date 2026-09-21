@@ -28,7 +28,7 @@ import { endSessionInHook, startSessionInHook } from "./session";
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
-// stays a literal, because a distribution day and a valid certificate are decided by dates.
+// stays a literal, because a card's validity and a certificate's are decided by dates.
 faker.seed(20260727);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
@@ -37,10 +37,10 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a RED distribution day, which is what lets the RED
- * household be served before they are archived — the hand-out is the history the archived record has
- * to keep once its people have been registered a second time.
+ * Pinned rather than derived, because the certificate and card dates seeded below are written
+ * relative to it: the household must be clear to serve before it is archived, the hand-out being the
+ * history the archived record has to keep once its people have been registered a second time. Which
+ * group collects is not a property of the day — the session this spec starts names it (US-36).
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 /** The day the archive search and the pre-fill banner name, as `germanDate` renders it. */

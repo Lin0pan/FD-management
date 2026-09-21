@@ -83,6 +83,15 @@ export class PrismaDistributionSessionRepository implements DistributionSessionR
     return row === null ? null : toSession(row);
   }
 
+  /** Newest first, ordered as {@link lastEnded} is — whose answer is this list's first row. */
+  async listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    const rows = await this.prisma.distributionSession.findMany({
+      where: { ...NOT_DISCARDED, endedAt: { not: null } },
+      orderBy: [{ endedAt: "desc" }, { id: "desc" }],
+    });
+    return rows.map(toSession);
+  }
+
   async findById(sessionId: number): Promise<DistributionSession | null> {
     const row = await this.prisma.distributionSession.findFirst({
       where: { ...NOT_DISCARDED, id: sessionId },

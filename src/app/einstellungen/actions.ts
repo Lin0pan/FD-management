@@ -22,7 +22,6 @@ import {
   QuotaBelowActiveCustomers,
 } from "@/domain/errors";
 import { parseEuros } from "@/domain/money";
-import { parseWeekColour } from "@/domain/policy/settings";
 import { de, settingsFormFieldLabel } from "@/i18n/de";
 import { summarise, type FormRefusal } from "../field-refusal";
 import { tierOf } from "../notice-tier";
@@ -66,23 +65,8 @@ const optionalEuroAmount = z.string().transform((value, ctx): number | null => {
   }
 });
 
-const weekColour = z.string().transform((value, ctx) => {
-  try {
-    return parseWeekColour(value);
-  } catch {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: de.settings.errors.invalidSettings(de.settings.fields.weekAnchorColour),
-    });
-    return z.NEVER;
-  }
-});
-
 const settingsForm = z.object({
   quotaN: wholeNumber,
-  weekAnchorIsoWeek: z.string(),
-  weekAnchorColour: weekColour,
-  distributionWeekday: wholeNumber,
   reason: z.string(),
   pricePerGrownUp: euroAmount,
   pricePerChild: euroAmount,
@@ -104,9 +88,6 @@ function formValues(formData: FormData): SubmittedSettings {
   const text = (name: string): string => String(formData.get(name) ?? "");
   return {
     quotaN: text("quotaN"),
-    weekAnchorIsoWeek: text("weekAnchorIsoWeek"),
-    weekAnchorColour: text("weekAnchorColour"),
-    distributionWeekday: text("distributionWeekday"),
     reason: text("reason"),
     pricePerGrownUp: text("pricePerGrownUp"),
     pricePerChild: text("pricePerChild"),
@@ -165,15 +146,6 @@ function screenPath(path: string, rows: ReadonlyArray<TypedEggRow>): string {
 }
 
 /**
- * The two settings the domain nests and the form flattens — `weekAnchor.isoWeek` against
- * `weekAnchorIsoWeek`. The other seven are spelled the same on both sides and are not listed.
- */
-const INPUT_NAME: Record<string, string | undefined> = {
-  "weekAnchor.isoWeek": "weekAnchorIsoWeek",
-  "weekAnchor.colour": "weekAnchorColour",
-};
-
-/**
  * Everything the schema refused, in one answer. A settings path is already the input's own `name`, so
  * there is nothing to translate — but a path with no label is still dropped, which is the test every
  * screen applies (§7). It drops nothing today; it keeps that a fact rather than an assumption.
@@ -191,8 +163,8 @@ function settingsRefusals(error: z.ZodError, eggRows: ReadonlyArray<TypedEggRow>
 
 /**
  * Turn a typed domain error into the answer the screen shows: the sentence, the tier, and — where the
- * error names one — the field to mark. `field` is the **form input's** name, translated through
- * {@link INPUT_NAME} for the two the domain nests.
+ * error names one — the field to mark. Every settings field is spelled the same in the domain and
+ * on the form, so `field` is the input's own `name`.
  *
  * **The three collisions deliberately name no field**, and that is the division between the two
  * refusal paths here. A malformed value in one row is that row's fault and marks its control; two
@@ -232,7 +204,7 @@ function refusal(
     // The summary names the field, so the mark stays the short generic words — a mark naming its own
     // field would say it twice in one eyeful. `errorFields` answers for the flat settings and
     // `settingsFormFieldLabel` for the egg rows, whose label is built from an index.
-    const path = screenPath(INPUT_NAME[error.field] ?? error.field, eggRows);
+    const path = screenPath(error.field, eggRows);
     return {
       message: de.settings.errors.invalidSettings(
         de.settings.errorFields[error.field] ?? settingsFormFieldLabel(path) ?? error.field,
@@ -277,8 +249,6 @@ export async function saveSettings(
       reason: form.reason,
       settings: {
         quotaN: form.quotaN,
-        weekAnchor: { isoWeek: form.weekAnchorIsoWeek, colour: form.weekAnchorColour },
-        distributionWeekday: form.distributionWeekday,
         pricePerGrownUp: form.pricePerGrownUp,
         pricePerChild: form.pricePerChild,
         priceCap: form.priceCap,

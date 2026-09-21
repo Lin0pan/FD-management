@@ -52,8 +52,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
-    distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
@@ -283,10 +281,9 @@ describe("updateSettings", () => {
     await updateSettings(deps(), updateInput());
 
     expect(audit.entries[0].changedFields).toContain("pricePerGrownUp");
-    // Seven since US-28 added the Eierregel to the six US-27 left: the seed states every policy
-    // value, and an absent cap — or an empty egg rule — is one of them being stated rather than one
-    // of them missing.
-    expect(audit.entries[0].changedFields).toHaveLength(7);
+    // Every policy value, because the seed states every one of them: an absent cap — or an empty
+    // egg rule — is one of them being stated rather than one of them missing.
+    expect(audit.entries[0].changedFields).toHaveLength(5);
   });
 });
 

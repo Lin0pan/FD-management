@@ -4,16 +4,10 @@
  * screen, never an automatic archive.
  *
  * A no-show is an **absence of a record**, so the history alone cannot answer it: the history says
- * which days the customer came, the calendar which days were theirs. The one place the week-colour
- * rule (US-03) and the attendance history (US-05) meet.
- *
- * Three boundaries decide what the number means:
- *
- * - **Only the customer's own colour counts** — the other group's weeks were never theirs, and
- *   counting them would double every figure.
- * - **Today never counts** — a distribution they can still walk into is not a miss.
- * - **The registration day never counts** — whether that day's hand-out had finished when the card
- *   was handed over is nowhere on record.
+ * which afternoons the household collected at, the session list which afternoons there were. A
+ * session counts against a household when all four hold (US-36, D-1) — it has **ended**, its groups
+ * **include** the household's group, it **started after** they joined the register, and it holds no
+ * hand-out for them.
  *
  * A **block** is deliberately *not* excluded (PRD §9, still to be confirmed with DF): excluding it
  * would hide the pattern the count exists to show, and would need a block *history* the record does
@@ -21,84 +15,55 @@
  */
 
 import type { Group } from "../customer/group";
-import type { Settings } from "../policy/settings";
-import { berlinDayKey } from "./attendance";
-import { colourOf, isoWeekdayOf, startOfUtcDay } from "./weekColour";
-
-const MS_PER_DAY = 86_400_000;
-const DAYS_PER_WEEK = 7;
-/** One turn of the two-week cycle — the gap between two distributions of the same colour. */
-const MS_PER_CYCLE = 2 * DAYS_PER_WEEK * MS_PER_DAY;
-
-/**
- * The day a household stood at the counter, which is what a miss is the absence of. Declared here
- * rather than taken from `attendance.ts`: the attendance rules turn on the session now (US-34), and
- * this count is the last rule still reading the calendar — US-36 retires it.
- */
-export interface AttendedDay {
-  readonly date: Date;
-}
+import { isRunning, servesGroup, type DistributionSession } from "./session";
 
 /** Everything the count turns on. */
 export interface NoShowInput {
   /**
-   * The distribution records of **this customer only**, in any order. A record's presence is the
-   * attendance: a no-show writes no row at all (`distributionRecord.ts`).
+   * The afternoons that took place, **newest first** — the order the walk stops in. A discarded
+   * session is not one of them: the store filters it out, so this rule knows only two states.
    */
-  readonly records: ReadonlyArray<AttendedDay>;
+  readonly sessions: ReadonlyArray<DistributionSession>;
+  /** The sessions **this household** collected at, in any order — their hand-outs' session ids. */
+  readonly attendedSessionIds: ReadonlyArray<number>;
   /** The group the customer is in **now** — a move takes their schedule with it (PRD §US-10.1). */
   readonly customerGroup: Group;
-  /** The day the household joined the register; no distribution before it was theirs to attend. */
+  /**
+   * The **instant** the household joined the register — their first card's issue, not a midnight.
+   * An afternoon already under way when they registered was never theirs to attend.
+   */
   readonly registeredOn: Date;
-  /** The policy in force, for the distribution weekday and the week-colour anchor. */
-  readonly settings: Settings;
-  /** The day the count is read on. Today's own distribution is never counted — see above. */
-  readonly today: Date;
+}
+
+/** Whether the household was expected at this afternoon — the four conditions but the last. */
+function wasTheirs(session: DistributionSession, group: Group, registeredOn: Date): boolean {
+  return (
+    !isRunning(session) &&
+    servesGroup(session.groups, group) &&
+    session.startedAt.getTime() > registeredOn.getTime()
+  );
 }
 
 /**
- * The most recent distribution of the customer's own colour lying strictly **before** `today`.
+ * How many of the household's own sessions they missed in an unbroken run ending at the last one.
  *
- * Deliberately not a `previousDistribution` in `distributionDay.ts`: `nextDistribution` there
- * includes today, and a sibling that excluded it would be a trap. The exclusion belongs to this rule.
- */
-function lastOwnDistributionBefore(today: Date, group: Group, settings: Settings): Date {
-  const daysSinceWeekday =
-    (isoWeekdayOf(today) - settings.distributionWeekday + DAYS_PER_WEEK) % DAYS_PER_WEEK;
-  // On a distribution day itself the previous one is a full week back, not today.
-  const daysBack = daysSinceWeekday === 0 ? DAYS_PER_WEEK : daysSinceWeekday;
-  const previous = new Date(startOfUtcDay(today).getTime() - daysBack * MS_PER_DAY);
-  if (colourOf(previous, settings.weekAnchor) === group) {
-    return previous;
-  }
-  // That one belonged to the other group, so the customer's own is the week before it.
-  return new Date(previous.getTime() - DAYS_PER_WEEK * MS_PER_DAY);
-}
-
-/**
- * How many of the customer's own distributions they missed in an unbroken run ending before `today`.
- *
- * Walks backwards a cycle at a time, stopping at the first own distribution they attended or at
- * their registration day. `0` means "came last time" as well as "has not seen a distribution yet" —
- * the same thing as far as archiving goes.
- *
- * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
+ * Walks the ended sessions newest first, stopping at the first one they collected at or at their
+ * registration. `0` means "came last time" as well as "has not seen a session yet" — the same thing
+ * as far as archiving goes.
  */
 export function consecutiveNoShows(input: NoShowInput): number {
-  const { records, customerGroup, registeredOn, settings, today } = input;
-  // Matched by Berlin calendar day, so a hand-out recorded at 23:45 belongs to the day the staff
-  // member lived through — the calendar this count still reads until US-36 retires it.
-  const attendedDays = new Set(records.map((record) => berlinDayKey(record.date)));
-  const registrationDay = startOfUtcDay(registeredOn).getTime();
+  const { sessions, attendedSessionIds, customerGroup, registeredOn } = input;
+  const attended = new Set(attendedSessionIds);
 
   let misses = 0;
-  let candidate = lastOwnDistributionBefore(today, customerGroup, settings);
-  while (candidate.getTime() > registrationDay) {
-    if (attendedDays.has(berlinDayKey(candidate))) {
+  for (const session of sessions) {
+    if (!wasTheirs(session, customerGroup, registeredOn)) {
+      continue;
+    }
+    if (attended.has(session.id)) {
       return misses;
     }
     misses += 1;
-    candidate = new Date(candidate.getTime() - MS_PER_CYCLE);
   }
   return misses;
 }

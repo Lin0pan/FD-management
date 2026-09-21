@@ -34,12 +34,12 @@ const RENEWAL_TYPE = "renewal-type-field";
  * reissued in the middle so the cards-due list is empty again by the time the note is read back.
  *
  * **This spec owns 291–293** in the shared `data/e2e.db`. 291 is odd and therefore RED, which is what
- * lets it be served on the pinned distribution day; 292 and 293 are separate because 291 is edited
+ * lets it be served at the RED session below; 292 and 293 are separate because 291 is edited
  * throughout and served, and neither a fixed row count nor an empty history survives that.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
-// stays a literal, because a distribution day, an age and a certificate's validity are all dates.
+// stays a literal, because an age and a certificate's validity are both dates.
 faker.seed(20260730);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
@@ -48,10 +48,10 @@ const NOW_FILE = SHARED.now;
 /**
  * The day this spec is judged on: Thursday 08.01.2026, 09:00 UTC.
  *
- * It follows from the seeded settings alone (`src/infrastructure/prisma/seed.ts`): anchor `2026-W02`
- * = RED, distributions on ISO weekday 4. So it is a **RED** distribution day, and the household this
- * spec follows holds an odd number — which is the whole of what puts them in that week (US-31), and
- * therefore what lets the counter answer for them at all.
+ * Pinned rather than derived, because the certificate and card dates seeded below are written
+ * relative to it. The household this spec follows holds an **odd** number, which is the whole of
+ * what puts them in the RED group (US-31) and therefore what lets the RED session this spec starts
+ * answer for them at all — the day decides nothing (US-36).
  */
 const TODAY = "2026-01-08T09:00:00.000Z";
 

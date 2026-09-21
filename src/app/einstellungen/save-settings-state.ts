@@ -42,12 +42,9 @@ export interface SaveSettingsState {
   readonly values?: SubmittedSettings;
 }
 
-/** The eight fields of the settings form as strings, keyed by the `name` each input carries. */
+/** The five fields of the settings form as strings, keyed by the `name` each input carries. */
 export interface SubmittedSettings {
   readonly quotaN: string;
-  readonly weekAnchorIsoWeek: string;
-  readonly weekAnchorColour: string;
-  readonly distributionWeekday: string;
   readonly reason: string;
   readonly pricePerGrownUp: string;
   readonly pricePerChild: string;

@@ -38,20 +38,6 @@ function describeChange(change: SettingsChange): string {
   switch (change.field) {
     case "quotaN":
       return sentence(de.settings.fields.quotaN, String(change.from), String(change.to));
-    case "weekAnchorIsoWeek":
-      return sentence(de.settings.fields.weekAnchorIsoWeek, change.from, change.to);
-    case "weekAnchorColour":
-      return sentence(
-        de.settings.fields.weekAnchorColour,
-        de.settings.colours[change.from],
-        de.settings.colours[change.to],
-      );
-    case "distributionWeekday":
-      return sentence(
-        de.settings.fields.distributionWeekday,
-        de.settings.weekdays[change.from],
-        de.settings.weekdays[change.to],
-      );
     case "pricePerGrownUp":
     case "pricePerChild":
       return sentence(
@@ -107,7 +93,7 @@ function describeCap(cap: Cents | null): string {
   return cap === null ? de.settings.prices.noCap : formatEuros(cap);
 }
 
-/** All eight values, for the one version that is worth reading in full: the one in force. */
+/** Every value, for the one version that is worth reading in full: the one in force. */
 function FullValues({ settings }: { settings: Settings }): React.ReactElement {
   return (
     <>
@@ -120,14 +106,6 @@ function FullValues({ settings }: { settings: Settings }): React.ReactElement {
         {/* Through the same `describeCap` the history uses, so „kein Maximalpreis“ is one phrase in
           one place and a version without a cap cannot read as a cap of 0,00 €. */}
         {de.settings.fields.priceCap}: {describeCap(settings.priceCap)}
-      </span>
-      {/* The three settings the old history never printed at all, which is how a changed Ausgabetag
-        managed to produce a row identical to its predecessor in every character (§3.6). */}
-      <span className="block text-muted-foreground">
-        {de.settings.fields.weekAnchorIsoWeek}: {settings.weekAnchor.isoWeek} ·{" "}
-        {de.settings.fields.weekAnchorColour}: {de.settings.colours[settings.weekAnchor.colour]} ·{" "}
-        {de.settings.fields.distributionWeekday}:{" "}
-        {de.settings.weekdays[settings.distributionWeekday]}
       </span>
       {/* A line of its own, because it is the one value here that is a list: joined onto the row
         above it, a rule of three steps would read as a fourth and a fifth value of the version. */}

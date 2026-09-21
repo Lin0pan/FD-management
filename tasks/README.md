@@ -51,15 +51,13 @@ stated that staircase as the rule they hand out by today (US-28), so it is seede
 rather than as a placeholder — which changes nothing about how it is stored, only what a reader
 should assume when they see it.
 
-| Value                | Seed                                                     | Status        |
-| -------------------- | -------------------------------------------------------- | ------------- |
-| Customer quota `N`   | 240                                                      | Provisional   |
-| Price per grown-up   | 200 cents                                                | Provisional   |
-| Price per child      | 100 cents                                                | Provisional   |
-| Maximalpreis         | 500 cents                                                | Provisional   |
-| Week-cycle anchor    | ISO week `2026-W02` = **Red**                            | Provisional   |
-| Distribution weekday | Thursday                                                 | Provisional   |
-| Egg allowance        | from 3 people 6 eggs, from 5 people 12, from 8 people 18 | **Confirmed** |
+| Value              | Seed                                                     | Status        |
+| ------------------ | -------------------------------------------------------- | ------------- |
+| Customer quota `N` | 240                                                      | Provisional   |
+| Price per grown-up | 200 cents                                                | Provisional   |
+| Price per child    | 100 cents                                                | Provisional   |
+| Maximalpreis       | 500 cents                                                | Provisional   |
+| Egg allowance      | from 3 people 6 eggs, from 5 people 12, from 8 people 18 | **Confirmed** |
 
 The price is charged **per head** up to the **Maximalpreis**: what a household owes is
 `min(grown-ups × price per grown-up + children × price per child, Maximalpreis)`, derived wherever

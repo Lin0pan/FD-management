@@ -2,41 +2,34 @@
  * How many of their own distributions a household has missed in a row — the seam both screens that
  * show the number read (`tasks/prd-us-10-archive-customer.md` §US-10.4).
  *
- * The rule is `consecutiveNoShows`; all this adds is the decision the pure module cannot make —
- * *which* settings to read against, namely the version in force at the instant asked about, since the
- * schedule the misses are counted on is policy DF can change (US-14).
- *
- * The records are passed in rather than loaded, because the counter already holds them (US-04.3).
+ * The rule is `consecutiveNoShows`; all this adds is the household's own half of its input — the
+ * group their number puts them in, and the afternoons they collected at. Both the sessions and the
+ * records are passed in rather than loaded, because the two callers already hold them (US-04.3).
  */
 
 import type { RegisteredCustomer } from "@/domain/customer/customer";
 import { groupOf } from "@/domain/customer/group";
-import { consecutiveNoShows, type AttendedDay } from "@/domain/distribution/noShows";
-import { resolveSettingsAt } from "@/domain/policy/settings";
-import type { SettingsRepository } from "../ports";
+import { consecutiveNoShows } from "@/domain/distribution/noShows";
+import type { DistributionSession } from "@/domain/distribution/session";
 
-export interface CountNoShowsDeps {
-  readonly settings: SettingsRepository;
+/** The one field of a hand-out this count reads: which afternoon it was recorded at. */
+export interface AttendedSession {
+  readonly sessionId: number;
 }
 
 /**
- * The customer's consecutive own-day no-shows as of `today`. `0` means "came last time" as well as
- * "has not seen a distribution yet" — the same thing as far as archiving goes.
- *
- * @throws {NoSettingsInForce} if no settings version had taken effect by `today`.
- * @throws {InvalidSettings} if the week anchor does not name a week of the ISO calendar.
+ * The customer's consecutive missed sessions. `0` means "came last time" as well as "has not seen a
+ * session yet" — the same thing as far as archiving goes.
  */
-export async function countNoShows(
-  deps: CountNoShowsDeps,
+export function countNoShows(
   customer: RegisteredCustomer,
-  records: ReadonlyArray<AttendedDay>,
-  today: Date,
-): Promise<number> {
+  endedSessions: ReadonlyArray<DistributionSession>,
+  records: ReadonlyArray<AttendedSession>,
+): number {
   return consecutiveNoShows({
-    records,
+    sessions: endedSessions,
+    attendedSessionIds: records.map((record) => record.sessionId),
     customerGroup: groupOf(customer.customerNumber),
     registeredOn: customer.registeredOn,
-    settings: resolveSettingsAt(await deps.settings.listVersions(), today),
-    today,
   });
 }

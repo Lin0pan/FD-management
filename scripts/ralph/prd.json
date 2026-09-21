@@ -21,7 +21,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "This story fixes a real bug: today every cancelled week in the walk is counted as a miss nobody made. Do not keep a calendar fallback for households registered before the first session — 'no session on record' is zero, which is what it has always meant."
     },
     {
@@ -39,7 +39,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "One new port method and one changed dependency. Every hand-written fake DistributionSessionRepository gains listEnded in this story."
     },
     {
@@ -60,7 +60,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "A deletion story. The failure mode of a deletion in this project is A SURVIVOR — a helper, a type, a dictionary key. Story 5 greps for them; here, make sure nothing re-exports what was removed."
     },
     {
@@ -79,7 +79,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "ELEVENTH batch to regenerate the migration history and the second with TWO hand-written indexes to put back. Nothing else in this story is risky."
     },
     {
@@ -99,7 +99,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Outside-in deletion: the screens stop reading first, which story 3 and 4 already made a compile error. Watch the settings grid — it was re-spanned once before and looks wrong with a gap."
     },
     {
@@ -117,7 +117,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "The no-show spec is the only place the rewritten rule is proved through the screen. Build it with the session helper from US-34's tests/e2e/session.ts rather than a second way of starting a session."
     },
     {
@@ -136,7 +136,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Batches 21 and 32 both withdrew a requirement and both edited the document that asked for it. Do the same here and do not delete those documents — a withdrawn requirement that leaves no trace gets re-requested."
     }
   ]

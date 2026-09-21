@@ -41,11 +41,10 @@ both decisions.
 
 ## 3. Policy is data DF owns, not constants a developer owns
 
-**Approach.** Quota, prices, the price cap, the distribution weekday, the week anchor and the egg
-allowance live in append-only, clock-stamped `SettingsVersion` rows, editable in the UI and in force
-immediately. The egg allowance is the first of them that is a **list** rather than a number — a
-staircase of (household size → eggs) rows, kept as a child table of the version rather than as a
-JSON blob or a fixed set of columns.
+**Approach.** Quota, prices, the price cap and the egg allowance live in append-only, clock-stamped
+`SettingsVersion` rows, editable in the UI and in force immediately. The egg allowance is the first
+of them that is a **list** rather than a number — a staircase of (household size → eggs) rows, kept
+as a child table of the version rather than as a JSON blob or a fixed set of columns.
 
 **Rationale.** Every number in DF's process is a decision they revisit. Behind a deploy, "changeable"
 means "not changeable" for an organisation with no developer on call.
@@ -68,8 +67,8 @@ is that one, not "is it configurable".
 
 ## 4. Derive anything computable; a stored duplicate needs an argument
 
-**Approach.** Household composition, price, card validity, certificate state, week colour and a
-household's balance are computed at the point of use. Four stored duplicates exist and each carries
+**Approach.** Household composition, price, card validity, certificate state, a household's group
+and its balance are computed at the point of use. Four stored duplicates exist and each carries
 its justification in the schema. The balance is the most recent thing that was **not** allowed to
 become a fifth: a running total is the classic candidate, and a stored one beside the hand-outs that
 produce it would be two answers to one question.

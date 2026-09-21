@@ -130,6 +130,10 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
     return Promise.reject(new Error("correcting a record reads no session but its own"));
   }
 
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.reject(new Error("counting missed afternoons has a suite of its own"));
+  }
+
   start(): Promise<DistributionSession> {
     return Promise.reject(new Error("Starting a session has a suite of its own"));
   }

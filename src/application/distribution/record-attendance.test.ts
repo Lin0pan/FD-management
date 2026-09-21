@@ -254,8 +254,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
-    distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
@@ -345,6 +343,10 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
 
   lastEnded(): Promise<DistributionSession | null> {
     return Promise.resolve(null);
+  }
+
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.reject(new Error("counting missed afternoons has a suite of its own"));
   }
 
   findById(): Promise<DistributionSession | null> {

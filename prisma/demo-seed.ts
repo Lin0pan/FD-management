@@ -39,7 +39,6 @@ import { registerCustomer } from "../src/application/customers/register-customer
 import { reissueCard } from "../src/application/customers/reissue-card";
 import { renewCertificate } from "../src/application/customers/renew-certificate";
 import { updateNotes } from "../src/application/customers/update-notes";
-import { getWeekColour } from "../src/application/distribution/get-week-colour";
 import { recordAttendance } from "../src/application/distribution/record-attendance";
 import type {
   AuditLog,
@@ -63,10 +62,9 @@ import { receiptFor } from "../src/domain/distribution/handoutReceipt";
 import { createSessionGroups } from "../src/domain/distribution/session";
 import type { Address, HouseholdMemberDetails } from "../src/domain/customer/customer";
 import { freeNumbers } from "../src/domain/customer/customerNumber";
-import { GROUPS, groupOf, inGroup } from "../src/domain/customer/group";
+import { groupOf, inGroup, type Group } from "../src/domain/customer/group";
 import type { Cents } from "../src/domain/money";
-import type { WeekColour } from "../src/domain/policy/settings";
-import { startOfUtcDay } from "../src/domain/distribution/weekColour";
+import { startOfUtcDay } from "../src/domain/calendarDay";
 import { PrismaAuditLog } from "../src/infrastructure/prisma/audit-log";
 import { PrismaCardRepository } from "../src/infrastructure/prisma/card-repository";
 import { PrismaCertificateRepository } from "../src/infrastructure/prisma/certificate-repository";
@@ -177,7 +175,11 @@ interface HouseholdShape {
   readonly cardLostDaysAgo?: number;
   /** A move to the other week, which under US-31 is a move to a slot of the other parity. */
   readonly weekChangedDaysAgo?: number;
-  /** Reminder days, each after the certificate lapsed — the trail an expired certificate starts. */
+  /**
+   * Roughly when each reminder was given, as days before today. Each is snapped back onto the
+   * distribution day it could actually have been given at — see {@link reminderAfternoons} — so the
+   * day named here only has to fall after the certificate lapsed and before any renewal.
+   */
   readonly remindersDaysAgo?: ReadonlyArray<number>;
   /** A renewal brought in, which appends a certificate and resets the reminder count. */
   readonly renewal?: { readonly daysAgo: number; readonly validInDays: number };
@@ -307,7 +309,9 @@ const CAST: ReadonlyArray<HouseholdShape> = [
     registeredDaysAgo: 182,
     members: [{ years: 69 }, { years: 67 }],
     certificateValidInDays: -70,
-    remindersDaysAgo: [55, 35, 15],
+    // Inside the eight afternoons the fixture holds: the oldest of them is between 49 and 55 days
+    // back depending on the weekday the register is seeded on, and a reminder is given at one.
+    remindersDaysAgo: [48, 32, 15],
     notes: "Bescheid mehrfach angemahnt, bringt ihn nach eigener Aussage beim nächsten Mal mit.",
   },
   {
@@ -331,7 +335,10 @@ const CAST: ReadonlyArray<HouseholdShape> = [
     demonstrates: "a lapsed certificate, reminded once, then renewed — the count resets",
     registeredDaysAgo: 170,
     members: [{ years: 26 }, { years: 24 }],
-    certificateValidInDays: -50,
+    // Lapsed well before the reminder and renewed well after it: the reminder is snapped back onto a
+    // distribution day, so a window narrower than a week would fall on one side or the other of it
+    // depending on which weekday the register is seeded.
+    certificateValidInDays: -60,
     remindersDaysAgo: [45],
     renewal: { daysAgo: 40, validInDays: 170 },
   },
@@ -626,8 +633,8 @@ async function main(): Promise<void> {
 
     /** Filled as registrations run; every later event on a household reads its id from here. */
     const customerIds = new Map<string, number>();
-    /** Which colour collects on each of the distribution days the history covers. */
-    const distributionDays = await pastDistributionDays(deps);
+    /** Which group collects at each of the afternoons the history covers. */
+    const distributionDays = pastDistributionDays();
 
     const events: DemoEvent[] = [];
 
@@ -639,7 +646,13 @@ async function main(): Promise<void> {
       events.push(...householdEvents(deps, shape, identity, customerIds));
     }
     events.push(
-      ...distributionEvents(deps, distributionDays, customerIds, missedDays(distributionDays)),
+      ...distributionEvents(
+        deps,
+        distributionDays,
+        customerIds,
+        missedDays(distributionDays),
+        reminderAfternoons(distributionDays),
+      ),
     );
     events.push(...waitingListEvents(deps));
 
@@ -712,19 +725,6 @@ function householdEvents(
       at: at(-shape.registeredDaysAgo + 1),
       run: async () => {
         await updateNotes(deps, { customerId: idOf(), notes });
-      },
-    });
-  }
-
-  for (const daysAgo of shape.remindersDaysAgo ?? []) {
-    events.push({
-      at: at(-daysAgo),
-      run: async () => {
-        // A reminder is given at a counter, so it needs an afternoon of its own to belong to
-        // (US-34). It serves both groups because this one exists for the household in front of it.
-        const session = await deps.sessions.start(createSessionGroups(GROUPS), at(-daysAgo));
-        await recordReminder(deps, { customerId: idOf() });
-        await deps.sessions.end(session.id, at(-daysAgo));
       },
     });
   }
@@ -802,26 +802,86 @@ function householdEvents(
 /** One past distribution day and the group that collected on it. */
 interface DistributionDay {
   readonly at: Date;
-  readonly colour: WeekColour;
+  readonly colour: Group;
+}
+
+/** `Date`'s own weekday numbering, Sunday = 0 — the afternoon DF has always handed out on. */
+const DEMO_DISTRIBUTION_WEEKDAY = 4;
+
+/**
+ * The last {@link DISTRIBUTION_DAYS_OF_HISTORY} distribution days **before** today, oldest first,
+ * the two groups taking it in turns.
+ *
+ * Today is deliberately left without records even when it is a Thursday: an empty counter is what
+ * makes the hand-out screen worth opening. The rhythm is the fixture's own — the software knows
+ * which groups a session served and derives nothing about the weeks around it.
+ */
+function pastDistributionDays(): DistributionDay[] {
+  const thursdays: Date[] = [];
+  for (
+    let offset = -1;
+    thursdays.length < DISTRIBUTION_DAYS_OF_HISTORY && offset > -400;
+    offset -= 1
+  ) {
+    const day = at(offset);
+    if (day.getUTCDay() === DEMO_DISTRIBUTION_WEEKDAY) {
+      thursdays.push(day);
+    }
+  }
+  return thursdays
+    .reverse()
+    .map((day, index) => ({ at: day, colour: index % 2 === 0 ? "RED" : "BLUE" }));
 }
 
 /**
- * The last {@link DISTRIBUTION_DAYS_OF_HISTORY} distribution days **before** today, oldest first.
+ * For each distribution day, the households reminded about their certificate at it.
  *
- * Today is deliberately left without records even when it is a distribution day: an empty counter is
- * what makes the hand-out screen worth opening. Which weekday and which colour each is comes from
- * `getWeekColour`, so the fixture cannot disagree with the alternation the app derives.
+ * A reminder is handed over at the counter, so it belongs to an afternoon that took place: the most
+ * recent one at or before the day the cast names. The fixture may **not** invent an afternoon of its
+ * own for it — an ended session holding nobody's hand-out is one every household of the groups it
+ * served has missed (US-36), so a register seeded that way would show a run of misses nobody made.
+ *
+ * The afternoon need not be the household's own: `recordReminder` has no group guard, because a
+ * household that turns up in the wrong week is still standing at the counter to be reminded.
+ *
+ * @throws {Error} naming the household if a reminder would land on or after its renewal, which
+ *   would reset the count the fixture put the reminder there to demonstrate.
  */
-async function pastDistributionDays(deps: DemoDeps): Promise<DistributionDay[]> {
-  const days: DistributionDay[] = [];
-  for (let offset = -1; days.length < DISTRIBUTION_DAYS_OF_HISTORY && offset > -400; offset -= 1) {
-    const day = at(offset);
-    const week = await getWeekColour(deps, day);
-    if (week.isDistributionDay) {
-      days.push({ at: day, colour: week.colour });
+function reminderAfternoons(
+  days: ReadonlyArray<DistributionDay>,
+): Map<number, ReadonlyArray<string>> {
+  const scheduled = new Map<number, string[]>();
+  for (const shape of CAST) {
+    for (const daysAgo of shape.remindersDaysAgo ?? []) {
+      const nominal = at(-daysAgo).getTime();
+      const afternoon = days.filter((day) => day.at.getTime() <= nominal).at(-1);
+      if (afternoon === undefined) {
+        throw new Error(
+          `${shape.key} is reminded ${daysAgo} days ago, before the fixture's oldest distribution. ` +
+            "Shorten the reminder offsets in CAST.",
+        );
+      }
+      if (
+        shape.renewal !== undefined &&
+        afternoon.at.getTime() >= at(-shape.renewal.daysAgo).getTime()
+      ) {
+        throw new Error(
+          `${shape.key}'s reminder lands on or after its renewal, which would reset the count it ` +
+            "exists to show. Widen the gap between remindersDaysAgo and renewal.daysAgo in CAST.",
+        );
+      }
+      const key = afternoon.at.getTime();
+      const alreadyThere = scheduled.get(key) ?? [];
+      if (alreadyThere.includes(shape.key)) {
+        throw new Error(
+          `Two of ${shape.key}'s reminders snap onto the same afternoon, which the once-per-session ` +
+            "rule refuses. Spread the reminder offsets in CAST further apart.",
+        );
+      }
+      scheduled.set(key, [...alreadyThere, shape.key]);
     }
   }
-  return days.reverse();
+  return scheduled;
 }
 
 /**
@@ -861,6 +921,7 @@ function distributionEvents(
   days: ReadonlyArray<DistributionDay>,
   customerIds: Map<string, number>,
   missed: ReadonlyMap<string, Set<number>>,
+  reminded: ReadonlyMap<number, ReadonlyArray<string>>,
 ): DemoEvent[] {
   // Counts across the whole history, not per day, so the two patterns walk through the register
   // instead of landing on the same households every week.
@@ -887,6 +948,17 @@ function distributionEvents(
       // next event runs — the demo register is one DF are handed between distributions, never in the
       // middle of one.
       const session = await deps.sessions.start(createSessionGroups([day.colour]), day.at);
+      // Before the hand-outs, as at a counter: the certificate is looked at when the card is
+      // presented, so a receipt frozen below carries the count this afternoon left behind.
+      for (const key of reminded.get(day.at.getTime()) ?? []) {
+        const id = customerIds.get(key);
+        if (id === undefined) {
+          throw new Error(
+            `${key} is reminded before it is registered — the offsets in CAST cross.`,
+          );
+        }
+        await recordReminder(deps, { customerId: id });
+      }
       /** What the afternoon is frozen with when it is ended (US-35) — one entry per hand-out. */
       const frozen: FrozenHandout[] = [];
       for (const shape of CAST) {

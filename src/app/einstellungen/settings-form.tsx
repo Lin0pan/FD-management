@@ -23,10 +23,6 @@ import { guardEnter } from "../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
 import { marking, problemAt, type FieldRefusal } from "../field-refusal";
 import { Notice } from "../notice";
-import { selectClass } from "../select";
-
-const WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const;
-const COLOURS = ["RED", "BLUE"] as const;
 
 /**
  * The field grid, the same one `/kunden/neu` uses: a field's width is a promise about what it wants,
@@ -48,9 +44,6 @@ const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5";
 /** One height for every control on the screen; `Input` and `Button` both default to `h-8` (§3.4). */
 const CONTROL_HEIGHT = "h-9";
 
-/** The three selects, at this screen's control height. */
-const SELECT = selectClass(CONTROL_HEIGHT);
-
 /** The fields the last submission refused, or nothing while it refused none. */
 function refusedFields(state: SaveSettingsState): ReadonlyArray<FieldRefusal> | undefined {
   return state.status === "error" ? state.fields : undefined;
@@ -58,8 +51,8 @@ function refusedFields(state: SaveSettingsState): ReadonlyArray<FieldRefusal> | 
 
 /**
  * One field of the form, in a slot of the twelve-column grid. `<label htmlFor>` + `id`, so the
- * accessibility snapshot has named textboxes; the ids are the field names, four of them load-bearing
- * (§7), and one form on the page leaves nothing for `useId` to disambiguate.
+ * accessibility snapshot has named textboxes; the ids are the field names, five of them
+ * load-bearing (§7), and one form on the page leaves nothing for `useId` to disambiguate.
  *
  * **Exactly two children, always** — the label and one control — because `FIELD_ROWS`' two rows are
  * what keeps the baselines straight. A field wanting a hint wraps both in one element.
@@ -287,80 +280,11 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
         </p>
       </Section>
 
-      {/* Between the amounts and the rhythm, where it belongs by subject: it is a *what a household
-          gets* setting. Its own card rather than a field in the one above, because a repeating table
-          with add and remove controls has no slot in a twelve-column subgrid (§3.3). */}
+      {/* Below the amounts, where it belongs by subject: it is a *what a household gets* setting.
+          Its own card rather than a field in the one above, because a repeating table with add and
+          remove controls has no slot in a twelve-column subgrid (§3.3). */}
       <Section heading={de.settings.eggs.heading}>
         <EggRuleTable rule={settings.eggRule} problem={problem} />
-      </Section>
-
-      <Section heading={de.settings.rhythmHeading}>
-        <div className={GRID}>
-          <Field
-            name="weekAnchorIsoWeek"
-            label={de.settings.fields.weekAnchorIsoWeek}
-            span="lg:col-span-3"
-            problem={problem("weekAnchorIsoWeek")}
-          >
-            <Input
-              className={`${CONTROL_HEIGHT} tabular-nums`}
-              type="text"
-              name="weekAnchorIsoWeek"
-              id="weekAnchorIsoWeek"
-              defaultValue={shown("weekAnchorIsoWeek", settings.weekAnchor.isoWeek)}
-              {...marking("weekAnchorIsoWeek", "weekAnchorIsoWeek", problem("weekAnchorIsoWeek"))}
-            />
-          </Field>
-          <Field
-            name="weekAnchorColour"
-            label={de.settings.fields.weekAnchorColour}
-            span="lg:col-span-3"
-            problem={problem("weekAnchorColour")}
-          >
-            {/*
-              No red or blue on this control. Here the group is a value being chosen, not a
-              household's fact, and the tint is reserved for the latter (§6, US-03.4); the words
-              `Rot` and `Blau` carry it.
-            */}
-            <select
-              className={SELECT}
-              name="weekAnchorColour"
-              id="weekAnchorColour"
-              defaultValue={shown("weekAnchorColour", settings.weekAnchor.colour)}
-              {...marking("weekAnchorColour", "weekAnchorColour", problem("weekAnchorColour"))}
-            >
-              {COLOURS.map((colour) => (
-                <option key={colour} value={colour}>
-                  {de.settings.colours[colour]}
-                </option>
-              ))}
-            </select>
-          </Field>
-          <Field
-            name="distributionWeekday"
-            label={de.settings.fields.distributionWeekday}
-            span="lg:col-span-3"
-            problem={problem("distributionWeekday")}
-          >
-            <select
-              className={SELECT}
-              name="distributionWeekday"
-              id="distributionWeekday"
-              defaultValue={shown("distributionWeekday", String(settings.distributionWeekday))}
-              {...marking(
-                "distributionWeekday",
-                "distributionWeekday",
-                problem("distributionWeekday"),
-              )}
-            >
-              {WEEKDAYS.map((weekday) => (
-                <option key={weekday} value={weekday}>
-                  {de.settings.weekdays[weekday]}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
       </Section>
 
       <Section heading={de.settings.changeHeading} description={de.settings.changeHint}>

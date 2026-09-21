@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { InvalidCalendarDay } from "./errors";
-import { formatCalendarDay, isBlankDay, isoCalendarDay, parseCalendarDay } from "./calendarDay";
+import {
+  formatCalendarDay,
+  isBlankDay,
+  isoCalendarDay,
+  parseCalendarDay,
+  startOfUtcDay,
+} from "./calendarDay";
 
 /**
  * A calendar day as DF type it: `TT.MM.JJJJ`. The native `<input type="date">` was withdrawn in
@@ -119,5 +125,19 @@ describe("isoCalendarDay", () => {
 
   it("pads a single-digit month and day", () => {
     expect(isoCalendarDay(new Date("2026-01-08T00:00:00.000Z"))).toBe("2026-01-08");
+  });
+});
+
+describe("startOfUtcDay", () => {
+  it("answers the same day for the last minute of a day and the first minute of it", () => {
+    const early = startOfUtcDay(new Date("2026-03-12T00:01:00.000Z"));
+    const late = startOfUtcDay(new Date("2026-03-12T23:59:00.000Z"));
+    expect(early.toISOString()).toBe("2026-03-12T00:00:00.000Z");
+    expect(late.getTime()).toBe(early.getTime());
+  });
+
+  it("leaves a day that is already midnight UTC where it is", () => {
+    const day = parseCalendarDay("29.02.2028");
+    expect(startOfUtcDay(day).getTime()).toBe(day.getTime());
   });
 });

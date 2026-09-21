@@ -205,9 +205,10 @@ export async function lookupCustomer(
 
   // Loaded with the customer rather than on a later click, so the serve action, the correction of an
   // existing record and the reminder action are all offered in one render (US-04.3, US-05.4, US-06.4).
-  const [recordsForCustomer, sessionReminder] = await Promise.all([
+  const [recordsForCustomer, sessionReminder, endedSessions] = await Promise.all([
     deps.records.listForCustomer(customer.id),
     deps.reminders.findInSession(customer.id, session.id),
+    deps.sessions.listEnded(),
   ]);
   const existing = recordForSession(recordsForCustomer, session.id);
 
@@ -245,10 +246,7 @@ export async function lookupCustomer(
           ),
         };
 
-  const [allowance, consecutiveNoShows] = await Promise.all([
-    describeAllowance(deps, customer.details.householdMembers, today),
-    countNoShows(deps, customer, recordsForCustomer, today),
-  ]);
+  const allowance = await describeAllowance(deps, customer.details.householdMembers, today);
   return {
     verdict,
     customerId: customer.id,
@@ -268,7 +266,8 @@ export async function lookupCustomer(
       status: customer.status,
       blockReason: customer.blockReason,
       reminderCount: customer.reminderCount,
-      consecutiveNoShows,
+      // Off the afternoons and the hand-outs already loaded above — never a second query (US-04.3).
+      consecutiveNoShows: countNoShows(customer, endedSessions, recordsForCustomer),
       notes: customer.details.notes,
       cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
       countsOnCard: customer.card.countsAtIssue,

@@ -1,18 +1,19 @@
 /**
- * The Start dashboard (`tasks/prd-us-17-navigation-shell.md` §US-17.3) — the greeting, the date and
- * the Ausgabe, and nothing else to work through: the nav bar carries the links and the signals live
- * on the hub (US-17.2). It has something to click in exactly two states — nothing configured yet,
- * and an afternoon under way, which it states in a panel because that is then the one thing the
- * screen has to say (US-34.9).
+ * The Start dashboard (`tasks/prd-us-17-navigation-shell.md` §US-17.3) — the greeting and the date,
+ * and nothing else to work through: the nav bar carries the links and the signals live on the hub
+ * (US-17.2). It has something to click in exactly two states — nothing configured yet, and an
+ * afternoon under way, which it states in a panel because that is then the one thing the screen has
+ * to say (US-34.9). It names no coming Ausgabe: nothing in the software knows when the next one is
+ * (ADR-020).
  *
  * **The date only, no clock time**, which is what keeps this a plain server component: no client
  * boundary, no ticking state, and a page that renders the same under the fixed clock the e2e suite
- * pins. `now` comes from the injected `Clock` through `getWeekColour`.
+ * pins. `now` comes from the injected `Clock`.
  */
 
 import Link from "next/link";
-import { getWeekColour, type WeekColourView } from "@/application/distribution/get-week-colour";
 import { readDistributionSessionState } from "@/application/distribution/read-distribution-session-state";
+import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { DistributionSession } from "@/domain/distribution/session";
@@ -24,37 +25,10 @@ import { SessionGroupBadges } from "./ausgabe/session-group-badges";
 import { SHELL } from "./shell";
 
 /**
- * The date and the next distribution turn over at midnight without anything being written, and a
- * session is started and ended on another workstation — so this screen is never cached.
+ * The date turns over at midnight without anything being written, and a session is started and
+ * ended on another workstation — so this screen is never cached.
  */
 export const dynamic = "force-dynamic";
-
-/**
- * The distribution line: one sentence, set like the date above it, in no container at all. DF asked
- * for no banner and no tint, so the group is carried by the word `(Rot)` / `(Blau)` alone — which
- * loses nothing, the word always having been the part that had to be there (US-03.4).
- *
- * **`nextDistribution.colour`, never `view.colour`**: on a Saturday after a Thursday distribution,
- * "diese Woche ist Rot" and "die nächste Ausgabe ist Blau" are both true, and only the second answers
- * what this screen exists for (PRD §6).
- *
- * The testid stays on a wrapper with exactly one `<p>` inside: `home.spec.ts` asserts its text
- * exactly, so the sentence may neither be split across elements nor joined by a second paragraph.
- */
-function DistributionLine({ view }: { view: WeekColourView }): React.ReactElement {
-  const { date, colour } = view.nextDistribution;
-  const word = de.distribution.colours[colour];
-
-  return (
-    <div data-testid="next-distribution">
-      <p className="text-xl">
-        {view.isDistributionDay
-          ? de.home.distribution.isToday(word)
-          : de.home.distribution.next(germanLongDate(date), word)}
-      </p>
-    </div>
-  );
-}
 
 /**
  * The afternoon under way, on the first screen anybody opens (US-34.9, PRD A-7). Nothing ends a
@@ -71,8 +45,8 @@ function RunningSessionPanel({ session }: { session: DistributionSession }): Rea
     <Card data-testid="running-session">
       <CardContent className="flex flex-col items-start gap-4 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Second only to the greeting, and a step above the date lines below: on a screen of
-              three sentences the running afternoon is the one that needs acting on. It carries no
+          {/* Second only to the greeting, and a step above the date below it: on a screen of two
+              sentences the running afternoon is the one that needs acting on. It carries no
               tint of its own — the group badges inside it do, and a translucent fill behind them
               would composite into a third colour meaning neither (`ui_styling_guide.md` §5). */}
           <p className="text-2xl font-semibold tracking-tight">{de.distribution.session.running}</p>
@@ -92,9 +66,9 @@ function RunningSessionPanel({ session }: { session: DistributionSession }): Rea
 }
 
 /**
- * What stands in the line's place before DF has configured anything (FR-10) — the one state in which
- * this screen has something to do, so it keeps a `Card`. Neutral deliberately: there is no group to
- * name, so painting it would be the only false statement the screen could make.
+ * Before DF has configured anything (FR-10) — the one state in which this screen has something to
+ * do, so it gets a `Card`. Neutral deliberately: there is no group to name, so painting it would be
+ * the only false statement the screen could make.
  */
 function NotConfigured(): React.ReactElement {
   return (
@@ -115,50 +89,42 @@ function NotConfigured(): React.ReactElement {
 }
 
 /**
- * Today's colours, or `null` when no settings version is in force — a cost to the panel rather than
- * the screen: an error page on the first screen after an install says the software is broken when in
- * fact it is empty.
+ * Whether DF has configured anything yet — caught rather than thrown: an error page on the first
+ * screen after an install says the software is broken when in fact it is empty.
  */
-async function today(): Promise<WeekColourView | null> {
+async function isConfigured(): Promise<boolean> {
   try {
-    return await getWeekColour(distributionDeps);
+    await readCurrentSettings(distributionDeps);
+    return true;
   } catch (error: unknown) {
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
-      return null;
+      return false;
     }
     throw error;
   }
 }
 
 export default async function Home(): Promise<React.ReactElement> {
-  // The afternoon is read even on a day nothing is configured: the two answers are independent, and
-  // a session may be running whatever the settings history says about the calendar.
-  const [view, session] = await Promise.all([
-    today(),
+  // The afternoon is read even when nothing is configured: the two answers are independent, and a
+  // session may be running whatever the settings history holds.
+  const [configured, session] = await Promise.all([
+    isConfigured(),
     readDistributionSessionState(distributionDeps),
   ]);
-  // The looked-up day, or the injected clock's: the date line is the half of this screen that does
-  // not depend on DF having configured anything.
-  const date = view?.date ?? distributionDeps.clock.now();
+  const date = distributionDeps.clock.now();
 
   return (
     <main className={SHELL}>
       {/* The greeting is the `h1` — one line, and the whole of the welcome. It is set full strength
           rather than muted now that it is the only thing at the top of the screen. */}
       <h1 className="text-3xl font-semibold tracking-tight">{de.home.heading}</h1>
-      {/* Above the date and the coming Ausgabe, because an afternoon that is running outranks both:
-          they describe the calendar, and this is what is actually happening. */}
+      {/* Above the date, because an afternoon that is running outranks it: the date describes the
+          calendar, and this is what is actually happening. */}
       {session.running === null ? null : <RunningSessionPanel session={session.running.session} />}
-      {/* The two facts stand together, a line apart rather than a `gap-6` apart: the date is read as
-          the qualifier of the Ausgabe below it, not as a section of its own. The empty state keeps
-          the shell's full gap, because there the card is a separate thing to act on. */}
-      <div className="flex flex-col gap-1">
-        <p data-testid="today-date" className="text-xl text-muted-foreground">
-          {de.home.today(germanLongDate(date))}
-        </p>
-        {view !== null && <DistributionLine view={view} />}
-      </div>
-      {view === null && <NotConfigured />}
+      <p data-testid="today-date" className="text-xl text-muted-foreground">
+        {de.home.today(germanLongDate(date))}
+      </p>
+      {configured ? null : <NotConfigured />}
     </main>
   );
 }

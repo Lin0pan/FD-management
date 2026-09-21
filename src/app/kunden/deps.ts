@@ -6,6 +6,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   SettingsRepository,
 } from "@/application/ports";
 import { systemClock } from "@/infrastructure/clock";
@@ -16,6 +17,7 @@ import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certifi
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaCustomerRepository } from "@/infrastructure/prisma/customer-repository";
 import { PrismaDistributionRecordRepository } from "@/infrastructure/prisma/distribution-record-repository";
+import { PrismaDistributionSessionRepository } from "@/infrastructure/prisma/distribution-session-repository";
 import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repository";
 
 /**
@@ -31,6 +33,7 @@ export const customerDeps: {
   readonly certificateTypes: CertificateTypeRepository;
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
+  readonly sessions: DistributionSessionRepository;
   readonly clock: Clock;
   readonly audit: AuditLog;
 } = {
@@ -47,6 +50,9 @@ export const customerDeps: {
   // The record shows how many of their own distributions a household has missed in a row (US-10.4),
   // which is derived from their hand-out history; the screens here only ever read it.
   records: new PrismaDistributionRecordRepository(prisma),
+  // The afternoons those hand-outs were kept at: a miss is a session with no record, so the record
+  // screen needs both halves (US-36.2).
+  sessions: new PrismaDistributionSessionRepository(prisma),
   clock: systemClock,
   audit: new PrismaAuditLog(prisma),
 };

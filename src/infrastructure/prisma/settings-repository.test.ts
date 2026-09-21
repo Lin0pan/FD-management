@@ -46,8 +46,6 @@ function version(
     recordedAt: new Date(recordedAt),
     settings: createSettings({
       quotaN,
-      weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
-      distributionWeekday: 4,
       pricePerGrownUp: 200,
       pricePerChild: 100,
       priceCap,
@@ -64,8 +62,6 @@ describe("PrismaSettingsRepository", () => {
     expect(rest).toHaveLength(0);
     expect(stored.recordedAt).toEqual(new Date("2026-01-01T00:00:00.000Z"));
     expect(stored.settings.quotaN).toBe(240);
-    expect(stored.settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
-    expect(stored.settings.distributionWeekday).toBe(4);
     expect(priceFor(stored.settings, 2, 3)).toBe(700);
   });
 
@@ -170,9 +166,6 @@ describe("PrismaSettingsRepository", () => {
       data: {
         recordedAt: new Date("2026-03-01T00:00:00.000Z"),
         quotaN: 240,
-        weekAnchorIsoWeek: "2026-W02",
-        weekAnchorColour: "RED",
-        distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
         eggRule: {
@@ -187,30 +180,11 @@ describe("PrismaSettingsRepository", () => {
     await expect(repository.listVersions()).rejects.toThrow(/5 persons award 6 eggs/);
   });
 
-  it("rejects a stored week colour that is not part of the cycle", async () => {
-    await prisma.settingsVersion.create({
-      data: {
-        recordedAt: new Date("2026-03-01T00:00:00.000Z"),
-        quotaN: 240,
-        weekAnchorIsoWeek: "2026-W02",
-        weekAnchorColour: "GREEN",
-        distributionWeekday: 4,
-        pricePerGrownUpCents: 200,
-        pricePerChildCents: 100,
-      },
-    });
-
-    await expect(repository.listVersions()).rejects.toThrow(/weekAnchor.colour/);
-  });
-
   it("rejects a hand-edited cap that is not a legal amount", async () => {
     await prisma.settingsVersion.create({
       data: {
         recordedAt: new Date("2026-03-01T00:00:00.000Z"),
         quotaN: 240,
-        weekAnchorIsoWeek: "2026-W02",
-        weekAnchorColour: "RED",
-        distributionWeekday: 4,
         pricePerGrownUpCents: 200,
         pricePerChildCents: 100,
         priceCapCents: -1,
@@ -228,8 +202,6 @@ describe("seedSettings", () => {
     const [seeded] = await repository.listVersions();
     expect(seeded.recordedAt).toEqual(provisionalSettingsVersion().recordedAt);
     expect(seeded.settings.quotaN).toBe(240);
-    expect(seeded.settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
-    expect(seeded.settings.distributionWeekday).toBe(4);
     expect(seeded.settings.priceCap).toBe(500);
     expect(priceFor(seeded.settings, 1, 0)).toBe(200);
     expect(priceFor(seeded.settings, 2, 1)).toBe(500);

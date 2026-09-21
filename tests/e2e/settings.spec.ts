@@ -278,46 +278,6 @@ test.describe("Einstellungen", () => {
     await expect(page.locator("#reason")).toHaveValue("");
   });
 
-  test("a changed Ausgabetag is named in the history", async ({ page }) => {
-    // The defect this history was rebuilt for: the Ausgabetag was one of three settings the old list
-    // never printed, so moving it produced a row identical to its predecessor in every character.
-    await openSettings(page);
-    await page.locator("#distributionWeekday").selectOption("5");
-    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
-    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
-
-    // Put it back in the same spec: the suite shares one database and two other screens read the
-    // Ausgabetag. That also leaves the moved version superseded, which is where a diff is shown.
-    //
-    // **Reloaded between the two saves**, because a save clears the form and the revalidated render
-    // can land after the next `selectOption` — rewinding the field, so the second save would append a
-    // version that changed nothing. WebKit loses that race often enough to fail the gate.
-    await page.reload();
-    await expect(page.locator("#distributionWeekday")).toHaveValue("5");
-
-    await page.locator("#distributionWeekday").selectOption("4");
-    await page.getByRole("button", { name: de.settings.save, exact: true }).click();
-    await expect(page.getByTestId("settings-saved")).toHaveText(de.settings.saved);
-
-    await page.reload();
-    await expect(page.locator("#distributionWeekday")).toHaveValue("4");
-
-    await openHistory(page);
-    const versions = page.getByTestId("settings-version");
-    await expect(versions.nth(1)).toContainText(
-      de.settings.history.change(
-        de.settings.fields.distributionWeekday,
-        de.settings.weekdays[4],
-        de.settings.weekdays[5],
-      ),
-    );
-    // And the day in force is stated in full by the version above it, which the old list did not do
-    // either.
-    await expect(versions.first()).toContainText(
-      `${de.settings.fields.distributionWeekday}: ${de.settings.weekdays[4]}`,
-    );
-  });
-
   /*
    * The Maximalpreis (US-26.8). It is the only optional value on this screen, and *empty* and
    * `0,00` are one lost `null` branch apart: losing it would turn „no cap“ into „free for everyone“
@@ -515,9 +475,7 @@ test.describe("Einstellungen", () => {
    * Enter does not put a policy change into force (`src/app/enter-guard.ts`).
    *
    * The settings are the one screen where an accidental save is not confined to one household: a
-   * price applies at once and to everybody, and the version it appends is kept for good. It is also
-   * the only guarded form holding a native `<select>`, which submits on Enter exactly as a text
-   * field does and is the reason the guard covers both.
+   * price applies at once and to everybody, and the version it appends is kept for good.
    *
    * Last in the file because the specs above are a chain of asserted amounts — a save leaking out
    * of here would be read as a failure in whichever one came next.
@@ -531,7 +489,7 @@ test.describe("Einstellungen", () => {
 
     await price.fill("9,99");
     await price.press("Enter");
-    await page.locator("#distributionWeekday").press("Enter");
+    await page.locator("#quotaN").press("Enter");
 
     await expect(page.getByTestId("settings-saved")).toHaveCount(0);
     await expect(page.getByTestId("settings-error")).toHaveCount(0);

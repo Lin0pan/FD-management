@@ -2,10 +2,6 @@
  * The half of the distribution cycle a customer number falls in. RED households collect one week,
  * BLUE the next, so the two halves have to stay roughly equal in size — a lopsided split overwhelms
  * the volunteers one week and wastes food the other.
- *
- * `Group` and `WeekColour` (`../policy/settings`) share their values but are deliberately different
- * types: a week's colour follows from the anchor in settings, a group from the number the household
- * holds. Aliasing them would make one editable through the other.
  */
 
 /** The two halves of the distribution cycle a customer number can fall in. */

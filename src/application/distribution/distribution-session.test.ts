@@ -127,6 +127,11 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
     return Promise.resolve(ended.at(-1)?.session ?? null);
   }
 
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    const ended = this.visible.filter((row) => row.session.endedAt !== null);
+    return Promise.resolve([...ended].reverse().map((row) => row.session));
+  }
+
   findById(sessionId: number): Promise<DistributionSession | null> {
     return Promise.resolve(
       this.visible.find((row) => row.session.id === sessionId)?.session ?? null,

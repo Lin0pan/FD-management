@@ -9,7 +9,6 @@ import type { EggRuleRow } from "./eggs";
 import {
   changedSettingsFields,
   createSettings,
-  parseWeekColour,
   priceFor,
   resolveSettingsAt,
   type SettingsInput,
@@ -27,8 +26,6 @@ const DF_EGG_ROWS: ReadonlyArray<EggRuleRow> = [
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
-    distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
@@ -48,8 +45,6 @@ describe("createSettings", () => {
   it("keeps the values it was given", () => {
     const settings = createSettings(settingsInput());
     expect(settings.quotaN).toBe(240);
-    expect(settings.weekAnchor).toEqual({ isoWeek: "2026-W02", colour: "RED" });
-    expect(settings.distributionWeekday).toBe(4);
     expect(settings.pricePerGrownUp).toBe(200);
     expect(settings.pricePerChild).toBe(100);
     expect(settings.priceCap).toBeNull();
@@ -118,44 +113,6 @@ describe("createSettings", () => {
 
   it("rejects a non-integer quota", () => {
     expect(() => createSettings(settingsInput({ quotaN: 1.5 }))).toThrow(InvalidSettings);
-  });
-
-  it("accepts Monday and Sunday as distribution weekdays", () => {
-    expect(createSettings(settingsInput({ distributionWeekday: 1 })).distributionWeekday).toBe(1);
-    expect(createSettings(settingsInput({ distributionWeekday: 7 })).distributionWeekday).toBe(7);
-  });
-
-  it("rejects a distribution weekday outside ISO 1-7", () => {
-    expect(() => createSettings(settingsInput({ distributionWeekday: 0 }))).toThrow(
-      InvalidSettings,
-    );
-    expect(() => createSettings(settingsInput({ distributionWeekday: 8 }))).toThrow(
-      InvalidSettings,
-    );
-  });
-
-  it("rejects a fractional distribution weekday", () => {
-    expect(() => createSettings(settingsInput({ distributionWeekday: 3.5 }))).toThrow(
-      InvalidSettings,
-    );
-  });
-
-  it("rejects a week anchor that is not an ISO week", () => {
-    expect(() =>
-      createSettings(settingsInput({ weekAnchor: { isoWeek: "2026-02", colour: "RED" } })),
-    ).toThrow(InvalidSettings);
-  });
-
-  it("rejects an ISO week number above 53", () => {
-    expect(() =>
-      createSettings(settingsInput({ weekAnchor: { isoWeek: "2026-W54", colour: "BLUE" } })),
-    ).toThrow(InvalidSettings);
-  });
-
-  it("rejects ISO week zero", () => {
-    expect(() =>
-      createSettings(settingsInput({ weekAnchor: { isoWeek: "2026-W00", colour: "BLUE" } })),
-    ).toThrow(InvalidSettings);
   });
 
   it("rejects a fractional price per grown-up", () => {
@@ -315,8 +272,6 @@ describe("changedSettingsFields", () => {
   it("reports every field when there is no previous version", () => {
     expect(changedSettingsFields(undefined, previous)).toEqual([
       "quotaN",
-      "weekAnchor",
-      "distributionWeekday",
       "pricePerGrownUp",
       "pricePerChild",
       "priceCap",
@@ -326,7 +281,6 @@ describe("changedSettingsFields", () => {
 
   it.each([
     ["quotaN", { quotaN: 200 }],
-    ["distributionWeekday", { distributionWeekday: 5 }],
     ["pricePerGrownUp", { pricePerGrownUp: 250 }],
     ["pricePerChild", { pricePerChild: 125 }],
   ])("reports %s when only that value differs", (field, overrides) => {
@@ -397,20 +351,6 @@ describe("changedSettingsFields", () => {
     expect(changedSettingsFields(previous, next)).toEqual([]);
   });
 
-  it("reports weekAnchor when the anchor week moves", () => {
-    const next = createSettings(
-      settingsInput({ weekAnchor: { isoWeek: "2026-W03", colour: "RED" } }),
-    );
-    expect(changedSettingsFields(previous, next)).toEqual(["weekAnchor"]);
-  });
-
-  it("reports weekAnchor when only the anchor colour flips", () => {
-    const next = createSettings(
-      settingsInput({ weekAnchor: { isoWeek: "2026-W02", colour: "BLUE" } }),
-    );
-    expect(changedSettingsFields(previous, next)).toEqual(["weekAnchor"]);
-  });
-
   it("reports both price fields when a price rise touches each head", () => {
     const next = createSettings(settingsInput({ pricePerGrownUp: 250, pricePerChild: 125 }));
     expect(changedSettingsFields(previous, next)).toEqual(["pricePerGrownUp", "pricePerChild"]);
@@ -419,20 +359,5 @@ describe("changedSettingsFields", () => {
   it("lists several fields in declaration order when more than one changed", () => {
     const next = createSettings(settingsInput({ quotaN: 200, pricePerChild: 125 }));
     expect(changedSettingsFields(previous, next)).toEqual(["quotaN", "pricePerChild"]);
-  });
-});
-
-describe("parseWeekColour", () => {
-  it("accepts the two colours of the cycle", () => {
-    expect(parseWeekColour("RED")).toBe("RED");
-    expect(parseWeekColour("BLUE")).toBe("BLUE");
-  });
-
-  it("rejects anything else, so a stored value can never widen the cycle", () => {
-    expect(() => parseWeekColour("GREEN")).toThrow(InvalidSettings);
-  });
-
-  it("is case-sensitive — the stored form is upper case", () => {
-    expect(() => parseWeekColour("red")).toThrow(InvalidSettings);
   });
 });

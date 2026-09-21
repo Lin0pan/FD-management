@@ -154,7 +154,7 @@ export const de = {
   },
   /**
    * The Start dashboard (US-17.3) — a screen to be read, not a menu: the nav bar carries the links,
-   * so what is left is the date and the answer to "wann ist die nächste Ausgabe".
+   * so what is left is the day, and the afternoon under way when there is one.
    */
   home: {
     /** The greeting *is* the heading — a second welcoming sentence would restate the lines below. */
@@ -163,17 +163,10 @@ export const de = {
     today: (date: string): string => `Heute ist ${date}.`,
     distribution: {
       /**
-       * Today and a coming day are two sentences rather than one styled two ways: on the day itself
-       * the line reads differently, not louder (PRD §6).
-       *
-       * The group is a bracketed note, DF's own wording. It is the *only* thing saying which group
-       * collects — the screen is not tinted — which is the way round US-03.4 asks for.
+       * An unseeded database is not an error screen (FR-10): the quota and the prices are what is
+       * missing, and the card carrying this sentence is the way to them.
        */
-      isToday: (colour: string): string => `Heute ist Ausgabetag (${colour}).`,
-      next: (date: string, colour: string): string =>
-        `Die nächste Ausgabe findet am ${date} statt (${colour}).`,
-      /** An unseeded database is not an error screen (FR-10) — only the rhythm is missing. */
-      notConfigured: "Der Ausgaberhythmus ist noch nicht hinterlegt.",
+      notConfigured: "Die Einstellungen sind noch nicht hinterlegt.",
     },
     /** Also the way off the distribution screen and the hub when no settings are in force. */
     settingsLink: "Einstellungen",
@@ -1405,12 +1398,8 @@ export const de = {
   settings: {
     heading: "Einstellungen",
     intro: "Änderungen gelten sofort.",
-    /**
-     * The three card headings, and they are the grouping: what a household gets, when they get it,
-     * and the write itself.
-     */
+    /** The two card headings, and they are the grouping: what a household gets, and the write. */
     amountsHeading: "Mengen und Preise",
-    rhythmHeading: "Ausgaberhythmus",
     /** The section that held the reason and the save button unnamed until now (§3.8). */
     changeHeading: "Änderung speichern",
     /**
@@ -1422,9 +1411,6 @@ export const de = {
     changeHint: "Frühere Fassungen bleiben erhalten.",
     fields: {
       quotaN: "Höchstzahl der Kunden (N)",
-      weekAnchorIsoWeek: "Ankerwoche (ISO, z. B. 2026-W02)",
-      weekAnchorColour: "Gruppe der Ankerwoche",
-      distributionWeekday: "Ausgabetag",
       pricePerGrownUp: "Preis je Erwachsenem",
       pricePerChild: "Preis je Kind",
       /** Not the bare „Maximalpreis“: what tells it from the two per-head prices beside it. */
@@ -1440,7 +1426,7 @@ export const de = {
      * in `history` because the same phrasings state a rule and state a change to it.
      */
     eggs: {
-      /** The card the rule is edited in, between „Mengen und Preise“ und „Ausgaberhythmus“. */
+      /** The card the rule is edited in, below „Mengen und Preise“. */
       heading: "Eier",
       thresholdColumn: EGG_THRESHOLD_COLUMN,
       eggsColumn: EGG_COUNT_COLUMN,
@@ -1493,19 +1479,6 @@ export const de = {
       rowChanged: (minPersons: number, from: number, to: number): string =>
         `${fromPersons(minPersons)}: ${from} → ${eggCount(to)}`,
     },
-    colours: {
-      RED: "Rot",
-      BLUE: "Blau",
-    },
-    weekdays: {
-      1: "Montag",
-      2: "Dienstag",
-      3: "Mittwoch",
-      4: "Donnerstag",
-      5: "Freitag",
-      6: "Samstag",
-      7: "Sonntag",
-    },
     prices: {
       /**
        * What makes an empty Maximalpreis readable as a decision rather than an unfilled field — the
@@ -1525,9 +1498,6 @@ export const de = {
      */
     errorFields: {
       quotaN: "Höchstzahl der Kunden (N)",
-      distributionWeekday: "Ausgabetag",
-      "weekAnchor.isoWeek": "Ankerwoche (ISO, z. B. 2026-W02)",
-      "weekAnchor.colour": "Gruppe der Ankerwoche",
       pricePerGrownUp: "Preis je Erwachsenem",
       pricePerChild: "Preis je Kind",
       /** Spelled `priceCap` on both sides, so the refusal marks the field without a translation. */
@@ -1536,7 +1506,7 @@ export const de = {
     /**
      * The Nachweis-Art vocabulary (US-33.4) — its own card, outside the policy form: the list is not a
      * policy version (ADR-019), so its words are here rather than folded into `fields`/`errorFields`
-     * above, which name the eight that are.
+     * above, which name the five that are.
      */
     certificateTypes: {
       heading: "Arten des Nachweises",
@@ -1573,8 +1543,8 @@ export const de = {
     saved: "Gespeichert. Die neuen Werte gelten ab sofort.",
     /**
      * The version history, folded away and written as a diff: each superseded version states only
-     * what moved. The labels are `fields`, `colours` and `weekdays` above, so a change is named in
-     * the same words as the control that made it.
+     * what moved. The labels are `fields` above, so a change is named in the same words as the
+     * control that made it.
      */
     history: {
       heading: "Änderungsverlauf",

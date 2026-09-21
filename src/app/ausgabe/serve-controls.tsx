@@ -50,8 +50,8 @@ export interface SessionRecordProps {
 /**
  * The two figures the transaction turns on, in a grid of their own above the form.
  *
- * Deliberately not a fifth and sixth derived tile: those four say what the household *draws* this
- * week, these two say what *changes hands* — a different question at a different moment.
+ * Deliberately not a fifth and sixth derived tile: those four say what the household *draws* at
+ * this Ausgabe, these two say what *changes hands* — a different question at a different moment.
  *
  * **One pair: same size, same width, separated by weight.** `Zu zahlen` keeps the semibold, being the
  * figure that leaves the screen — read aloud and counted out in coins — while `Saldo` states where it

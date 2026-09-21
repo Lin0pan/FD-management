@@ -17,6 +17,7 @@ import type {
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
+  DistributionSessionRepository,
   SettingsRepository,
 } from "../ports";
 import { countNoShows } from "./count-no-shows";
@@ -27,8 +28,10 @@ export interface ReadCustomerDeps {
   /** Read only, for the number control: how far the run on every slot has got (US-30.4). */
   readonly cards: CardRepository;
   readonly settings: SettingsRepository;
-  /** Read only, for the no-show count: a hand-out history is what says which days were not missed. */
+  /** Read only, for the no-show count: a hand-out is what says an afternoon was not missed. */
   readonly records: DistributionRecordRepository;
+  /** Read only, for the no-show count: the afternoons that took place are what a miss is one of. */
+  readonly sessions: DistributionSessionRepository;
   readonly clock: Clock;
 }
 
@@ -128,9 +131,10 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
   }
 
   const today = deps.clock.now();
-  const [allowance, records, takenNumbers, numberChoices] = await Promise.all([
+  const [allowance, records, endedSessions, takenNumbers, numberChoices] = await Promise.all([
     describeAllowance(deps, customer.details.householdMembers),
     deps.records.listForCustomer(customer.id),
+    deps.sessions.listEnded(),
     deps.customers.takenActiveNumbers(),
     listNumberChoices(deps, customer),
   ]);
@@ -159,7 +163,7 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
     nextCardNumber: formatCardNumber(next.customerNumber, next.index),
     allowance,
-    consecutiveNoShows: await countNoShows(deps, customer, records, today),
+    consecutiveNoShows: countNoShows(customer, endedSessions, records),
     balanceCents: balanceOf(records),
     // `replayPayments` walks oldest first, the only order a running balance can be built in; the
     // reversal is the *display* order (US-16.5), not part of the arithmetic.

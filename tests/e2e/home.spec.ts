@@ -1,5 +1,5 @@
 import { rmSync, writeFileSync } from "node:fs";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanDateTime } from "@/i18n/format";
 import { SHARED } from "./registers";
@@ -9,15 +9,9 @@ import { endSession, startSession } from "./session";
  * The Start dashboard against a fixed clock (`tasks/prd-us-17-navigation-shell.md` §US-17.5,
  * US-34.9).
  *
- * The date and the „nächste Ausgabe" line are pure functions of the calendar, so asserting either
- * means deciding what day the app thinks it is. The seam is `FD_FIXED_NOW_FILE`, re-read per call,
- * so writing the file moves the app's today without a restart and deleting it hands the wall clock
- * back.
- *
- * The expected days follow from the seeded settings alone. **Three pinned days, and the third is the
- * one that matters**: on a Saturday *after* that week's distribution the current week is still RED
- * while the next Ausgabe is BLUE, so a panel reading `view.colour` instead of
- * `nextDistribution.colour` would announce the wrong group — invisible on the other two days.
+ * The date is a pure function of the calendar, so asserting it means deciding what day the app
+ * thinks it is. The seam is `FD_FIXED_NOW_FILE`, re-read per call, so writing the file moves the
+ * app's today without a restart and deleting it hands the wall clock back.
  *
  * The last spec is the one thing here that is **not** a function of the calendar: the afternoon under
  * way (US-34.9). It starts one and ends it again through the counter's own controls, which is also
@@ -29,17 +23,6 @@ import { endSession, startSession } from "./session";
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
 const NOW_FILE = SHARED.now;
-
-/**
- * The sentence the distribution panel states, without the heading standing above it.
- *
- * Asserted as an exact text rather than a `toContainText`, because half of what this spec proves is
- * a *negative*: on a distribution day the line must say today and must not name a coming date, and a
- * containment check cannot tell the two wordings apart.
- */
-function distributionLine(page: Page): Locator {
-  return page.getByTestId("next-distribution").locator("p");
-}
 
 /** Make the app believe it is this instant, for every request until the next call. */
 function pinNow(instant: string): void {
@@ -53,20 +36,14 @@ test.describe("Start", () => {
     rmSync(NOW_FILE, { force: true });
   });
 
-  test("says the Ausgabe is today on a distribution day, naming that day's group", async ({
-    page,
-  }) => {
-    // Thursday of the red week: the distribution day itself.
+  test("states the day and nothing else while no afternoon is under way", async ({ page }) => {
+    // Any day the seeded version is in force on; nothing about the date decides what is shown.
     pinNow("2026-01-08T09:00:00.000Z");
     await page.goto("/");
 
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(de.home.heading);
     await expect(page.getByTestId("today-date")).toHaveText(
       de.home.today("Donnerstag, 8. Januar 2026"),
-    );
-    // The line says *today* rather than skipping to next week, and it says so in words of its own.
-    await expect(distributionLine(page)).toHaveText(
-      de.home.distribution.isToday(de.distribution.colours.RED),
     );
     await expect(page.getByTestId("distribution-not-configured")).toHaveCount(0);
 
@@ -75,50 +52,12 @@ test.describe("Start", () => {
     await expect(page.getByTestId("cards-due-badge")).toHaveCount(0);
   });
 
-  test("names the coming distribution on a day before it", async ({ page }) => {
-    // Tuesday of the red week: two days before its Thursday.
-    pinNow("2026-01-06T09:00:00.000Z");
-    await page.goto("/");
-
-    await expect(page.getByTestId("today-date")).toHaveText(
-      de.home.today("Dienstag, 6. Januar 2026"),
-    );
-    await expect(distributionLine(page)).toHaveText(
-      de.home.distribution.next("Donnerstag, 8. Januar 2026", de.distribution.colours.RED),
-    );
-  });
-
-  test("names next week's group on a day after this week's distribution", async ({ page }) => {
-    // Saturday of the red week: its Thursday has been and gone.
-    pinNow("2026-01-10T09:00:00.000Z");
-    await page.goto("/");
-
-    await expect(page.getByTestId("today-date")).toHaveText(
-      de.home.today("Samstag, 10. Januar 2026"),
-    );
-    // BLUE, the colour of the distribution being announced — not RED, the colour of the week the
-    // reader is standing in. This assertion is the whole reason the third day is pinned.
-    await expect(distributionLine(page)).toHaveText(
-      de.home.distribution.next("Donnerstag, 15. Januar 2026", de.distribution.colours.BLUE),
-    );
-
-    // The week that same Saturday belongs to is still RED, and that the two disagree today is what
-    // makes the assertion above worth making: on a day where they agreed, either field would pass.
-    // That used to be cross-checked here by looking 10.01.2026 up on the Ausgabe screen, the one
-    // place `colour` rather than `nextDistribution.colour` was rendered. US-22 removed that lookup
-    // (tasks/prd-us-22-drop-week-colour-lookup.md) and no screen renders `colour` any more — the
-    // Ausgabe banner paints `nextDistribution.colour` too, which on this Saturday is the same BLUE
-    // asserted above. So the disagreement is now pinned down one layer down, in
-    // `src/application/distribution/distribution.test.ts`: "names the next distribution and its
-    // colour on a day that is not one" asserts the two fields differ.
-  });
-
   test("still renders when no settings are in force, instead of an error page", async ({
     page,
   }) => {
     // A day before the seeded version was recorded (2026-01-01), so nothing is in force and
-    // `getWeekColour` throws `NoSettingsInForce` — the state a database nobody has seeded is in,
-    // reachable here without emptying a table every other spec reads.
+    // `readCurrentSettings` throws `NoSettingsInForce` — the state a database nobody has seeded is
+    // in, reachable here without emptying a table every other spec reads.
     pinNow("2025-12-31T09:00:00.000Z");
     await page.goto("/");
 
@@ -133,7 +72,6 @@ test.describe("Start", () => {
       "href",
       "/einstellungen",
     );
-    await expect(page.getByTestId("next-distribution")).toHaveCount(0);
   });
 
   test("states the afternoon under way, and nothing at all when none is", async ({ page }) => {
@@ -162,9 +100,8 @@ test.describe("Start", () => {
     await expect(
       panel.getByRole("link", { name: de.distribution.session.onStartScreen.link }),
     ).toHaveAttribute("href", "/ausgabe");
-    // The screen keeps its other two sentences: the panel is added above them, not instead of them.
+    // The screen keeps the date: the panel is added above it, not instead of it.
     await expect(page.getByTestId("today-date")).toBeVisible();
-    await expect(page.getByTestId("next-distribution")).toBeVisible();
 
     // And the afternoon ended, the screen is byte-for-byte the one the other specs assert.
     await endSession(page);

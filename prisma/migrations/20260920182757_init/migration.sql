@@ -3,9 +3,6 @@ CREATE TABLE "SettingsVersion" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "recordedAt" DATETIME NOT NULL,
     "quotaN" INTEGER NOT NULL,
-    "weekAnchorIsoWeek" TEXT NOT NULL,
-    "weekAnchorColour" TEXT NOT NULL,
-    "distributionWeekday" INTEGER NOT NULL,
     "pricePerGrownUpCents" INTEGER NOT NULL,
     "pricePerChildCents" INTEGER NOT NULL,
     "priceCapCents" INTEGER

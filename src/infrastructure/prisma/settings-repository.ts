@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { SettingsRepository } from "@/application/ports";
-import { createSettings, parseWeekColour, type SettingsVersion } from "@/domain/policy/settings";
+import { createSettings, type SettingsVersion } from "@/domain/policy/settings";
 
 /** One `EggAllowanceRow` row, as the query below returns it. */
 interface StoredEggRuleRow {
@@ -12,9 +12,6 @@ interface StoredEggRuleRow {
 interface StoredVersion {
   readonly recordedAt: Date;
   readonly quotaN: number;
-  readonly weekAnchorIsoWeek: string;
-  readonly weekAnchorColour: string;
-  readonly distributionWeekday: number;
   readonly pricePerGrownUpCents: number;
   readonly pricePerChildCents: number;
   readonly priceCapCents: number | null;
@@ -23,18 +20,13 @@ interface StoredVersion {
 
 /**
  * Rebuild a domain version from its rows, back through `createSettings` so a hand-edited database
- * cannot smuggle a fractional price or an impossible weekday into the domain.
+ * cannot smuggle a fractional price or a descending egg staircase into the domain.
  */
 function toDomain(row: StoredVersion): SettingsVersion {
   return {
     recordedAt: row.recordedAt,
     settings: createSettings({
       quotaN: row.quotaN,
-      weekAnchor: {
-        isoWeek: row.weekAnchorIsoWeek,
-        colour: parseWeekColour(row.weekAnchorColour),
-      },
-      distributionWeekday: row.distributionWeekday,
       pricePerGrownUp: row.pricePerGrownUpCents,
       pricePerChild: row.pricePerChildCents,
       // `?? null` rather than the raw column: the domain spells "no cap" exactly one way, and
@@ -89,9 +81,6 @@ export class PrismaSettingsRepository implements SettingsRepository {
       data: {
         recordedAt: version.recordedAt,
         quotaN: settings.quotaN,
-        weekAnchorIsoWeek: settings.weekAnchor.isoWeek,
-        weekAnchorColour: settings.weekAnchor.colour,
-        distributionWeekday: settings.distributionWeekday,
         pricePerGrownUpCents: settings.pricePerGrownUp,
         pricePerChildCents: settings.pricePerChild,
         priceCapCents: settings.priceCap,

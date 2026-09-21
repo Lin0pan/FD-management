@@ -32,9 +32,8 @@ import type {
 import { lookupCustomer } from "./lookup-customer";
 
 /**
- * Hand-written fakes and synthetic data only. `2026-07-23` falls an even number of weeks from the
- * `2026-W02` anchor, so with a BLUE anchor it is a BLUE week — and the default household holds 50,
- * which is even and therefore BLUE (ADR-017). One on an odd number is in the wrong week.
+ * Hand-written fakes and synthetic data only. The default household holds 50, which is even and
+ * therefore BLUE (ADR-017); one on an odd number is refused by a session serving BLUE alone.
  */
 
 faker.seed(20260723);
@@ -299,6 +298,30 @@ function session(groups: ReadonlyArray<Group> = ["RED", "BLUE"]): DistributionSe
   };
 }
 
+/**
+ * The afternoons behind the running one, newest first — the one the household's earlier hand-out
+ * belongs to is the most recent of them. All five serve **both** halves, so the suite's household
+ * is expected at every one of them whatever number a test gives it.
+ */
+const ENDED_SESSIONS: ReadonlyArray<DistributionSession> = [
+  endedSession(EARLIER_SESSION_ID, "2026-07-09T09:00:00.000Z"),
+  endedSession(12, "2026-06-25T09:00:00.000Z"),
+  endedSession(11, "2026-06-11T09:00:00.000Z"),
+  endedSession(10, "2026-05-28T09:00:00.000Z"),
+  endedSession(9, "2026-05-14T09:00:00.000Z"),
+];
+
+/** One of those afternoons: started at `iso` and ended three hours later. */
+function endedSession(id: number, iso: string): DistributionSession {
+  const startedAt = new Date(iso);
+  return {
+    id,
+    startedAt,
+    endedAt: new Date(startedAt.getTime() + 3 * 60 * 60 * 1000),
+    groups: createSessionGroups(["RED", "BLUE"]),
+  };
+}
+
 /** The session the counter reads in; `null` is the screen between two afternoons. */
 class FakeDistributionSessionRepository implements DistributionSessionRepository {
   constructor(private readonly running: DistributionSession | null = session()) {}
@@ -308,7 +331,11 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
   }
 
   lastEnded(): Promise<DistributionSession | null> {
-    return Promise.resolve(null);
+    return Promise.resolve(ENDED_SESSIONS.at(0) ?? null);
+  }
+
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.resolve(ENDED_SESSIONS);
   }
 
   findById(): Promise<DistributionSession | null> {
@@ -367,8 +394,6 @@ function fakeClock(iso: string): Clock {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    weekAnchor: { isoWeek: "2026-W02", colour: "BLUE" },
-    distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,
@@ -833,8 +858,8 @@ describe("lookupCustomer", () => {
   });
 
   /**
-   * The RED distributions behind `TODAY` (a RED Thursday) run 05-14, 05-28, 06-11, 06-25, 07-09 —
-   * today's own hand-out is never a miss, so a household registered on 05-01 has five behind them.
+   * Five afternoons ran between 05-14 and 07-09 and the sixth is the one under way — a session that
+   * is still running is never a miss, so a household registered on 05-01 has five behind them.
    */
   it("counts the household's own distributions missed in a row, so staff see the pattern", async () => {
     customers = new FakeCustomerRepository(
@@ -846,7 +871,7 @@ describe("lookupCustomer", () => {
     expect(result.customer?.consecutiveNoShows).toBe(5);
   });
 
-  it("counts no no-shows for a household that collected at the last distribution", async () => {
+  it("counts no no-show for a household that collected at the last afternoon held", async () => {
     customers = new FakeCustomerRepository(
       customerRecord({ id: 1, registeredOn: "2026-05-01T09:00:00.000Z" }),
     );

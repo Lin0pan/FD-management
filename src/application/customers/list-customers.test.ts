@@ -199,8 +199,6 @@ class FakeCustomerRepository implements CustomerRepository {
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
-    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
-    distributionWeekday: 4,
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,

@@ -164,6 +164,11 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
     return Promise.resolve(null);
   }
 
+  /** The counter's no-show count reads this; no afternoon has taken place in this suite. */
+  listEnded(): Promise<ReadonlyArray<DistributionSession>> {
+    return Promise.resolve([]);
+  }
+
   findById(): Promise<DistributionSession | null> {
     return Promise.resolve(RUNNING_SESSION);
   }
@@ -185,13 +190,11 @@ class FakeDistributionSessionRepository implements DistributionSessionRepository
   }
 }
 
-/** The policy in force throughout: DF's own numbers, anchored so that `2026-07-29` is a RED week. */
+/** The policy in force throughout: DF's own numbers. */
 const SETTINGS: SettingsVersion = {
   recordedAt: new Date("2026-01-01T00:00:00.000Z"),
   settings: createSettings({
     quotaN: 240,
-    weekAnchor: { isoWeek: "2026-W02", colour: "RED" },
-    distributionWeekday: 3,
     pricePerGrownUp: 200,
     pricePerChild: 100,
     priceCap: null,

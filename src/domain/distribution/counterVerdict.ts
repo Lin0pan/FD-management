@@ -15,11 +15,11 @@
  * `docs/architecture/06-runtime-view.md`). Neither order is the other's bug.
  */
 
+import { startOfUtcDay } from "../calendarDay";
 import type { CardNumber } from "../card/cardNumber";
 import type { CustomerStatus } from "../customer/customer";
 import type { Group } from "../customer/group";
 import { servesGroup, type SessionGroups } from "./session";
-import { startOfUtcDay } from "./weekColour";
 
 /**
  * A customer reduced to the fields the verdict turns on, derived by the application layer — the

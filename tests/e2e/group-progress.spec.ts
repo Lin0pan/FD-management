@@ -171,7 +171,7 @@ async function sessionGroup(): Promise<ReadonlyArray<Member>> {
     servedInRunningSession(),
   ]);
   const servedIds = new Set(records.map((record) => record.customerId));
-  // RED is a parity, not a column (US-31): the register comes back whole and the week's own half is
+  // RED is a parity, not a column (US-31): the register comes back whole and the session's own half is
   // taken from it here, because SQLite has no `% 2` to put in a `WHERE` clause.
   return customers
     .filter((customer) => groupOf(customer.customerNumber) === "RED")

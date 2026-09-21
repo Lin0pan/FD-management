@@ -28,7 +28,7 @@ import { endSessionInHook, startSessionInHook } from "./session";
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker. Every date
-// stays a literal, because a distribution day and a valid certificate are decided by dates.
+// stays a literal, because a card's validity and a certificate's are decided by dates.
 faker.seed(20260727);
 
 /** The file `playwright.config.ts` points `FD_FIXED_NOW_FILE` at, relative to the repo root. */
@@ -81,8 +81,8 @@ interface Household {
 /**
  * Register one RED household with a grown-up and a child through the real form.
  *
- * The week is checked by hand rather than accepted from the recommendation, because the hand-out
- * below depends on it: only a RED household is clear to serve in a RED week — and since US-31 that
+ * The group is checked by hand rather than accepted from the recommendation, because the hand-out
+ * below depends on it: only a RED household is clear to serve at a RED session — and since US-31 that
  * choice *is* the choice of number, because the list beneath the radios is the odd slots.
  *
  * @returns the number the proposal offered — which, on a serial run, is the number the save assigns.
@@ -313,7 +313,7 @@ test.describe("Kunde archivieren", () => {
     const before = { belongings: await belongings(household.id), state: await state(household.id) };
 
     // The number still resolves to them for as long as nobody else holds it, and the answer is a
-    // refusal: archived households are not entitled, whatever the week's colour says.
+    // refusal: archived households are not entitled, whatever group the session serves.
     await lookUp(page, household.customerNumber);
 
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute("data-verdict", "ARCHIVED");
