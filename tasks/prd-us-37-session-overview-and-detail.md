@@ -93,7 +93,10 @@ reminderCount, paidCents, at }` (E-1).
 - [ ] A session ended **before US-35** has no receipts. Those rows come back with the household's
       live values and a flag saying so, rather than empty columns the screen would have to guess at
       (E-10). One named test covers it.
-- [ ] `DistributionSessionNotFound` for an unknown or discarded id.
+- [ ] `DistributionSessionNotFound` for an unknown or discarded id. **The one domain edit this
+      batch makes**: the code does not exist yet, so it is a three-file change — the union and the
+      class in `src/domain/errors.ts`, and `TIERS` in `src/app/notice-tier.ts`, whose `Record` over
+      the union fails the build until the code is tiered. A typed error is not a domain _rule_.
 - [ ] Application coverage stays at 100%; named tests: `shows the name as it stood at an ended
 session`, `shows today's name while the session is still running`, `shows today's name again
 after the session is reopened`, `shows the household that was served after its number was given
@@ -122,7 +125,10 @@ is one click away.
       session header while one runs. **Whether a fifth nav item is added is decided on the finished
       screen** — the nav bar is the application's only wayfinding and four items is what US-17 settled
       on, so adding one is a decision with a cost, not a detail.
-- [ ] German strings only in `src/i18n/de.ts`, under `distribution.sessions`.
+- [ ] German strings only in `src/i18n/de.ts`, under `distribution.pastSessions` — **not**
+      `distribution.sessions`, which is one letter from the existing `distribution.session` that
+      US-34 wrote for the afternoon under way. Two keys in one object telling singular from plural
+      is the misreading `/ausgabetermine` was chosen over `/ausgaben` to avoid.
 - [ ] Driven and reviewed with the `playwright-cli` skill.
 
 ### US-37.4: The detail view (presentation)
@@ -234,8 +240,10 @@ is found without being shown.
 ## Technical considerations
 
 - **No schema change and no new domain rule.** Every fact these screens show was written by US-34 and
-  US-35. The only new port method is the aggregate in US-37.1. A story that finds itself editing
-  `prisma/` or `src/domain/` has misread the batch.
+  US-35. The only new port method is the aggregate in US-37.1, and the only edit to `src/domain/` is
+  the `DistributionSessionNotFound` code in US-37.2 — a typed error, not a rule. A story that finds
+  itself editing `prisma/`, or writing anything in `src/domain/` that decides an outcome, has misread
+  the batch.
 - **The two sources of a row** (receipt vs. live record) meet in exactly one place, US-37.2. If that
   decision leaks into the component, the screen will show frozen names in one column and live ones in
   another, which is the table E-8 says nobody can check.
