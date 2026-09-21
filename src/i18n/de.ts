@@ -1180,6 +1180,30 @@ export const de = {
       },
     },
     /**
+     * The afternoons already held, listed at `/ausgabetermine` (US-37.3) — the first screen in the
+     * application that is not about today.
+     *
+     * `pastSessions` and not `sessions`, which is one letter from the `session` above it: that one
+     * is the afternoon under way, and two keys in one object telling singular from plural is the
+     * misreading the route name was chosen to avoid.
+     */
+    pastSessions: {
+      heading: "Ausgabetermine",
+      /** The way in, from the counter screen — the only screen this one is reached from. */
+      link: "Alle Ausgabetermine",
+      /** The afternoon under way, which is the row at the top. */
+      running: "Läuft",
+      /** What that row's two figures are, in the one word that says it. */
+      provisional: "vorläufig",
+      empty: "Es wurde noch keine Ausgabe erfasst.",
+      table: {
+        date: "Datum",
+        groups: "Gruppe(n)",
+        households: "Haushalte",
+        total: "Summe",
+      },
+    },
+    /**
      * The counter lookup — the most-read text in the product, and held to the strictest account:
      * every string here is paid for on every lookup of every afternoon
      * (`tasks/prd-us-04-lookup-customer.md` §US-04.4). The verdict's colour never travels without the

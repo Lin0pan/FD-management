@@ -77,3 +77,22 @@ const berlinDateTime = new Intl.DateTimeFormat("de-DE", {
 export function germanDateTime(instant: Date): string {
   return berlinDateTime.format(instant);
 }
+
+/**
+ * The calendar day an instant fell on, as `TT.MM.JJJJ` — {@link germanDateTime} without the clock.
+ *
+ * Berlin, and that is the whole of why this is not {@link germanDate}: an afternoon is an
+ * *instant*, so reading its day in UTC would name the day before for one that ran past midnight.
+ * Read where an afternoon is looked up in a column rather than read as a moment (US-37.3) —
+ * wherever it is read as a moment, both its instants are written out in full instead.
+ */
+const berlinDate = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+export function germanDayOf(instant: Date): string {
+  return berlinDate.format(instant);
+}
