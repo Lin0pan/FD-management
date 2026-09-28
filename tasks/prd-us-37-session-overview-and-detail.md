@@ -141,7 +141,8 @@ that a question about last Thursday is answered from the screen rather than from
 - [ ] New route `/ausgabetermine/[id]`, headed by the session: the date, the start and end times, the
       group(s), the number of households and the total taken.
 - [ ] One table, one row per household that collected: **Nr., Name, Karte, Gruppe, Erw. + Kinder,
-      Preis, Nachweis bis, Erinnerungen, Betrag** (E-1). Headings are the customer list's own, read
+      Nachweis bis, Erinnerungen, Preis, Gezahlt** (E-1), the two money columns beside each other
+      per FR-11. Headings are the customer list's own, read
       from the same dictionary keys where they are the same words — a second wording of one column is
       how two screens come to disagree.
 - [ ] **No `Status` column** (E-1, G-4): whoever appears in the table was active at the time of their
@@ -215,8 +216,8 @@ is found without being shown.
 - **FR-5** (C-6, G-1, G-2, H-1): The detail view shows neither the households that did not turn up
   nor the blocks and archivings carried out during the session. This supersedes `[§3]`.
 - **FR-6** (C-7): A running session is viewable in the same place, its figures provisional.
-- **FR-7** (E-1): Each row shows Nr., Name, Karte, Gruppe, Erw. + Kinder, Preis, Nachweis bis,
-  Erinnerungen and the amount paid. There is no Status column.
+- **FR-7** (E-1): Each row shows Nr., Name, Karte, Gruppe, Erw. + Kinder, Nachweis bis,
+  Erinnerungen, Preis and the amount paid (headed „Gezahlt", the customer record's own word). There is no Status column.
 - **FR-8** (E-2, E-3): An ended session's rows show the state as it stood at that session — the name,
   the counts, the number and group, the certificate date, the card and the price of that afternoon.
 - **FR-9** (E-4): A row names the household that was actually served, even after its customer number

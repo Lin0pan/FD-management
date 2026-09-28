@@ -572,7 +572,7 @@ test.describe("Ein vergangener Ausgabetermin", () => {
       await expectWithin(
         rowOf(page, longNamed).getByTestId("session-household-paid"),
         container,
-        "die Spalte „Betrag“",
+        "die Spalte „Gezahlt“",
       );
     });
 

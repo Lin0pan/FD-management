@@ -154,8 +154,8 @@ ihre beiden Zahlen sind **vorläufig** und wachsen weiter, solange erfasst wird.
 
 **Was ein Ausgabetermin zeigt.** Ein Klick auf eine Zeile öffnet den Nachmittag: oben Beginn, Ende,
 Gruppe(n), Haushalte und Summe, darunter eine Zeile je Haushalt, der etwas abgeholt hat — mit
-Nummer, Name, Karte, Gruppe, Erwachsenen und Kindern, Preis, Nachweisdatum, Erinnerungen und dem
-gezahlten Betrag. Wer nicht gekommen ist, steht nicht in der Tabelle, und Sperrungen und
+Nummer, Name, Karte, Gruppe, Erwachsenen und Kindern, Nachweisdatum, Erinnerungen und, nebeneinander
+am Ende der Zeile, **Preis** und **Gezahlt**. Wer nicht gekommen ist, steht nicht in der Tabelle, und Sperrungen und
 Archivierungen des Nachmittags stehen dort ebenfalls nicht — die stehen beim Haushalt selbst.
 Ändern lässt sich hier nichts; Korrekturen laufen weiter über **Ausgabe**.
 

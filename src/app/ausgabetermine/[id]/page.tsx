@@ -95,9 +95,6 @@ function HouseholdRow({ row }: { row: CollectedHousehold }): React.ReactElement 
         {" + "}
         <span data-testid="session-household-children">{row.children}</span>
       </TableCell>
-      <TableCell data-testid="session-household-price" className="text-right tabular-nums">
-        {formatEuros(row.priceCents)}
-      </TableCell>
       {/* The date alone, without the Kundenliste's „gültig“/„abgelaufen“ beside it: where a
           certificate stands is a fact about today, and this table is about an afternoon. */}
       <TableCell data-testid="session-household-certificate" className="tabular-nums">
@@ -108,6 +105,9 @@ function HouseholdRow({ row }: { row: CollectedHousehold }): React.ReactElement 
         className={`text-right tabular-nums ${row.reminderCount === 0 ? "text-muted-foreground" : ""}`}
       >
         {row.reminderCount === 0 ? de.customerList.table.noReminders : row.reminderCount}
+      </TableCell>
+      <TableCell data-testid="session-household-price" className="text-right tabular-nums">
+        {formatEuros(row.priceCents)}
       </TableCell>
       <TableCell data-testid="session-household-paid" className="text-right tabular-nums">
         {formatEuros(row.paidCents)}
@@ -140,12 +140,13 @@ function HouseholdTable({
           <TableHead>{columns.cardNumber}</TableHead>
           <TableHead>{columns.group}</TableHead>
           <TableHead className="text-right">{columns.household}</TableHead>
-          <TableHead className="text-right">{columns.price}</TableHead>
           <TableHead>{columns.certificate}</TableHead>
           <TableHead className="text-right">{columns.reminders}</TableHead>
-          {/* „Betrag“ is the counter's own word for what was handed over (US-29.7), and this column
-              is that figure — so it is read from the counter's key rather than worded again. */}
-          <TableHead className="text-right">{de.distribution.serve.amount}</TableHead>
+          {/* The two money columns stand together (US-37, FR-11), and the pair here is Preis against
+              Gezahlt: there is no Gefordert on an afternoon's table to judge the payment by. The
+              heading is the customer record's own key, where the same figure is read as history. */}
+          <TableHead className="text-right">{columns.price}</TableHead>
+          <TableHead className="text-right">{de.customers.record.historyColumns.paid}</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>

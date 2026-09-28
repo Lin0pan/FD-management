@@ -1210,8 +1210,9 @@ export const de = {
       /**
        * One afternoon and the households that collected at it, at `/ausgabetermine/[id]`
        * (US-37.4). The table's headings are **not here**: eight of them are the Kundenliste's own
-       * ({@link customerList.table}) and the ninth is the counter's `serve.amount`, because a
-       * second wording of one column is how two screens come to disagree.
+       * ({@link customerList.table}) and the ninth is the customer record's
+       * ({@link customers.record.historyColumns.paid}), because a second wording of one column is
+       * how two screens come to disagree.
        */
       detail: {
         heading: (day: string): string => `Ausgabe vom ${day}`,
