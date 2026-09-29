@@ -24,7 +24,7 @@ describe("activeSection", () => {
     expect(activeSection("/uebersichten")).toBe("overviews");
   });
 
-  // The counter screen keeps its links to the past afternoons as shortcuts; the list's home is
+  // The counter screen's links to the past afternoons are shortcuts; the list's home is
   // Übersichten, and `/ausgabe` owning whole segments only must not swallow `/ausgabetermine`.
   it("marks Übersichten on the list of past distributions, which it owns", () => {
     expect(activeSection("/ausgabetermine")).toBe("overviews");
@@ -64,7 +64,7 @@ describe("activeSection", () => {
     expect(activeSection("/warteliste/7/registrieren")).toBe("customers");
   });
 
-  // The hub keeps its link to the reissue list as a shortcut; the list's home is Übersichten.
+  // The hub's link to the reissue list is a shortcut; the list's home is Übersichten.
   it("marks Übersichten on the card-reissue list, which it owns", () => {
     expect(activeSection("/karten-neuausstellung")).toBe("overviews");
   });

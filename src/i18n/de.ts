@@ -169,8 +169,8 @@ export const de = {
     },
   },
   /**
-   * The Start dashboard (US-17.3) — a screen to be read, not a menu: the nav bar carries the links,
-   * so what is left is the day, and the afternoon under way when there is one.
+   * The Start dashboard (US-17.3) — a screen to be read, not a menu: the day, the afternoon under
+   * way when there is one, and „Zu erledigen" while something is due (US-38.4).
    */
   home: {
     /** The greeting *is* the heading — a second welcoming sentence would restate the lines below. */

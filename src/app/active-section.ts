@@ -27,7 +27,8 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { section: "customers", href: "/kunden", routes: ["/kunden", "/warteliste"] },
   {
     section: "overviews",
-    // The lists keep the URLs they had before the tab existed; only the tab that marks them moved.
+    // A route's URL and the tab that marks it are independent: `/ausgabetermine` and
+    // `/karten-neuausstellung` are not under `/uebersichten` (US-38).
     href: "/uebersichten",
     routes: ["/uebersichten", "/ausgabetermine", "/karten-neuausstellung"],
   },
