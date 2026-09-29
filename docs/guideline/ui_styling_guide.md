@@ -177,6 +177,9 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 - **`Stat` (`src/app/stat.tsx`) is the promotion.** A tile is a figure that drives a decision;
   everything else is a line. Never hand-roll its chrome for something that is not one — two
   components that look identical and read differently teach a rule and then break it.
+- **A `Stat` is inert.** A count that opens a list is `ListLink` (`src/app/uebersichten/list-link.tsx`)
+  — the Übersichten entries and the „Zu erledigen" rows on Start — never a `Stat` wrapped in a link:
+  borderless because it only navigates (§6), with the chevron that says it opens (§12).
 - Put a promoted pair in the grid that is already there rather than in a parallel `flex` row, so one
   column rhythm runs down the page.
 - Where two values exist **to be compared**, they need a shared baseline, the same offset inside
@@ -629,23 +632,23 @@ A new icon extends one of these rather than inventing a role of its own.
 The registry, so a second use cannot quietly contradict the first — the same discipline
 `src/app/accents.ts` imposes on colour (§5).
 
-| Glyph                      | Means                                          | Role     |
-| -------------------------- | ---------------------------------------------- | -------- |
-| `Check`                    | it happened / clear to serve / collected       | tone     |
-| `TriangleAlert`            | refused, and nothing is broken                 | tone     |
-| `CircleAlert`              | it did not happen and something is wrong       | tone     |
-| `CircleHelp`               | no such household                              | tone     |
-| `Search`                   | search — the filter box and „Nachschlagen"     | afford.  |
-| `UserPlus`                 | take a household on                            | afford.  |
-| `Users`                    | the waiting list                               | afford.  |
-| `IdCard` / `CreditCard`    | the cards due list / reissue this card         | afford.  |
-| `Ban`                      | block — a refusal, not a locked record         | afford.  |
-| `Archive`                  | archive the household                          | afford.  |
-| `SquarePen`                | edit what is already written                   | afford.  |
-| `Plus` / `X`               | add a row / take a row off an unsaved form     | afford.  |
-| `ChevronDown`              | this folds (`FoldChevron`, §6)                 | afford.  |
-| `ChevronRight`             | opens the list — a „Zu erledigen" row on Start | afford.  |
-| `ArrowRight` / `ArrowLeft` | before → after / back to the list              | relation |
+| Glyph                      | Means                                      | Role     |
+| -------------------------- | ------------------------------------------ | -------- |
+| `Check`                    | it happened / clear to serve / collected   | tone     |
+| `TriangleAlert`            | refused, and nothing is broken             | tone     |
+| `CircleAlert`              | it did not happen and something is wrong   | tone     |
+| `CircleHelp`               | no such household                          | tone     |
+| `Search`                   | search — the filter box and „Nachschlagen" | afford.  |
+| `UserPlus`                 | take a household on                        | afford.  |
+| `Users`                    | the waiting list                           | afford.  |
+| `IdCard` / `CreditCard`    | the cards due list / reissue this card     | afford.  |
+| `Ban`                      | block — a refusal, not a locked record     | afford.  |
+| `Archive`                  | archive the household                      | afford.  |
+| `SquarePen`                | edit what is already written               | afford.  |
+| `Plus` / `X`               | add a row / take a row off an unsaved form | afford.  |
+| `ChevronDown`              | this folds (`FoldChevron`, §6)             | afford.  |
+| `ChevronRight`             | opens the list — a `ListLink` (§4)         | afford.  |
+| `ArrowRight` / `ArrowLeft` | before → after / back to the list          | relation |
 
 `X` is the one glyph with two meanings — a verdict tone on `/ausgabe` and a row control on three
 other screens. It is tolerable because the two are different roles at different scales and **never
