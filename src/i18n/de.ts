@@ -813,7 +813,7 @@ export const de = {
   customerList: {
     heading: "Kunden verwalten",
     /** The two cards the screen is made of. Each is a real `<h2>`, so the page has an outline. */
-    overviewTitle: "Übersicht und Aktionen",
+    overviewTitle: "Auf einen Blick",
     listTitle: "Kundenliste",
     /**
      * The three things staff do with customers, above the list (US-17.2) — worded as the acts
@@ -943,6 +943,9 @@ export const de = {
    */
   cardsDue: {
     heading: "Karten neu ausstellen",
+    /** The heading after a count, wherever the list is offered with its size (US-38). */
+    countedName: (count: number): string =>
+      count === 1 ? "Karte neu ausstellen" : de.cardsDue.heading,
     /**
      * The list itself. Its count is `customerList.actions.cardsDueBadge` rather than a second wording:
      * two phrasings of one fact are how two screens come to disagree.
@@ -1207,6 +1210,9 @@ export const de = {
      */
     pastSessions: {
       heading: "Ausgabetermine",
+      /** The heading after a count, wherever the list is offered with its size (US-38). */
+      countedName: (count: number): string =>
+        count === 1 ? "Ausgabetermin" : de.distribution.pastSessions.heading,
       /** The counter screen's shortcut to this list, and the detail's way back to it. */
       link: "Alle Ausgabetermine",
       /** The afternoon under way, which is the row at the top. */
