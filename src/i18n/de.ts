@@ -186,6 +186,8 @@ export const de = {
     },
     /** Also the way off the distribution screen and the hub when no settings are in force. */
     settingsLink: "Einstellungen",
+    /** Shown only while something is due (US-38.4); each row reads its list's own heading. */
+    toDos: "Zu erledigen",
   },
   customers: {
     groups: {

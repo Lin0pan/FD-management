@@ -629,22 +629,23 @@ A new icon extends one of these rather than inventing a role of its own.
 The registry, so a second use cannot quietly contradict the first — the same discipline
 `src/app/accents.ts` imposes on colour (§5).
 
-| Glyph                      | Means                                      | Role     |
-| -------------------------- | ------------------------------------------ | -------- |
-| `Check`                    | it happened / clear to serve / collected   | tone     |
-| `TriangleAlert`            | refused, and nothing is broken             | tone     |
-| `CircleAlert`              | it did not happen and something is wrong   | tone     |
-| `CircleHelp`               | no such household                          | tone     |
-| `Search`                   | search — the filter box and „Nachschlagen" | afford.  |
-| `UserPlus`                 | take a household on                        | afford.  |
-| `Users`                    | the waiting list                           | afford.  |
-| `IdCard` / `CreditCard`    | the cards due list / reissue this card     | afford.  |
-| `Ban`                      | block — a refusal, not a locked record     | afford.  |
-| `Archive`                  | archive the household                      | afford.  |
-| `SquarePen`                | edit what is already written               | afford.  |
-| `Plus` / `X`               | add a row / take a row off an unsaved form | afford.  |
-| `ChevronDown`              | this folds (`FoldChevron`, §6)             | afford.  |
-| `ArrowRight` / `ArrowLeft` | before → after / back to the list          | relation |
+| Glyph                      | Means                                          | Role     |
+| -------------------------- | ---------------------------------------------- | -------- |
+| `Check`                    | it happened / clear to serve / collected       | tone     |
+| `TriangleAlert`            | refused, and nothing is broken                 | tone     |
+| `CircleAlert`              | it did not happen and something is wrong       | tone     |
+| `CircleHelp`               | no such household                              | tone     |
+| `Search`                   | search — the filter box and „Nachschlagen"     | afford.  |
+| `UserPlus`                 | take a household on                            | afford.  |
+| `Users`                    | the waiting list                               | afford.  |
+| `IdCard` / `CreditCard`    | the cards due list / reissue this card         | afford.  |
+| `Ban`                      | block — a refusal, not a locked record         | afford.  |
+| `Archive`                  | archive the household                          | afford.  |
+| `SquarePen`                | edit what is already written                   | afford.  |
+| `Plus` / `X`               | add a row / take a row off an unsaved form     | afford.  |
+| `ChevronDown`              | this folds (`FoldChevron`, §6)                 | afford.  |
+| `ChevronRight`             | opens the list — a „Zu erledigen" row on Start | afford.  |
+| `ArrowRight` / `ArrowLeft` | before → after / back to the list              | relation |
 
 `X` is the one glyph with two meanings — a verdict tone on `/ausgabe` and a row control on three
 other screens. It is tolerable because the two are different roles at different scales and **never

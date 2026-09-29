@@ -1,18 +1,19 @@
 /**
  * The Start dashboard (`tasks/prd-us-17-navigation-shell.md` §US-17.3) — the greeting and the date,
- * and nothing else to work through: the nav bar carries the links and the signals live on the hub
- * (US-17.2). It has something to click in exactly two states — nothing configured yet, and an
- * afternoon under way, which it states in a panel because that is then the one thing the screen has
- * to say (US-34.9). It names no coming Ausgabe: nothing in the software knows when the next one is
- * (ADR-020).
+ * plus whatever is pushed at DF: an afternoon under way (US-34.9), what is waiting to be done
+ * (US-38.4) and, before anything is configured, the way to the settings. Lists DF look things up in
+ * are pulled from Übersichten, not shown here. It names no coming Ausgabe: nothing in the software
+ * knows when the next one is (ADR-020).
  *
  * **The date only, no clock time**, which is what keeps this a plain server component: no client
  * boundary, no ticking state, and a page that renders the same under the fixed clock the e2e suite
  * pins. `now` comes from the injected `Clock`.
  */
 
+import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { readDistributionSessionState } from "@/application/distribution/read-distribution-session-state";
+import { listToDos, type ToDo, type ToDoKind } from "@/application/overviews/list-to-dos";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,6 +24,7 @@ import { germanDateTime, germanLongDate } from "@/i18n/format";
 import { distributionDeps } from "./ausgabe/deps";
 import { SessionGroupBadges } from "./ausgabe/session-group-badges";
 import { SHELL } from "./shell";
+import { overviewDeps } from "./uebersichten/deps";
 
 /**
  * The date turns over at midnight without anything being written, and a session is started and
@@ -62,6 +64,57 @@ function RunningSessionPanel({ session }: { session: DistributionSession }): Rea
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Where each to-do leads, and what it is called: its Übersichten tile's target and words (US-38.4).
+ * A `Record`, so a new `ToDoKind` fails the build until it has a place to link to.
+ */
+const TO_DO_LINKS: Record<
+  ToDoKind,
+  { readonly href: string; readonly label: string; readonly testId: string }
+> = {
+  CARDS_DUE: {
+    href: "/karten-neuausstellung",
+    label: de.cardsDue.heading,
+    testId: "to-do-cards-due",
+  },
+};
+
+/**
+ * „Zu erledigen" — rendered only when `listToDos` returned something, so no empty state. Neutral
+ * on purpose: nothing here is overdue, and the notice tiers are for what is (`ui_styling_guide.md`
+ * §5).
+ */
+function ToDos({ toDos }: { toDos: ReadonlyArray<ToDo> }): React.ReactElement {
+  return (
+    <section data-testid="to-dos" className="flex flex-col gap-3">
+      <h2 className="text-lg font-semibold">{de.home.toDos}</h2>
+      <ul className="flex flex-col gap-2">
+        {toDos.map((toDo) => {
+          const { href, label, testId } = TO_DO_LINKS[toDo.kind];
+          return (
+            <li key={toDo.kind}>
+              <Link
+                href={href}
+                data-testid={testId}
+                className="flex min-h-12 max-w-xl items-center gap-4 rounded-lg border bg-card px-4 py-2 transition-colors outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
+              >
+                <span
+                  data-testid={`${testId}-count`}
+                  className="text-2xl font-semibold tabular-nums"
+                >
+                  {toDo.count}
+                </span>
+                <span className="text-base">{label}</span>
+                <ChevronRight aria-hidden="true" className="ml-auto size-4 shrink-0" />
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 
@@ -107,9 +160,10 @@ async function isConfigured(): Promise<boolean> {
 export default async function Home(): Promise<React.ReactElement> {
   // The afternoon is read even when nothing is configured: the two answers are independent, and a
   // session may be running whatever the settings history holds.
-  const [configured, session] = await Promise.all([
+  const [configured, session, toDos] = await Promise.all([
     isConfigured(),
     readDistributionSessionState(distributionDeps),
+    listToDos(overviewDeps),
   ]);
   const date = distributionDeps.clock.now();
 
@@ -121,6 +175,9 @@ export default async function Home(): Promise<React.ReactElement> {
       {/* Above the date, because an afternoon that is running outranks it: the date describes the
           calendar, and this is what is actually happening. */}
       {session.running === null ? null : <RunningSessionPanel session={session.running.session} />}
+      {/* Below the running afternoon, which blocks every household; above the date, which blocks
+          nothing. */}
+      {toDos.length === 0 ? null : <ToDos toDos={toDos} />}
       <p data-testid="today-date" className="text-xl text-muted-foreground">
         {de.home.today(germanLongDate(date))}
       </p>
