@@ -21,7 +21,7 @@ export function ListLink({
   /** On the bare number, never on the row — the testid must not come to contain its own label. */
   valueTestId: string;
 }): React.ReactElement {
-  const { href, label } = LISTS[list];
+  const { href, name } = LISTS[list];
   return (
     <Link
       href={href}
@@ -31,7 +31,7 @@ export function ListLink({
       <span data-testid={valueTestId} className="text-2xl font-semibold tabular-nums">
         {count}
       </span>
-      <span className="text-base">{label}</span>
+      <span className="text-base">{name(count)}</span>
       <ChevronRight aria-hidden="true" className="ml-auto size-4 shrink-0" />
     </Link>
   );
