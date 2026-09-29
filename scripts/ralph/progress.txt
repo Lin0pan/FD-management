@@ -689,3 +689,25 @@ create `/uebersichten/ausgabetermine` — the concept note sketched it, the refi
   - `npm run db:demo` refuses (exit 1) when the register already holds customers — that is not a
     failure, the existing demo data is usable. `--reset` only if you need it fresh.
 ---
+
+## 2026-09-29 - US-005 (US-38.5 Two entry points, one count, proved end to end)
+- New `tests/e2e/overviews.spec.ts` on the isolated register (added to `ISOLATED_SPECS`; it sorts
+  between number-group and session-detail). Real clock, `clearRegister` in `beforeAll`. Six serial
+  tests: nothing due (no `to-dos`, tiles 0/0); one stale card seeded via Prisma (one-person
+  household, card printed `grownUpsAtIssue: 2` → HOUSEHOLD_CHANGE) reads 1 on Start, Übersichten
+  and the hub badge; the Start row lands on /karten-neuausstellung with only `nav-overviews`
+  marked; reissuing from the list removes the block and zeroes the tile; start/end/start → tile 2
+  and two list rows; end, start, discard → still 2.
+- `registers.ts` comment made count-free („The specs here"), and session-detail's „run ahead of
+  it" sentence names overviews too.
+- Files: tests/e2e/overviews.spec.ts, tests/e2e/registers.ts, tests/e2e/session-detail.spec.ts
+- Gates: lint, typecheck, test:coverage, build green; `npm run test:e2e` 242 passed and
+  `npm run test:e2e:webkit` 242 passed (1 skipped each, the pre-existing settings.spec skip).
+- **Learnings for future iterations:**
+  - The cheapest stale card is a seeded card whose `grownUpsAtIssue` disagrees with the member
+    rows — no clock pin and no birthday needed, unlike age-13.spec.ts.
+  - A „German quote" in a test title must close with „…“ (U+201C), not a straight `"` — the
+    straight one ends the string literal and Prettier reports a syntax error.
+  - Asserting an element's ABSENCE right after `goto` needs a presence check first (the h1), or a
+    page that failed to render passes it.
+---

@@ -106,7 +106,7 @@
         "Both engines pass: npm run test:e2e AND npm run test:e2e:webkit"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "The isolated register is shared by the ISOLATED_SPECS and each empties it in beforeAll — read the comment above ISOLATED_SPECS before adding the glob."
     },
     {
