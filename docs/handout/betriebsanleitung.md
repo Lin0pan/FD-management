@@ -1,6 +1,6 @@
 # FD-Management — Betriebsanleitung
 
-**Testversion · Stand: 20. September 2026**
+**Testversion · Stand: 29. September 2026**
 
 Diese Software unterstützt die Kundenverwaltung und die Ausgabe des Delbrücker Füllhorns. Sie läuft
 auf **einem einzigen Rechner**, ohne Internet und ohne Anmeldung.
@@ -142,11 +142,23 @@ erforderlich, der protokolliert wird. Danach sind ihre Einträge wieder zu korri
 mit ihren Zahlen. Eine Kundennummer lässt sich dann nicht nachschlagen — Kunden anlegen, sperren,
 ändern und Karten ausstellen geht wie immer.
 
+## Übersichten und „Zu erledigen"
+
+**Übersichten.** Der Reiter **Übersichten** sammelt die Listen, in denen man etwas nachschlägt —
+nach Bereichen geordnet, jede mit ihrer Anzahl. Heute sind es zwei: **Karten neu ausstellen**
+(unter _Kunden_) und **Ausgabetermine** (unter _Ausgaben_). Eine **0** heißt: die Liste ist leer.
+
+**Zu erledigen.** Wartet etwas darauf, erledigt zu werden, steht es auf der **Start**-Seite unter
+**Zu erledigen** — heute nur die Karten, die neu ausgestellt werden müssen. Ein Klick führt zur
+selben Liste wie in den Übersichten, mit derselben Zahl. Der Block erscheint **nur, wenn etwas
+ansteht**, und verschwindet von selbst, sobald alles erledigt ist.
+
 ## Frühere Ausgaben nachschlagen
 
-**Wo die Liste steht.** Unter **Ausgabe** führt **Alle Ausgabetermine** zu einer Liste aller
-Ausgaben, die neueste zuoberst. Der Weg dorthin steht sowohl bei der laufenden Ausgabe als auch bei
-der zuletzt beendeten.
+**Wo die Liste steht.** Unter **Übersichten** führt **Ausgabetermine** zu einer Liste aller
+Ausgaben, die neueste zuoberst. Schneller geht es vom Bildschirm **Ausgabe** aus über **Alle
+Ausgabetermine** — dieser Weg steht sowohl bei der laufenden Ausgabe als auch bei der zuletzt
+beendeten.
 
 **Was eine Zeile sagt.** Datum, Gruppe(n), wie viele Haushalte abgeholt haben und wie viel
 eingenommen wurde. Läuft gerade eine Ausgabe, steht sie oben und ist mit **Läuft** gekennzeichnet;

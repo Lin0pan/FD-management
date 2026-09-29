@@ -72,17 +72,18 @@ export const ISOLATED: Register = register(1, "-isolated");
 
 /**
  * The specs that own their register. Add one only when it must state something the *whole* register
- * decides — the quota, every slot being taken, how many afternoons have been held, or which
- * afternoons the overview lists — because the isolated project costs a second Next server for the
- * whole run.
+ * decides — the quota, every slot being taken, how many afternoons have been held, which
+ * afternoons the overview lists, or that nothing is due — because the isolated project costs a
+ * second Next server for the whole run.
  *
- * The four here **share** that register and each empties it in its own `beforeAll`, which is what
- * makes sharing safe and is required anyway: all four are `mode: "serial"`, and a CI retry replays
- * the block against the register the previous attempt filled.
+ * The specs here **share** that register and each empties it in its own `beforeAll`, which is what
+ * makes sharing safe and is required anyway: all of them are `mode: "serial"`, and a CI retry
+ * replays the block against the register the previous attempt filled.
  */
 export const ISOLATED_SPECS = [
   "**/no-shows.spec.ts",
   "**/number-group.spec.ts",
+  "**/overviews.spec.ts",
   "**/session-detail.spec.ts",
   "**/waiting-list.spec.ts",
 ];

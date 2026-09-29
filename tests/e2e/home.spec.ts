@@ -47,7 +47,8 @@ test.describe("Start", () => {
     );
     await expect(page.getByTestId("distribution-not-configured")).toHaveCount(0);
 
-    // The to-do signals moved to the hub in US-17.2; this screen is read, not worked through.
+    // The hub's signals belong to the hub; what Start pushes is „Zu erledigen" (US-38.4), whose
+    // presence depends on the shared register and is proved in the isolated overviews.spec.ts.
     await expect(page.getByTestId("waiting-list-free-slot")).toHaveCount(0);
     await expect(page.getByTestId("cards-due-badge")).toHaveCount(0);
   });

@@ -150,16 +150,27 @@ export const de = {
    * heading on the page it leads to, so a staff member lands on a page that says it back to them.
    */
   nav: {
-    /** Names the bar for a screen reader, which otherwise hears four links and no context. */
+    /** Names the bar for a screen reader, which otherwise hears five links and no context. */
     label: "Hauptnavigation",
     start: "Start",
     distribution: "Ausgabe",
     customers: "Kunden verwalten",
+    overviews: "Übersichten",
     settings: "Einstellungen",
   },
   /**
-   * The Start dashboard (US-17.3) — a screen to be read, not a menu: the nav bar carries the links,
-   * so what is left is the day, and the afternoon under way when there is one.
+   * The Übersichten tab (US-38.2). Its heading is `nav.overviews`, and each tile reads its list's own
+   * heading, so a list has one name wherever it is offered.
+   */
+  overviews: {
+    areas: {
+      customers: "Kunden",
+      distribution: "Ausgaben",
+    },
+  },
+  /**
+   * The Start dashboard (US-17.3) — a screen to be read, not a menu: the day, the afternoon under
+   * way when there is one, and „Zu erledigen" while something is due (US-38.4).
    */
   home: {
     /** The greeting *is* the heading — a second welcoming sentence would restate the lines below. */
@@ -175,6 +186,8 @@ export const de = {
     },
     /** Also the way off the distribution screen and the hub when no settings are in force. */
     settingsLink: "Einstellungen",
+    /** Shown only while something is due (US-38.4); each row reads its list's own heading. */
+    toDos: "Zu erledigen",
   },
   customers: {
     groups: {
@@ -1194,7 +1207,7 @@ export const de = {
      */
     pastSessions: {
       heading: "Ausgabetermine",
-      /** The way in, from the counter screen — the only screen this one is reached from. */
+      /** The counter screen's shortcut to this list, and the detail's way back to it. */
       link: "Alle Ausgabetermine",
       /** The afternoon under way, which is the row at the top. */
       running: "Läuft",

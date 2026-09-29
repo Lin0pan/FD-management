@@ -66,9 +66,11 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   the other half and not a substitute. Never make the second save quieter than the first — an
   unsaved list is the failure this is guarding against.
 
-- **No back-link to a section** — the nav reaches all four from everywhere. A back-link that names a
-  _record_ stays, in the header row, never stranded under the last card.
-- The nav holds exactly four links and nothing else. Anything else global goes beside `<Nav />` in
+- **No back-link to a section** — the nav reaches every one from everywhere. A back-link that names
+  a _record_ stays, in the header row, never stranded under the last card. The one section that has
+  them is Übersichten: its lists are reached mostly by shortcuts from other screens, so each names
+  its tab beside its heading (`ArrowLeft`, US-38.3) and the tab that is marked and the way out agree.
+- The nav holds its section links and nothing else. Anything else global goes beside `<Nav />` in
   `layout.tsx`.
 
 ## 3. Layout and density
@@ -524,7 +526,7 @@ it. Playwright is the only thing that will tell you.
 - **`-error` in a testid means _the answer was no_, not _the red tier_.** A refusal wears
   `<feature>-error` in both tiers and the tier rides on `data-tier` on the same locator.
 - Keep `<main>`, the `<h1>`, and every id JS or a spec reaches by.
-- `getByLabel` must keep working; the nav's four labels and `aria-current="page"` are a contract.
+- `getByLabel` must keep working; the nav's five labels and `aria-current="page"` are a contract.
 - Several specs assert `toHaveCount(0)`, not `toBeDisabled()`.
 - A sweep asserting `Kundennummer: 1` owns its separator — tidying `Feld: Wert` into `Feld Wert`
   turns it red with a failure that names no testid.
@@ -627,22 +629,23 @@ A new icon extends one of these rather than inventing a role of its own.
 The registry, so a second use cannot quietly contradict the first — the same discipline
 `src/app/accents.ts` imposes on colour (§5).
 
-| Glyph                      | Means                                      | Role     |
-| -------------------------- | ------------------------------------------ | -------- |
-| `Check`                    | it happened / clear to serve / collected   | tone     |
-| `TriangleAlert`            | refused, and nothing is broken             | tone     |
-| `CircleAlert`              | it did not happen and something is wrong   | tone     |
-| `CircleHelp`               | no such household                          | tone     |
-| `Search`                   | search — the filter box and „Nachschlagen" | afford.  |
-| `UserPlus`                 | take a household on                        | afford.  |
-| `Users`                    | the waiting list                           | afford.  |
-| `IdCard` / `CreditCard`    | the cards due list / reissue this card     | afford.  |
-| `Ban`                      | block — a refusal, not a locked record     | afford.  |
-| `Archive`                  | archive the household                      | afford.  |
-| `SquarePen`                | edit what is already written               | afford.  |
-| `Plus` / `X`               | add a row / take a row off an unsaved form | afford.  |
-| `ChevronDown`              | this folds (`FoldChevron`, §6)             | afford.  |
-| `ArrowRight` / `ArrowLeft` | before → after / back to the list          | relation |
+| Glyph                      | Means                                          | Role     |
+| -------------------------- | ---------------------------------------------- | -------- |
+| `Check`                    | it happened / clear to serve / collected       | tone     |
+| `TriangleAlert`            | refused, and nothing is broken                 | tone     |
+| `CircleAlert`              | it did not happen and something is wrong       | tone     |
+| `CircleHelp`               | no such household                              | tone     |
+| `Search`                   | search — the filter box and „Nachschlagen"     | afford.  |
+| `UserPlus`                 | take a household on                            | afford.  |
+| `Users`                    | the waiting list                               | afford.  |
+| `IdCard` / `CreditCard`    | the cards due list / reissue this card         | afford.  |
+| `Ban`                      | block — a refusal, not a locked record         | afford.  |
+| `Archive`                  | archive the household                          | afford.  |
+| `SquarePen`                | edit what is already written                   | afford.  |
+| `Plus` / `X`               | add a row / take a row off an unsaved form     | afford.  |
+| `ChevronDown`              | this folds (`FoldChevron`, §6)                 | afford.  |
+| `ChevronRight`             | opens the list — a „Zu erledigen" row on Start | afford.  |
+| `ArrowRight` / `ArrowLeft` | before → after / back to the list              | relation |
 
 `X` is the one glyph with two meanings — a verdict tone on `/ausgabe` and a row control on three
 other screens. It is tolerable because the two are different roles at different scales and **never
@@ -684,7 +687,7 @@ glyph say that the screen does not already show?_
   noise.
 - **`Stat` tiles.** §4 gives the tile to the figure; a glyph competes for exactly the attention the
   tile exists to capture.
-- **The nav bar.** Four items, four distinct German words, hit constantly. An icon would put a
+- **The nav bar.** Five items, five distinct German words, hit constantly. An icon would put a
   decoding step in front of the one control that must be instant, and there is no crowding to relieve.
 - **Every „… speichern" button.** A floppy or a tick repeats the German verb. §6 already solved these
   by naming each save after what it saves.

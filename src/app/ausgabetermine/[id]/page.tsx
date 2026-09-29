@@ -11,6 +11,7 @@
  * the counter where it is being served.
  */
 
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import {
   readDistributionSession,
@@ -263,6 +264,7 @@ export default async function PastSessionPage({
 
       <Button variant="ghost" asChild className="self-start">
         <Link href="/ausgabetermine" data-testid="session-detail-back">
+          <ArrowLeft aria-hidden="true" />
           {de.distribution.pastSessions.link}
         </Link>
       </Button>

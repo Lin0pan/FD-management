@@ -59,3 +59,15 @@ export async function listDistributionSessions(
     running: isRunning(session),
   }));
 }
+
+/**
+ * How many afternoons `/ausgabetermine` lists — the figure on its Übersichten tile (US-38.1).
+ *
+ * Built from the list and measured, as `countCardsDueForReissue` is, so the tile can never
+ * promise a row the list does not show: the running afternoon counts and a discarded one does not.
+ */
+export async function countDistributionSessions(
+  deps: ListDistributionSessionsDeps,
+): Promise<number> {
+  return (await listDistributionSessions(deps)).length;
+}

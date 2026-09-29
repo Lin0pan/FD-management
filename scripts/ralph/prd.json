@@ -20,7 +20,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Two tiny use cases rather than one: the Start screen and the Übersichten page ask different questions (what is due / how big is every list) of the same counts. ls src/application/overviews before creating it — it should not exist yet."
     },
     {
@@ -46,7 +46,7 @@
         "Verify in browser using the playwright-cli skill"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "active-section.ts, its unit test and navigation.spec.ts must all agree on who owns /karten-neuausstellung — change all three here or CI goes red. The tab only highlights; NO URL moves."
     },
     {
@@ -64,7 +64,7 @@
         "Verify in browser using the playwright-cli skill"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Small story. Grep src/ for other comments that still say /ausgabetermine is reached only from the counter screen."
     },
     {
@@ -87,7 +87,7 @@
         "Verify in browser using the playwright-cli skill"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "home.spec.ts runs on the SHARED register, which may hold a stale card from another spec — do not assert the block's absence there; that belongs to US-005's isolated spec. home.spec pins the clock as early as 2025-12-31: if any shared-register household has a birthdate after the pinned today, listCardsDueForReissue throws BirthDateInFuture and Start now errors where it did not before. Run home.spec.ts on its own AND in the full suite to rule that out."
     },
     {
@@ -106,7 +106,7 @@
         "Both engines pass: npm run test:e2e AND npm run test:e2e:webkit"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "The isolated register is shared by the ISOLATED_SPECS and each empties it in beforeAll — read the comment above ISOLATED_SPECS before adding the glob."
     },
     {
@@ -123,7 +123,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

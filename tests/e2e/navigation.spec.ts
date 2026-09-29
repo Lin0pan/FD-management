@@ -7,7 +7,7 @@ import { de } from "@/i18n/de";
  *
  * What a unit test cannot see is the bar as staff meet it: that the links are really in every
  * screen's layout, that following one lands on the section it names, and that the marking follows —
- * including on the two screens the customer hub owns but does not name.
+ * including on the screens a section owns but does not name.
  */
 
 /** One section of the bar: the link that leads there, and the screen that proves you arrived. */
@@ -21,7 +21,7 @@ interface Section {
 }
 
 /**
- * The four areas, in the order the bar shows them.
+ * The five areas, in the order the bar shows them.
  *
  * Deliberately a table of its own instead of the `NAV_ITEMS` the bar renders: a spec that imported
  * the implementation's table could only ever say "the bar agrees with itself". The headings are the
@@ -43,6 +43,12 @@ const SECTIONS: ReadonlyArray<Section> = [
     heading: de.customerList.heading,
   },
   {
+    section: "overviews",
+    label: de.nav.overviews,
+    path: "/uebersichten",
+    heading: de.nav.overviews,
+  },
+  {
     section: "settings",
     label: de.nav.settings,
     path: "/einstellungen",
@@ -51,7 +57,16 @@ const SECTIONS: ReadonlyArray<Section> = [
 ];
 
 /** The screens the customer hub owns without naming them in the bar (US-17.1). */
-const HUB_ROUTES = ["/kunden", "/warteliste", "/karten-neuausstellung"] as const;
+const HUB_ROUTES = ["/kunden", "/warteliste"] as const;
+
+/**
+ * The lists Übersichten owns without naming them in the bar; their URLs predate the tab (US-38.2).
+ * Each carries a way back to its tab (US-38.3), by `data-testid`.
+ */
+const OVERVIEW_ROUTES = [
+  { route: "/ausgabetermine", back: "past-sessions-back" },
+  { route: "/karten-neuausstellung", back: "cards-due-back" },
+] as const;
 
 /** The path of the page currently open, without the origin the base url supplies. */
 function path(page: Page): string {
@@ -79,7 +94,7 @@ async function clickNav(page: Page, target: Section): Promise<void> {
 }
 
 test.describe("Navigationsleiste", () => {
-  test("zeigt auf jedem Bildschirm dieselben vier Bereiche in derselben Reihenfolge", async ({
+  test("zeigt auf jedem Bildschirm dieselben fünf Bereiche in derselben Reihenfolge", async ({
     page,
   }) => {
     await page.goto("/kunden/neu");
@@ -89,7 +104,7 @@ test.describe("Navigationsleiste", () => {
     );
   });
 
-  // One test per starting point rather than one for all twelve moves: a failure then names the
+  // One test per starting point rather than one for all twenty moves: a failure then names the
   // screen whose bar is broken, which is the thing that would have to be fixed.
   for (const origin of SECTIONS) {
     test(`von ${origin.label} aus ist jeder andere Bereich über die Leiste erreichbar`, async ({
@@ -120,11 +135,29 @@ test.describe("Navigationsleiste", () => {
     test(`„${de.nav.customers}“ ist auf ${route} markiert`, async ({ page }) => {
       await page.goto(route);
 
-      // The waiting list and the reissue list have no item of their own; standing on one of them
-      // with the bar marking nothing would read as a broken bar rather than as a screen outside the
-      // four areas (US-17.1).
+      // The waiting list has no item of its own; standing on it with the bar marking nothing would
+      // read as a broken bar rather than as a screen outside the areas (US-17.1).
       expect(await markedSections(page)).toEqual(["nav-customers"]);
       await expect(page.getByTestId("nav-customers")).toHaveAttribute("aria-current", "page");
+    });
+  }
+
+  for (const { route, back } of OVERVIEW_ROUTES) {
+    test(`„${de.nav.overviews}“ ist auf ${route} markiert`, async ({ page }) => {
+      await page.goto(route);
+
+      // Other screens link here too, as shortcuts; the list's one home is the Übersichten tab.
+      expect(await markedSections(page)).toEqual(["nav-overviews"]);
+    });
+
+    test(`von ${route} führt der Rückweg zu „${de.nav.overviews}“`, async ({ page }) => {
+      await page.goto(route);
+
+      // The way out names the tab that is marked, so the two cannot point different ways.
+      await expect(page.getByTestId(back)).toHaveText(de.nav.overviews);
+      await page.getByTestId(back).click();
+      await page.waitForURL((url) => url.pathname === "/uebersichten");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(de.nav.overviews);
     });
   }
 

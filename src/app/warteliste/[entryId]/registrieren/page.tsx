@@ -38,8 +38,8 @@ export const dynamic = "force-dynamic";
 function Frame({ children }: { children: React.ReactNode }): React.ReactElement {
   return (
     <main className={SHELL}>
-      {/* The back-link stays — it names the list this applicant came from, which the four-item bar
-          cannot say — but it belongs beside the heading rather than stranded below the form. */}
+      {/* The back-link stays — it names the list this applicant came from, which the nav bar cannot
+          say — but it belongs beside the heading rather than stranded below the form. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.promote.heading}</h1>
         <Button variant="ghost" asChild>

@@ -47,9 +47,9 @@ import {
  * **It owns a register** (`ISOLATED_SPECS`). Two of its claims are about the whole of one: the
  * overview is asserted as *the* list of afternoons rather than as a delta, and the number it
  * archives has to come back as a free slot the intake offers, which no quota over the shared
- * register's hundreds could leave room for. `no-shows.spec.ts` and `number-group.spec.ts` run ahead
- * of it and `waiting-list.spec.ts` behind, each emptying the register in its own `beforeAll`, so
- * what this file leaves is nobody's business but its own.
+ * register's hundreds could leave room for. `no-shows.spec.ts`, `number-group.spec.ts` and
+ * `overviews.spec.ts` run ahead of it and `waiting-list.spec.ts` behind, each emptying the register
+ * in its own `beforeAll`, so what this file leaves is nobody's business but its own.
  */
 
 // A fixed seed so a failure is reproducible; only names and addresses come from Faker.

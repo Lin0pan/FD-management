@@ -7,36 +7,30 @@
  * apart.
  */
 
-/** The four areas of the application, in the order the bar shows them. */
-export type NavSection = "start" | "distribution" | "customers" | "settings";
+/** The areas of the application, in the order the bar shows them. */
+export type NavSection = "start" | "distribution" | "customers" | "overviews" | "settings";
 
 export interface NavItem {
   readonly section: NavSection;
   /** Where the item leads — always the section's own root. */
   readonly href: string;
   /**
-   * Every route root the section owns, `href` included. Two sections own more than one — the
-   * waiting list, the reissue list and the past afternoons have no item of their own, and standing
-   * on one with no section marked reads as a broken bar.
+   * Every route root the section owns, `href` included. A page belongs to exactly one section, and a
+   * link to it from another screen is a shortcut, not a second home (US-38).
    */
   readonly routes: ReadonlyArray<string>;
 }
 
 export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { section: "start", href: "/", routes: ["/"] },
+  { section: "distribution", href: "/ausgabe", routes: ["/ausgabe"] },
+  { section: "customers", href: "/kunden", routes: ["/kunden", "/warteliste"] },
   {
-    section: "distribution",
-    // `/ausgabetermine` is named in full rather than caught by `/ausgabe`, which owns whole path
-    // segments and would not match it. It has no item of its own: four items is what US-17 settled
-    // on, and the past afternoons are reached from the counter screen, which is where DF stand when
-    // they ask about last Thursday (US-37.3).
-    href: "/ausgabe",
-    routes: ["/ausgabe", "/ausgabetermine"],
-  },
-  {
-    section: "customers",
-    href: "/kunden",
-    routes: ["/kunden", "/warteliste", "/karten-neuausstellung"],
+    section: "overviews",
+    // A route's URL and the tab that marks it are independent: `/ausgabetermine` and
+    // `/karten-neuausstellung` are not under `/uebersichten` (US-38).
+    href: "/uebersichten",
+    routes: ["/uebersichten", "/ausgabetermine", "/karten-neuausstellung"],
   },
   { section: "settings", href: "/einstellungen", routes: ["/einstellungen"] },
 ];

@@ -66,9 +66,10 @@ afternoons have been held**, which since US-36 is what a household's missed-dist
 walked over: in the shared register a dozen specs start, end and seed sessions, so „missed two"
 could only be asserted there as a delta. The third is **which afternoons `/ausgabetermine` lists**
 (US-37), for the same reason one level up: the overview is that list, and in the shared register it
-could only ever be asserted as a delta. Four specs share it for those reasons — `no-shows`,
-`number-group`, `session-detail` and `waiting-list` — each emptying it in its own `beforeAll` before
-it starts.
+could only ever be asserted as a delta. The fourth is **that Start and Übersichten count the same**
+(US-38): „nothing due" makes the „Zu erledigen" block absent, and a stale card from any other spec
+would put it back. Five specs share it for those reasons — `no-shows`, `number-group`, `overviews`,
+`session-detail` and `waiting-list` — each emptying it in its own `beforeAll` before it starts.
 
 The engine is chosen **per invocation**, not per Playwright project: `npm run test:e2e` drives
 Chromium and `npm run test:e2e:webkit` drives WebKit, each over registers of its own, so neither can
