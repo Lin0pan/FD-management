@@ -597,3 +597,22 @@ create `/uebersichten/ausgabetermine` — the concept note sketched it, the refi
 
 **No schema, no port method, no domain edit, no audit entry, no ADR.**
 
+
+## 2026-09-29 - US-001 (US-38.1 The counts, from one place)
+- `countDistributionSessions` added beside `listDistributionSessions` (measured off the list, like
+  `countCardsDueForReissue`). New `src/application/overviews/`: `read-overviews.ts`
+  (`{ cardsDue, pastSessions }`, deps = `CardsDueForReissueDeps & ListDistributionSessionsDeps`) and
+  `list-to-dos.ts` (`ToDoKind = "CARDS_DUE"`, entries at 0 filtered out in the use case).
+  One suite, `overviews.test.ts`, holds the six named tests — one compares the two use cases, so
+  they share fakes.
+- Files: src/application/distribution/list-distribution-sessions.ts,
+  src/application/overviews/{read-overviews,list-to-dos,overviews.test}.ts
+- **Learnings for future iterations:**
+  - The composition roots for US-002/US-004 need `{ customers, clock, sessions, records }` for
+    `readOverviews` and `{ customers, clock }` for `listToDos` — `ListToDosDeps` is just
+    `CardsDueForReissueDeps`, so an existing customers composition root already satisfies it.
+  - A fake whose `summariseBySession` returns `new Map()` must type it
+    (`new Map<number, SessionSummary>()`) — a bare `new Map()` is `Map<any, any>` and fails `tsc`
+    against a `ReadonlyMap<number, never>` return type.
+  - Nothing documented yet: chapter 05's counting words (use cases, routes) move in US-006.
+---

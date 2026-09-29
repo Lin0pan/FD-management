@@ -20,7 +20,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Two tiny use cases rather than one: the Start screen and the Übersichten page ask different questions (what is due / how big is every list) of the same counts. ls src/application/overviews before creating it — it should not exist yet."
     },
     {
