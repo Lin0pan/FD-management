@@ -5,27 +5,27 @@
  */
 
 import Link from "next/link";
-import { readOverviews } from "@/application/overviews/read-overviews";
+import { readOverviews, type Overviews } from "@/application/overviews/read-overviews";
 import { de } from "@/i18n/de";
 import { SHELL } from "../shell";
 import { Stat } from "../stat";
 import { overviewDeps } from "./deps";
+import { LISTS } from "./lists";
 
 /** A birthday overtakes a card at midnight with nothing written, so a cached count would go stale. */
 export const dynamic = "force-dynamic";
 
 /** One link per tile, so its accessible name carries both the list's name and its size. */
 function Tile({
-  href,
-  label,
+  list,
   count,
   testId,
 }: {
-  href: string;
-  label: string;
+  list: keyof Overviews;
   count: number;
   testId: string;
 }): React.ReactElement {
+  const { href, label } = LISTS[list];
   return (
     <Link
       href={href}
@@ -66,21 +66,11 @@ export default async function OverviewsPage(): Promise<React.ReactElement> {
       <h1 className="text-3xl font-semibold tracking-tight">{de.nav.overviews}</h1>
 
       <Area heading={areas.customers}>
-        <Tile
-          href="/karten-neuausstellung"
-          label={de.cardsDue.heading}
-          count={overviews.cardsDue}
-          testId="overview-cards-due"
-        />
+        <Tile list="cardsDue" count={overviews.cardsDue} testId="overview-cards-due" />
       </Area>
 
       <Area heading={areas.distribution}>
-        <Tile
-          href="/ausgabetermine"
-          label={de.distribution.pastSessions.heading}
-          count={overviews.pastSessions}
-          testId="overview-past-sessions"
-        />
+        <Tile list="pastSessions" count={overviews.pastSessions} testId="overview-past-sessions" />
       </Area>
     </main>
   );

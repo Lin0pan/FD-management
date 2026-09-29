@@ -14,6 +14,7 @@ import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { readDistributionSessionState } from "@/application/distribution/read-distribution-session-state";
 import { listToDos, type ToDo, type ToDoKind } from "@/application/overviews/list-to-dos";
+import type { Overviews } from "@/application/overviews/read-overviews";
 import { readCurrentSettings } from "@/application/settings/read-current-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,6 +26,7 @@ import { distributionDeps } from "./ausgabe/deps";
 import { SessionGroupBadges } from "./ausgabe/session-group-badges";
 import { SHELL } from "./shell";
 import { overviewDeps } from "./uebersichten/deps";
+import { LISTS } from "./uebersichten/lists";
 
 /**
  * The date turns over at midnight without anything being written, and a session is started and
@@ -68,18 +70,11 @@ function RunningSessionPanel({ session }: { session: DistributionSession }): Rea
 }
 
 /**
- * Where each to-do leads, and what it is called: its Übersichten tile's target and words (US-38.4).
- * A `Record`, so a new `ToDoKind` fails the build until it has a place to link to.
+ * Which list each to-do opens: the one its Übersichten tile opens (US-38.4). A `Record`, so a new
+ * `ToDoKind` fails the build until it has a place to link to.
  */
-const TO_DO_LINKS: Record<
-  ToDoKind,
-  { readonly href: string; readonly label: string; readonly testId: string }
-> = {
-  CARDS_DUE: {
-    href: "/karten-neuausstellung",
-    label: de.cardsDue.heading,
-    testId: "to-do-cards-due",
-  },
+const TO_DO_LISTS: Record<ToDoKind, { readonly list: keyof Overviews; readonly testId: string }> = {
+  CARDS_DUE: { list: "cardsDue", testId: "to-do-cards-due" },
 };
 
 /**
@@ -93,7 +88,8 @@ function ToDos({ toDos }: { toDos: ReadonlyArray<ToDo> }): React.ReactElement {
       <h2 className="text-lg font-semibold">{de.home.toDos}</h2>
       <ul className="flex flex-col gap-2">
         {toDos.map((toDo) => {
-          const { href, label, testId } = TO_DO_LINKS[toDo.kind];
+          const { list, testId } = TO_DO_LISTS[toDo.kind];
+          const { href, label } = LISTS[list];
           return (
             <li key={toDo.kind}>
               <Link
