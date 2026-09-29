@@ -87,7 +87,7 @@
         "Verify in browser using the playwright-cli skill"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "home.spec.ts runs on the SHARED register, which may hold a stale card from another spec — do not assert the block's absence there; that belongs to US-005's isolated spec. home.spec pins the clock as early as 2025-12-31: if any shared-register household has a birthdate after the pinned today, listCardsDueForReissue throws BirthDateInFuture and Start now errors where it did not before. Run home.spec.ts on its own AND in the full suite to rule that out."
     },
     {

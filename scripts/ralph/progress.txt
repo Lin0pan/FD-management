@@ -665,3 +665,27 @@ create `/uebersichten/ausgabetermine` — the concept note sketched it, the refi
     scroll hint). Not this batch's to fix; worth raising with DF feedback.
   - `playwright-cli` sessions are bound to the cwd — run it from the repo, not from `/tmp`.
 ---
+
+## 2026-09-29 - US-004 (US-38.4 „Zu erledigen" on the Start screen)
+- `src/app/page.tsx` adds `listToDos(overviewDeps)` to its one `Promise.all` and renders a
+  `ToDos` section (`to-dos`, h2 `de.home.toDos`) between the running-session panel and the date,
+  only when the array is non-empty. Each row is one `Link` (`min-h-12`, border, neutral
+  hover/focus tint like the Übersichten tile): count (`to-do-cards-due-count`, tabular-nums),
+  `de.cardsDue.heading`, trailing `ChevronRight` aria-hidden. `TO_DO_LINKS: Record<ToDoKind,
+  { href, label, testId }>` holds all three per kind. Header comment rewritten; home.spec's
+  „moved to the hub" comment corrected. `ChevronRight` registered in ui_styling_guide.md §12.
+- Files: src/app/page.tsx, src/i18n/de.ts, tests/e2e/home.spec.ts,
+  docs/guideline/ui_styling_guide.md
+- Browser (playwright-cli, chromium, demo register with one card due): snapshot reads
+  `link "1 Karten neu ausstellen"`; order h1 → to-dos → date; row 50px high; focus ring and tint
+  show; fits at 390; click lands on /karten-neuausstellung with nav-overviews current.
+  home.spec.ts alone 3 passed; `npm run test:e2e` 236 passed — the 2025-12-31 pin did NOT make
+  Start throw `BirthDateInFuture` on the shared register.
+- **Learnings for future iterations:**
+  - `overviewDeps` satisfies `ListToDosDeps` structurally — Start imports it from
+    `./uebersichten/deps` rather than growing a third composition root.
+  - A `<section>` without an accessible name shows as `generic` in the snapshot; that is fine for
+    a headed block, don't add an `aria-label` just to make it a region.
+  - `npm run db:demo` refuses (exit 1) when the register already holds customers — that is not a
+    failure, the existing demo data is usable. `--reset` only if you need it fresh.
+---
