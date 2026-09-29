@@ -86,9 +86,9 @@ function SessionHeader({ running }: { running: RunningSession }): React.ReactEle
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-base font-medium">{de.distribution.session.running}</p>
           <SessionGroupBadges groups={running.session.groups} testId="session-groups" />
-          {/* One of the two ways to the afternoons already held (US-37.3), which have no item in
-              the nav bar. Borderless and pushed to the far edge: it navigates, and it must not read
-              as a third thing to do to the afternoon under way. */}
+          {/* A shortcut to the afternoons already held, whose home is Übersichten (US-38.3).
+              Borderless and pushed to the far edge: it navigates, and it must not read as a third
+              thing to do to the afternoon under way. */}
           <Button variant="ghost" asChild className="ml-auto">
             <Link href="/ausgabetermine" data-testid="session-past-link">
               {de.distribution.pastSessions.link}
@@ -118,8 +118,8 @@ function LastSessionCard({ ended }: { ended: EndedSession }): React.ReactElement
         <CardTitle className="text-lg">
           <h2>{words.heading}</h2>
         </CardTitle>
-        {/* The other way to the afternoons already held: this card answers what the last one came
-            to, and the list is where the same question about the one before it is answered. */}
+        {/* The other shortcut to the afternoons already held: this card answers what the last one
+            came to, and the list is where the same question about the one before it is answered. */}
         <CardAction>
           <Button variant="ghost" asChild>
             <Link href="/ausgabetermine" data-testid="last-session-past-link">

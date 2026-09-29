@@ -1205,7 +1205,7 @@ export const de = {
      */
     pastSessions: {
       heading: "Ausgabetermine",
-      /** The way in, from the counter screen — the only screen this one is reached from. */
+      /** The counter screen's shortcut to this list, and the detail's way back to it. */
       link: "Alle Ausgabetermine",
       /** The afternoon under way, which is the row at the top. */
       running: "Läuft",

@@ -59,8 +59,14 @@ const SECTIONS: ReadonlyArray<Section> = [
 /** The screens the customer hub owns without naming them in the bar (US-17.1). */
 const HUB_ROUTES = ["/kunden", "/warteliste"] as const;
 
-/** The lists Übersichten owns without naming them in the bar; their URLs predate the tab (US-38.2). */
-const OVERVIEW_ROUTES = ["/ausgabetermine", "/karten-neuausstellung"] as const;
+/**
+ * The lists Übersichten owns without naming them in the bar; their URLs predate the tab (US-38.2).
+ * Each carries a way back to its tab (US-38.3), by `data-testid`.
+ */
+const OVERVIEW_ROUTES = [
+  { route: "/ausgabetermine", back: "past-sessions-back" },
+  { route: "/karten-neuausstellung", back: "cards-due-back" },
+] as const;
 
 /** The path of the page currently open, without the origin the base url supplies. */
 function path(page: Page): string {
@@ -136,12 +142,22 @@ test.describe("Navigationsleiste", () => {
     });
   }
 
-  for (const route of OVERVIEW_ROUTES) {
+  for (const { route, back } of OVERVIEW_ROUTES) {
     test(`„${de.nav.overviews}“ ist auf ${route} markiert`, async ({ page }) => {
       await page.goto(route);
 
       // Other screens link here too, as shortcuts; the list's one home is the Übersichten tab.
       expect(await markedSections(page)).toEqual(["nav-overviews"]);
+    });
+
+    test(`von ${route} führt der Rückweg zu „${de.nav.overviews}“`, async ({ page }) => {
+      await page.goto(route);
+
+      // The way out names the tab that is marked, so the two cannot point different ways.
+      await expect(page.getByTestId(back)).toHaveText(de.nav.overviews);
+      await page.getByTestId(back).click();
+      await page.waitForURL((url) => url.pathname === "/uebersichten");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(de.nav.overviews);
     });
   }
 

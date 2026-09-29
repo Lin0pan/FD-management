@@ -25,6 +25,7 @@ import { customerDeps } from "../kunden/deps";
 import { Confirmation } from "../notice";
 import { StaleCardControls } from "./stale-card-controls";
 import { SHELL } from "../shell";
+import { BackToOverviews } from "../uebersichten/back-link";
 import { Stat } from "../stat";
 
 /**
@@ -163,6 +164,7 @@ export default async function CardsDuePage({
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{de.cardsDue.heading}</h1>
+        <BackToOverviews testId="cards-due-back" />
       </div>
 
       {/* The row the reissue was started from is gone by the time this renders — it is the row's

@@ -34,6 +34,7 @@ import { germanDayOf } from "@/i18n/format";
 import { SessionGroupBadges } from "../ausgabe/session-group-badges";
 import { pastSessionDeps } from "./deps";
 import { SHELL } from "../shell";
+import { BackToOverviews } from "../uebersichten/back-link";
 
 /** An afternoon is started and ended on another workstation too, so never cache this screen. */
 export const dynamic = "force-dynamic";
@@ -102,6 +103,7 @@ export default async function PastSessionsPage(): Promise<React.ReactElement> {
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">{words.heading}</h1>
+        <BackToOverviews testId="past-sessions-back" />
       </div>
 
       {/* No card title: the `h1` above names the one thing on this screen, and a second heading

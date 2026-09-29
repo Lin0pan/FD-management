@@ -66,9 +66,11 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   the other half and not a substitute. Never make the second save quieter than the first — an
   unsaved list is the failure this is guarding against.
 
-- **No back-link to a section** — the nav reaches all four from everywhere. A back-link that names a
-  _record_ stays, in the header row, never stranded under the last card.
-- The nav holds exactly four links and nothing else. Anything else global goes beside `<Nav />` in
+- **No back-link to a section** — the nav reaches every one from everywhere. A back-link that names
+  a _record_ stays, in the header row, never stranded under the last card. The one section that has
+  them is Übersichten: its lists are reached mostly by shortcuts from other screens, so each names
+  its tab beside its heading (`ArrowLeft`, US-38.3) and the tab that is marked and the way out agree.
+- The nav holds its section links and nothing else. Anything else global goes beside `<Nav />` in
   `layout.tsx`.
 
 ## 3. Layout and density

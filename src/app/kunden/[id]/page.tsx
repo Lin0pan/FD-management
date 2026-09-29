@@ -398,7 +398,7 @@ function CustomerRecord({
             />
           </div>
           {/* The guide's stated exception to "no back-links": this one names a *record* — this
-            household's printed card — which the four-item bar cannot say. It belongs in the header
+            household's printed card — which the nav bar cannot say. It belongs in the header
             row rather than stranded under the danger zone.
 
             `ghost`, because it only navigates; the record's borders are spent on the eight controls
