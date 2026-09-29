@@ -637,3 +637,31 @@ create `/uebersichten/ausgabetermine` — the concept note sketched it, the refi
     Pipe its output to /dev/null and use `--raw` for evals.
   - Docs still say „four items" (ui_styling_guide.md nav passage, chapter 05) — US-006's job.
 ---
+
+## 2026-09-29 - US-003 (US-38.3 The two lists find their way home)
+- New `src/app/uebersichten/back-link.tsx` (`BackToOverviews`: ghost button, `ArrowLeft`
+  aria-hidden, label `de.nav.overviews`), placed beside the h1 on `/ausgabetermine`
+  (`past-sessions-back`) and `/karten-neuausstellung` (`cards-due-back`). The detail page's
+  „Alle Ausgabetermine" link gained the `ArrowLeft` the PRD said it already had — it did not.
+  Counter-screen shortcut comments and the `pastSessions.link` doc comment corrected;
+  `/kunden/[id]`'s „four-item bar" comment made count-free. Hub link and Warteliste untouched.
+- `ui_styling_guide.md` §2 said „No back-link to a section" — this story contradicts it on the
+  PRD's instruction, so the rule now names Übersichten's lists as its one exception, and its two
+  „four" counts became count-free. §12's nav passage (line ~687, „Four items") is left for US-006.
+- `navigation.spec.ts`: `OVERVIEW_ROUTES` became `{ route, back }` pairs; one new test per list
+  follows the back link to `/uebersichten`.
+- Files: src/app/uebersichten/back-link.tsx, src/app/ausgabetermine/{page,[id]/page}.tsx,
+  src/app/karten-neuausstellung/page.tsx, src/app/ausgabe/page.tsx, src/app/kunden/[id]/page.tsx,
+  src/i18n/de.ts, docs/guideline/ui_styling_guide.md, tests/e2e/navigation.spec.ts
+- Browser (playwright-cli, chromium, 1280 + 390): the link sits right of the h1 at 1280 and wraps
+  under it at 390; accessible name „Übersichten" (same as the nav item, same target — fine).
+  `npm run test:e2e` 236 passed.
+- **Learnings for future iterations:**
+  - `ui_styling_guide.md` §2 has a „no back-link to a section" rule; any back link to a tab
+    contradicts it unless the guide says otherwise — check it before adding one.
+  - `/warteliste/[entryId]/registrieren/page.tsx` still says „four-item bar" in a comment; left
+    alone because the story said the Warteliste is not touched. US-006's doc sweep should take it.
+  - Pre-existing: `/ausgabetermine`'s table clips the Summe column at 390px (no horizontal
+    scroll hint). Not this batch's to fix; worth raising with DF feedback.
+  - `playwright-cli` sessions are bound to the cwd — run it from the repo, not from `/tmp`.
+---

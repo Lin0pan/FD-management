@@ -64,7 +64,7 @@
         "Verify in browser using the playwright-cli skill"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Small story. Grep src/ for other comments that still say /ausgabetermine is reached only from the counter screen."
     },
     {
