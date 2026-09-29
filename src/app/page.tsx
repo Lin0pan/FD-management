@@ -10,7 +10,6 @@
  * pins. `now` comes from the injected `Clock`.
  */
 
-import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { readDistributionSessionState } from "@/application/distribution/read-distribution-session-state";
 import { listToDos, type ToDo, type ToDoKind } from "@/application/overviews/list-to-dos";
@@ -26,7 +25,7 @@ import { distributionDeps } from "./ausgabe/deps";
 import { SessionGroupBadges } from "./ausgabe/session-group-badges";
 import { SHELL } from "./shell";
 import { overviewDeps } from "./uebersichten/deps";
-import { LISTS } from "./uebersichten/lists";
+import { ListLink } from "./uebersichten/list-link";
 
 /**
  * The date turns over at midnight without anything being written, and a session is started and
@@ -89,23 +88,14 @@ function ToDos({ toDos }: { toDos: ReadonlyArray<ToDo> }): React.ReactElement {
       <ul className="flex flex-col gap-2">
         {toDos.map((toDo) => {
           const { list, testId } = TO_DO_LISTS[toDo.kind];
-          const { href, label } = LISTS[list];
           return (
             <li key={toDo.kind}>
-              <Link
-                href={href}
-                data-testid={testId}
-                className="flex min-h-12 max-w-xl items-center gap-4 rounded-lg border bg-card px-4 py-2 transition-colors outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
-              >
-                <span
-                  data-testid={`${testId}-count`}
-                  className="text-2xl font-semibold tabular-nums"
-                >
-                  {toDo.count}
-                </span>
-                <span className="text-base">{label}</span>
-                <ChevronRight aria-hidden="true" className="ml-auto size-4 shrink-0" />
-              </Link>
+              <ListLink
+                list={list}
+                count={toDo.count}
+                linkTestId={testId}
+                valueTestId={`${testId}-count`}
+              />
             </li>
           );
         })}
