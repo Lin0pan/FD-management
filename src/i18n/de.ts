@@ -813,7 +813,7 @@ export const de = {
   customerList: {
     heading: "Kunden verwalten",
     /** The two cards the screen is made of. Each is a real `<h2>`, so the page has an outline. */
-    overviewTitle: "Übersicht und Aktionen",
+    overviewTitle: "Auf einen Blick",
     listTitle: "Kundenliste",
     /**
      * The three things staff do with customers, above the list (US-17.2) — worded as the acts
