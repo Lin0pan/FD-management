@@ -196,7 +196,7 @@ flowchart LR
     comp["composition(members, today)<br/><i>counts one more grown-up</i>"]
     price["priceFor(...)<br/><i>price rises, cap still applies</i>"]
     stale["staleCardReason(card, household)<br/><i>AGE_13</i>"]
-    list["/karten-neuausstellung<br/><i>the card appears on the list</i>"]
+    list["/karten-neuausstellung<br/><i>the card appears on the list,<br/>and as a to-do on Start</i>"]
     reissue["reissueCard(STALE_COUNTS)<br/><i>new card, next index, audit entry</i>"]
 
     day --> comp --> price

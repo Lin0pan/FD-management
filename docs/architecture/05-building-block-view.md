@@ -1,6 +1,6 @@
 # 5. Building block view
 
-_Last reviewed: 2026-09-21_
+_Last reviewed: 2026-09-29_
 
 Deliberately terse. One sentence of responsibility per block, no function listings — the code and its
 tests are the reference for those, and a second copy here is the one that would go stale.
@@ -20,7 +20,7 @@ flowchart TB
         domain["<b>domain/</b><br/>the rules — pure"]
 
         app --> application
-        app -. "wires, at four deps.ts files" .-> infra
+        app -. "wires, at six deps.ts files" .-> infra
         infra -- "implements ports" --> application
         application --> domain
         app --> domain
@@ -68,7 +68,7 @@ the amount to collect today is `max(0, priceCents − balance)`, and `replayPaym
 was asked for on each past day so the history explains itself. `balanceKind` is the one place the
 sign is read, so no screen compares a balance to zero itself.
 
-### `src/application/` — 45 use cases behind twelve ports
+### `src/application/` — 47 use cases behind twelve ports
 
 | Directory       | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -76,6 +76,7 @@ sign is read, so no screen compares a balance to zero itself.
 | `distribution/` | Start, discard, end and reopen the distribution session and read its state — ending freezes the households it served and reopening thaws them — record and correct a hand-out, read the group roster, list the afternoons already held and read one back with the households that collected at it                                                                                                                                                                     |
 | `settings/`     | Read the version in force, append a new one, list the history with diffs; read the configured Nachweis-Arten and replace the whole list, appending one audit entry naming what was added and removed                                                                                                                                                                                                                                                                  |
 | `waiting-list/` | Add, list in arrival order, promote, register from the list, remove with a reason                                                                                                                                                                                                                                                                                                                                                                                     |
+| `overviews/`    | Two reads over counts the other directories already own: how big every Übersichten list is, 0 included (`read-overviews.ts`), and which lists are waiting on someone, a zero left off (`list-to-dos.ts`). Neither derives a count of its own — each is measured off the list it stands for, so a tile and a to-do can never promise a row the list does not show                                                                                                      |
 | `allowance/`    | The single seam that turns a household plus a date into the counts, the eggs and the price                                                                                                                                                                                                                                                                                                                                                                            |
 | `ports.ts`      | The hexagon boundary — type-only, no runtime code                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
@@ -120,21 +121,22 @@ This table _is_ the boundary between the pure core and everything else.
 `customer-repository.ts` also carries `PrismaCustomerCounter`, and it is the file where the folded
 search keys are written in the same statement as the names they come from.
 
-### `src/app/` — twelve routes
+### `src/app/` — thirteen routes
 
 | Route                                                  | Responsibility                                                                                                                                                                                                                                                                                              |
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `/`                                                    | The start dashboard: the afternoon under way if there is one, and what is waiting to be done. It names no coming Ausgabe — nothing in the software knows when the next one is ([ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md))                               |
 | `/ausgabe`                                             | The counter, and the afternoon around it: start a session and choose its group(s), end or discard it, reopen the one that ended last — and while one runs, lookup, one verdict, record and correct a hand-out, reminders, renewal, the group list and the per-group tally                                   |
-| `/ausgabetermine`                                      | The afternoons already held, newest first, with the one under way at the top and marked: date, group(s), households and the sum each came to. Reached from the counter screen and from nowhere else — the nav bar holds the four items US-17 settled on                                                     |
+| `/ausgabetermine`                                      | The afternoons already held, newest first, with the one under way at the top and marked: date, group(s), households and the sum each came to. Its tab is Übersichten; the counter screen links to it as a shortcut                                                                                          |
 | `/ausgabetermine/[id]`                                 | One afternoon and the households that collected at it, nine columns and nothing editable. An **ended** one shows them as they stood when it was ended; one running or reopened shows the register as it is today ([ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)) |
 | `/kunden`                                              | The register: search, filters, group balance, block and archive controls                                                                                                                                                                                                                                    |
 | `/kunden/neu`                                          | Registration, with the free-slot banner and the foldable archive search                                                                                                                                                                                                                                     |
 | `/kunden/[id]`                                         | The customer record: seven separate forms, each saving through exactly one use case                                                                                                                                                                                                                         |
 | `/kunden/[id]/karte`                                   | The digital card — the one screen deliberately not on the shared primitives, because "legible across a desk" is a requirement                                                                                                                                                                               |
 | `/warteliste` and `/warteliste/[entryId]/registrieren` | The waiting list and promotion into a registration                                                                                                                                                                                                                                                          |
+| `/uebersichten`                                        | One tile per list DF look things up in, grouped by area, each with its size — 0 included — and linking to the list. Owns `/ausgabetermine` and `/karten-neuausstellung` in the nav bar without their URLs moving                                                                                            |
 | `/einstellungen`                                       | The policy values and their version history, and the list of Nachweis-Arten DF maintain                                                                                                                                                                                                                     |
-| `/karten-neuausstellung`                               | Cards whose printed facts have been overtaken                                                                                                                                                                                                                                                               |
+| `/karten-neuausstellung`                               | Cards whose printed facts have been overtaken. Its tab is Übersichten; the Kunden hub and the Start screen's „Zu erledigen" link to it as shortcuts                                                                                                                                                         |
 
 Two structural notes that explain why this tree has so many small files. A `"use server"` module may
 export **nothing but async functions**, so every screen's state types and query-flag constants live
@@ -143,11 +145,11 @@ in separate plain modules. And `shell.ts`, `select.ts`, `notice.tsx`, `stat.tsx`
 render the same component — and because a string exported from a client module arrives in a server
 component as a client-reference proxy rather than a string.
 
-**Composition roots.** Exactly five files import `@/infrastructure/*`: `deps.ts` under `ausgabe/`,
-`ausgabetermine/`, `kunden/`, `warteliste/` and `einstellungen/`. Two of them are shaped by what
+**Composition roots.** Exactly six files import `@/infrastructure/*`: `deps.ts` under `ausgabe/`,
+`ausgabetermine/`, `kunden/`, `warteliste/`, `einstellungen/` and `uebersichten/`. Two of them are shaped by what
 their screens may do. The counter's is split in two — a read-only object for the page holding no
 audit log, and a write object for the actions — so the page cannot record a hand-out even by
-mistake; and the Ausgabetermine one holds no audit log at all, because both its routes only read.
+mistake; and the Ausgabetermine and Übersichten ones hold no audit log at all, because their routes only read.
 
 ---
 

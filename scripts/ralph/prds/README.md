@@ -116,8 +116,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 35  | `35-us-35-session-receipt.json`                 | 4       | `ralph/us-35-session-receipt`                 |
 | 36  | `36-us-36-sessions-not-the-calendar.json`       | 7       | `ralph/us-36-sessions-not-the-calendar`       |
 | 37  | `37-us-37-session-overview-and-detail.json`     | 6       | `ralph/us-37-session-overview-and-detail`     |
+| 38  | `38-us-38-overviews-and-to-dos.json`            | 6       | `ralph/us-38-overviews-and-to-dos`            |
 
-219 stories total — the rows sum to it. Every story cites its source PRD section in its
+225 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -379,6 +380,14 @@ them in the story that introduces them or nothing compiles. And **the guard orde
 `recordAttendance` is load-bearing**: US-32.5 documented why the once-per-day check comes before the
 verdict, and the once-per-session check inherits that position — reordered, a duplicate write is
 reported as an eligibility refusal and the counter reads the wrong sentence back.
+
+**38 (US-38)** gives the lists a place before a third one arrives: a fifth nav tab, **Übersichten**,
+where every list DF look something up in is a tile with its size (0 included), and a block **„Zu
+erledigen"** on Start that appears only while something is due. Presentation plus **two application
+use cases** (`readOverviews`, `listToDos`) that measure the lists they stand for rather than counting
+anew, so Start and Übersichten cannot disagree. No schema change, no port method, no domain edit, no
+ADR — and no URL moves: `/ausgabetermine` and `/karten-neuausstellung` only change which tab they
+mark. Its e2e is the fifth isolated spec, because „nothing due" is a claim about the whole register.
 
 ## Regenerating
 

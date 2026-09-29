@@ -526,7 +526,7 @@ it. Playwright is the only thing that will tell you.
 - **`-error` in a testid means _the answer was no_, not _the red tier_.** A refusal wears
   `<feature>-error` in both tiers and the tier rides on `data-tier` on the same locator.
 - Keep `<main>`, the `<h1>`, and every id JS or a spec reaches by.
-- `getByLabel` must keep working; the nav's four labels and `aria-current="page"` are a contract.
+- `getByLabel` must keep working; the nav's five labels and `aria-current="page"` are a contract.
 - Several specs assert `toHaveCount(0)`, not `toBeDisabled()`.
 - A sweep asserting `Kundennummer: 1` owns its separator — tidying `Feld: Wert` into `Feld Wert`
   turns it red with a failure that names no testid.
@@ -687,7 +687,7 @@ glyph say that the screen does not already show?_
   noise.
 - **`Stat` tiles.** §4 gives the tile to the figure; a glyph competes for exactly the attention the
   tile exists to capture.
-- **The nav bar.** Four items, four distinct German words, hit constantly. An icon would put a
+- **The nav bar.** Five items, five distinct German words, hit constantly. An icon would put a
   decoding step in front of the one control that must be instant, and there is no crowding to relieve.
 - **Every „… speichern" button.** A floppy or a tick repeats the German verb. §6 already solved these
   by naming each save after what it saves.
