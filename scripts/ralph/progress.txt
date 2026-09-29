@@ -711,3 +711,25 @@ create `/uebersichten/ausgabetermine` — the concept note sketched it, the refi
   - Asserting an element's ABSENCE right after `goto` needs a presence check first (the h1), or a
     page that failed to render passes it.
 ---
+
+## 2026-09-29 - US-006 (US-38.6 The Betriebsanleitung and the architecture record)
+- Handout: new section „Übersichten und ‚Zu erledigen'" before „Frühere Ausgaben nachschlagen",
+  which now names Übersichten as the list's home and the Ausgabe screen link as the shortcut. Stand
+  date moved to 29. September 2026.
+- arc42 (via the arc42 skill): 05 — `overviews/` row, 47 use cases, thirteen routes, `/uebersichten`
+  row, `/ausgabetermine` and `/karten-neuausstellung` say their tab is Übersichten, six composition
+  roots (the Level-1 diagram label said „four" — stale since batch 37). 12 — Overview and To-do
+  terms, composition roots „six". 06 — the age-13 flow's list node also shows the to-do. 07 — the
+  isolated register's fourth reason and fifth spec (`overviews`). No ADR.
+- ui_styling_guide.md: nav bar „Five items" in §12's refusals and the §10 contract line („five
+  labels"). The ChevronRight registry row was already there from US-004.
+- scripts/ralph/prds/README.md: batch 38 row, 225 stories total, a paragraph above „Regenerating".
+- Files: docs/architecture/05,06,07,12, docs/guideline/ui_styling_guide.md,
+  docs/handout/betriebsanleitung.md, scripts/ralph/prds/README.md
+- **Learnings for future iterations:**
+  - A docs story's „update chapter 5/12" is never the whole list: grep docs/architecture for the
+    counts a batch changes (deps.ts files, use cases, routes, isolated specs, nav items) — 06 and 07
+    were stale too, and 05's Mermaid label had been stale for a batch already.
+  - Only `scripts/ralph/prd.json` gets `passes: true`; the split files in `scripts/ralph/prds/` stay
+    as authored (batch 37's file has no story marked either).
+---
