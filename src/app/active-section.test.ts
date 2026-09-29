@@ -20,14 +20,18 @@ describe("activeSection", () => {
     expect(activeSection("/ausgabe")).toBe("distribution");
   });
 
-  // The past afternoons are reached from the counter screen and have no item of their own, so the
-  // Ausgabe tab is what has to stay marked while one of them is open.
-  it("marks Ausgabe on the list of past distributions, which it owns", () => {
-    expect(activeSection("/ausgabetermine")).toBe("distribution");
+  it("marks Übersichten on its own page", () => {
+    expect(activeSection("/uebersichten")).toBe("overviews");
   });
 
-  it("marks Ausgabe while one past distribution is open", () => {
-    expect(activeSection("/ausgabetermine/7")).toBe("distribution");
+  // The counter screen keeps its links to the past afternoons as shortcuts; the list's home is
+  // Übersichten, and `/ausgabe` owning whole segments only must not swallow `/ausgabetermine`.
+  it("marks Übersichten on the list of past distributions, which it owns", () => {
+    expect(activeSection("/ausgabetermine")).toBe("overviews");
+  });
+
+  it("marks Übersichten while one past distribution is open", () => {
+    expect(activeSection("/ausgabetermine/7")).toBe("overviews");
   });
 
   it("marks Einstellungen on the settings screen", () => {
@@ -50,8 +54,8 @@ describe("activeSection", () => {
     expect(activeSection("/kunden/42/karte")).toBe("customers");
   });
 
-  // The hub owns the waiting list and the reissue list: a staff member standing on one of them and
-  // seeing no section marked reads the whole bar as broken.
+  // The hub owns the waiting list: a staff member standing on it and seeing no section marked reads
+  // the whole bar as broken.
   it("marks Kunden verwalten on the waiting list, which the hub owns", () => {
     expect(activeSection("/warteliste")).toBe("customers");
   });
@@ -60,8 +64,9 @@ describe("activeSection", () => {
     expect(activeSection("/warteliste/7/registrieren")).toBe("customers");
   });
 
-  it("marks Kunden verwalten on the card-reissue list, which the hub owns too", () => {
-    expect(activeSection("/karten-neuausstellung")).toBe("customers");
+  // The hub keeps its link to the reissue list as a shortcut; the list's home is Übersichten.
+  it("marks Übersichten on the card-reissue list, which it owns", () => {
+    expect(activeSection("/karten-neuausstellung")).toBe("overviews");
   });
 
   it("marks nothing on a path no section owns", () => {

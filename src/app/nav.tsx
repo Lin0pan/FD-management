@@ -5,8 +5,8 @@
  *
  * It is a client component for exactly one reason — `usePathname`, to know which section is being
  * looked at. It reads nothing else: a data read here would be a read in the root layout, which
- * would make every route in the application dynamic (PRD §7). The cards-due count therefore stays
- * on the hub page, which is `force-dynamic` already, and the bar carries no numbers.
+ * would make every route in the application dynamic (PRD §7). The counts therefore stay on the
+ * pages that are `force-dynamic` already, and the bar carries no numbers.
  *
  * Plain links, no JavaScript needed to follow them, and first in the tab order because the bar is
  * the first thing on every screen.

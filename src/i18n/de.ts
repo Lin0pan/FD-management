@@ -150,12 +150,23 @@ export const de = {
    * heading on the page it leads to, so a staff member lands on a page that says it back to them.
    */
   nav: {
-    /** Names the bar for a screen reader, which otherwise hears four links and no context. */
+    /** Names the bar for a screen reader, which otherwise hears five links and no context. */
     label: "Hauptnavigation",
     start: "Start",
     distribution: "Ausgabe",
     customers: "Kunden verwalten",
+    overviews: "Übersichten",
     settings: "Einstellungen",
+  },
+  /**
+   * The Übersichten tab (US-38.2). Its heading is `nav.overviews`, and each tile reads its list's own
+   * heading, so a list has one name wherever it is offered.
+   */
+  overviews: {
+    areas: {
+      customers: "Kunden",
+      distribution: "Ausgaben",
+    },
   },
   /**
    * The Start dashboard (US-17.3) — a screen to be read, not a menu: the nav bar carries the links,
