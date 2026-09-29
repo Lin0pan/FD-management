@@ -616,3 +616,24 @@ create `/uebersichten/ausgabetermine` — the concept note sketched it, the refi
     against a `ReadonlyMap<number, never>` return type.
   - Nothing documented yet: chapter 05's counting words (use cases, routes) move in US-006.
 ---
+
+## 2026-09-29 - US-002 (US-38.2 The Übersichten tab and its page)
+- `NavSection` gains `overviews` (between customers and settings) owning `/uebersichten`,
+  `/ausgabetermine`, `/karten-neuausstellung`; distribution owns `/ausgabe` only, customers
+  `/kunden` + `/warteliste`. New `/uebersichten` (force-dynamic, `readOverviews` only) with
+  composition root `overviewDeps`; two areas (h2 Kunden / Ausgaben), one tile each: a `Link`
+  wrapping `Stat`, accessible name „Karten neu ausstellen 1" / „Ausgabetermine 8". h1 reads
+  `de.nav.overviews` directly — no duplicate heading key; `de.overviews.areas` holds the h2s.
+- Files: src/app/active-section{,.test}.ts, src/app/nav.tsx (comment), src/i18n/de.ts,
+  src/app/uebersichten/{page.tsx,deps.ts}, tests/e2e/navigation.spec.ts
+- Browser (playwright-cli, chromium): snapshot confirms one link per tile carrying number + name;
+  hover and focus-visible tint the tile, focus ring shows; five nav items stay on ONE line at 1440,
+  1280 and 1024 px. `npm run test:e2e` 234 passed.
+- **Learnings for future iterations:**
+  - A linked tile is `<Link className="group rounded-lg … focus-visible:ring-3">` around
+    `<Stat className="group-hover:bg-muted group-focus-visible:bg-muted">`; reuse it rather than
+    a second tile shape.
+  - The playwright-cli banner about a skill/tool version mismatch is noise; the commands work.
+    Pipe its output to /dev/null and use `--raw` for evals.
+  - Docs still say „four items" (ui_styling_guide.md nav passage, chapter 05) — US-006's job.
+---
