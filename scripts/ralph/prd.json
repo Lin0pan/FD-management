@@ -80,8 +80,8 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "A card is identified by (customerId, index) — @@unique([customerId, index]) already guarantees it. Passing the index from the row DF saw is what lets the tick notice a replaced card instead of ticking off one DF never looked at. CARRIED FROM US-002 (D10): the demo household whose number changes (weekChangedDaysAgo in prisma/demo-seed.ts) gets an unprinted card from changeCustomerNumber; call markCardPrinted right after it in the SAME event (same wound clock instant, so printedAt = issuedAt). Then `npm run db:demo -- --reset` must leave zero cards with printedAt NULL."
+      "passes": true,
+      "notes": "A card is identified by (customerId, index) — @@unique([customerId, index]) already guarantees it. Passing the index from the row DF saw is what lets the tick notice a replaced card instead of ticking off one DF never looked at. CARRIED FROM US-002 (D10): the demo household whose number changes (weekChangedDaysAgo in prisma/demo-seed.ts) gets an unprinted card from changeCustomerNumber; call markCardPrinted right after it in the SAME event (same wound clock instant, so printedAt = issuedAt). Then `npm run db:demo -- --reset` must leave zero cards with printedAt NULL. DONE: demo seed calls markCardPrinted right after the move; `npm run db:demo -- --reset` leaves 22 cards, 0 unprinted, every printedAt = issuedAt."
     },
     {
       "id": "US-005",
@@ -108,7 +108,7 @@
       ],
       "priority": 5,
       "passes": false,
-      "notes": "Build it like /karten-neuausstellung (D12): same shell, row layout, redirect-with-notice. Does NOT touch readOverviews/listToDos yet — that is US-007, so LISTS never points at a route that 404s. Nothing reaches this list on screen yet except via number change or direct DB edits; seed a row by hand for the playwright-cli review."
+      "notes": "Build it like /karten-neuausstellung (D12): same shell, row layout, redirect-with-notice. Does NOT touch readOverviews/listToDos yet — that is US-007, so LISTS never points at a route that 404s. Nothing reaches this list on screen yet except via number change or direct DB edits; seed a row by hand for the playwright-cli review. FROM US-004: the use cases take { customerId, index } and share deps CardPrintDeps (customers, cards, clock, audit) — markCardPrinted in mark-card-printed.ts, undoCardPrinted in undo-card-printed.ts. All three new codes (CardAlreadyPrinted, CardNotPrinted, CardSuperseded) are already tiered 'error'; their German messages in de.ts are this story's."
     },
     {
       "id": "US-006",

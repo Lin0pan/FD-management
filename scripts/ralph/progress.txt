@@ -653,3 +653,26 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - The ~40 `issueCard`/`reissueCard` test calls were fixed by one regex appending
     `, printed: false` after `reason: "X"`; `registerInput()` defaults `cardPrinted: false`.
 ---
+
+## 2026-10-01 - US-004
+- Domain (strict TDD): `markPrinted(card, at)` / `unmarkPrinted(card)` in `src/domain/card/card.ts`;
+  `CardAlreadyPrinted`, `CardNotPrinted` (both carry customerNumber + index, message `12k2`) and
+  `CardSuperseded` (customerId + index) in `errors.ts`, covered in `errors.test.ts`, all three tiered
+  `error` in `notice-tier.ts`.
+- Port: `CardRepository.setPrintedAt(customerId, index, printedAt)`, documented on the port; the
+  adapter is a single `update` on the `customerId_index` unique key. Stubs (reject) in three fakes;
+  a real one in `customers.test.ts`'s `FakeCardRepository`.
+- Use cases: `markCardPrinted` (mark-card-printed.ts, also exports the shared guard `heldCard` and
+  `CardPrintDeps`/`CardPrintInput`) and `undoCardPrinted` (undo-card-printed.ts). Audit
+  `customer.card.printed` / `customer.card.printUndone`, `changedFields: ["printedAt"]`, `why: ""`.
+- Tests: 11 named application tests in a new describe in customers.test.ts; integration test
+  „sets and clears the printed date of exactly one card row" in card-repository.test.ts.
+- `prisma/demo-seed.ts` ticks the moved household's card off right after `changeCustomerNumber`
+  (same wound instant). `db:demo -- --reset`: 22 cards, 0 unprinted, all printedAt = issuedAt.
+- Two commits: domain (with the tiers, which the build needs), then port/adapter/use cases/seed.
+- **Learnings for future iterations:**
+  - `prisma.card.update({ where: { customerId_index: {…} } })` is how the compound unique key is
+    addressed; it throws P2025 for a missing row, which the use case's guard makes unreachable.
+  - The integration test compares the whole table before/after (`findMany` ordered by id) — the
+    cheapest way to prove an update touched exactly one column of one row.
+---
