@@ -107,8 +107,8 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Build it like /karten-neuausstellung (D12): same shell, row layout, redirect-with-notice. Does NOT touch readOverviews/listToDos yet — that is US-007, so LISTS never points at a route that 404s. Nothing reaches this list on screen yet except via number change or direct DB edits; seed a row by hand for the playwright-cli review. FROM US-004: the use cases take { customerId, index } and share deps CardPrintDeps (customers, cards, clock, audit) — markCardPrinted in mark-card-printed.ts, undoCardPrinted in undo-card-printed.ts. All three new codes (CardAlreadyPrinted, CardNotPrinted, CardSuperseded) are already tiered 'error'; their German messages in de.ts are this story's."
+      "passes": true,
+      "notes": "Build it like /karten-neuausstellung (D12): same shell, row layout, redirect-with-notice. Does NOT touch readOverviews/listToDos yet — that is US-007, so LISTS never points at a route that 404s. Nothing reaches this list on screen yet except via number change or direct DB edits; seed a row by hand for the playwright-cli review. FROM US-004: the use cases take { customerId, index } and share deps CardPrintDeps (customers, cards, clock, audit) — markCardPrinted in mark-card-printed.ts, undoCardPrinted in undo-card-printed.ts. All three new codes (CardAlreadyPrinted, CardNotPrinted, CardSuperseded) are already tiered 'error'; their German messages in de.ts are this story's. DONE: the page also calls justPrintedCard (cards-to-print.ts) — the undo offer's rule (current card, printed, not archived) lives in the application layer, not the page. de.cardsToPrint has no countedName yet; US-007 adds it with the LISTS entry."
     },
     {
       "id": "US-006",
@@ -149,7 +149,7 @@
       ],
       "priority": 7,
       "passes": false,
-      "notes": ""
+      "notes": "FROM US-005: de.cardsToPrint exists (heading, count(n) for the list header) but has no countedName — add it here, inflected like de.cardsDue.countedName."
     },
     {
       "id": "US-008",

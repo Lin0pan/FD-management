@@ -676,3 +676,27 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - The integration test compares the whole table before/after (`findMany` ordered by id) — the
     cheapest way to prove an update touched exactly one column of one row.
 ---
+
+## 2026-10-01 - US-005
+- `src/application/customers/cards-to-print.ts`: `listCardsToPrint` (ACTIVE + BLOCKED, current card
+  `printedAt === null`, oldest `issuedAt` first, ties by customer number), `countCardsToPrint`
+  (measured from the list), and `justPrintedCard(deps, { customerId, index })` — the undo offer's
+  rule: current card, printed, household not archived, else `null`. 14 named tests, own fake.
+- `/karten-drucken`: page.tsx (list + undo Confirmation), print-controls.tsx (client „Gedruckt" with
+  `Printer` and an sr-only „(Karte 12k2)" so the accessible name says which card; „Rückgängig" with
+  `Undo2`), actions.ts (Zod, mark/undo, revalidate 5 paths, redirect), print-state.ts (state + the
+  `kunde`/`karte` param names). Strings under `de.cardsToPrint`.
+- Route added to Übersichten in active-section.ts (+ test) and navigation.spec.ts; Printer and Undo2
+  registered in ui_styling_guide.md §12.
+- Gates: lint, typecheck, test:coverage (100%), build, test:e2e (244 passed; a first run had two
+  hydration-race flakes in registration/reminders, both green alone and on the full rerun).
+- Driven with playwright-cli against `npm run start` on the demo register (3 cards un-printed by a
+  local_only script): tick → row gone + done notice + undo; undo → row back, no params; bogus or
+  unprinted params → no notice; tick of an already-printed card → error Notice beside the row;
+  audit entries customer.card.printed / printUndone written. 1280 and 390 screenshots fine.
+- **Learnings for future iterations:**
+  - „The page calls X and nothing else" collides with a notice that needs a rule of its own: put
+    the rule in a second application function rather than in the page.
+  - `db:demo -- --reset` does not reset autoincrement ids here: the demo customers were 41–60, not
+    1–20. Query ids before scripting against them.
+---
