@@ -21,7 +21,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Only the compile-forced set: type, column, adapter, fakes. Seeds and e2e inserts are US-002. The two hand-written indexes are dropped by every regeneration (batches 25, 26, 34 all had to re-add them) — grep the new migration.sql for WHERE before committing. Re-confirm the project is still pre-release (memory: confirmed 2026-08-24); if DF hold real data, append a migration that adds the column and sets printedAt = issuedAt instead of regenerating."
     },
     {

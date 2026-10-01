@@ -65,6 +65,7 @@ function household(id: number, printedGrownUps: number): RegisteredCustomer {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: printedGrownUps, children: 0 },
+      printedAt: null,
     },
     registeredOn: TODAY,
     previousCustomerId: null,

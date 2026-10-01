@@ -135,6 +135,7 @@ function newCustomer(overrides: Partial<Omit<NewCustomer, "details">> = {}): New
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
+      printedAt: null,
     },
     previousCustomerId: null,
     ...overrides,
@@ -518,6 +519,7 @@ describe("PrismaCustomerRepository.changeCustomerNumber", () => {
       issuedAt: TODAY,
       reason: "CUSTOMER_NUMBER_CHANGED",
       countsAtIssue: { grownUps: 1, children: 1 },
+      printedAt: null,
     };
   }
 
@@ -568,6 +570,7 @@ describe("PrismaCustomerRepository.changeCustomerNumber", () => {
           issuedAt: TODAY,
           reason: "FIRST_ISSUE",
           countsAtIssue: { grownUps: 1, children: 1 },
+          printedAt: null,
         },
       }),
     );

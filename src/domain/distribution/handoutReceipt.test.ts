@@ -22,6 +22,7 @@ function card(overrides: Partial<IssuedCard> = {}): IssuedCard {
     issuedAt: new Date("2025-03-04T00:00:00.000Z"),
     reason: "FIRST_ISSUE",
     countsAtIssue: { grownUps: 2, children: 1 },
+    printedAt: null,
     ...overrides,
   };
 }

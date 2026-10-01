@@ -76,6 +76,7 @@ CREATE TABLE "Card" (
     "grownUpsAtIssue" INTEGER NOT NULL,
     "childrenAtIssue" INTEGER NOT NULL,
     "reason" TEXT NOT NULL,
+    "printedAt" DATETIME,
     CONSTRAINT "Card_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 

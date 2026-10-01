@@ -56,6 +56,7 @@ export function toIssuedCard(row: {
   reason: string;
   grownUpsAtIssue: number;
   childrenAtIssue: number;
+  printedAt: Date | null;
 }): IssuedCard {
   return {
     customerNumber: row.customerNumber,
@@ -63,6 +64,7 @@ export function toIssuedCard(row: {
     issuedAt: row.issuedAt,
     reason: parseCardIssueReason(row.reason),
     countsAtIssue: { grownUps: row.grownUpsAtIssue, children: row.childrenAtIssue },
+    printedAt: row.printedAt,
   };
 }
 
@@ -200,6 +202,7 @@ export class PrismaCardRepository implements CardRepository {
             reason: card.reason,
             grownUpsAtIssue: card.countsAtIssue.grownUps,
             childrenAtIssue: card.countsAtIssue.children,
+            printedAt: card.printedAt,
           },
         });
       });

@@ -71,6 +71,12 @@ export interface IssuedCard {
    * updated: issuing a new card is how the change is recorded.
    */
   readonly countsAtIssue: HouseholdComposition;
+  /**
+   * The day DF ticked the printed card off, or `null` while the one handed over is only a temporary
+   * one (US-39). The one field of a card that changes after it is issued (ADR-022); a card that is
+   * not yet printed is valid at the counter exactly as before.
+   */
+  readonly printedAt: Date | null;
 }
 
 /**

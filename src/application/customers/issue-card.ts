@@ -76,6 +76,8 @@ export async function issueCard(
     issuedAt: now,
     reason,
     countsAtIssue,
+    // Stated by the caller from US-39.2 (the „bereits gedruckt“ checkbox).
+    printedAt: null,
   });
   // The reason *is* the why — chosen by a human from a closed set, and more legible months later
   // than a sentence typed beside it.

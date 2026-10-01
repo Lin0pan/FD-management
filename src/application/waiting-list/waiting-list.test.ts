@@ -280,6 +280,7 @@ function storedCustomer(customerNumber: number, id: number): RegisteredCustomer 
       issuedAt: at("2026-01-05"),
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 0 },
+      printedAt: null,
     },
     previousCustomerId: null,
     blockReason: null,

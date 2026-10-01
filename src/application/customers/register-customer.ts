@@ -191,6 +191,8 @@ export async function registerCustomer(
           issuedAt: now,
           reason: "FIRST_ISSUE",
           countsAtIssue,
+          // Stated by the caller from US-39.2 (the „bereits gedruckt“ checkbox).
+          printedAt: null,
         },
         previousCustomerId,
       });

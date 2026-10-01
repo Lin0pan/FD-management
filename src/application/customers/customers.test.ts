@@ -345,6 +345,7 @@ class FakeCardRepository implements CardRepository {
         // What a placed card printed is beside the point here — these tests are about which index
         // falls due — so every one prints `storedCustomer`'s shape.
         countsAtIssue: { grownUps: 1, children: 1 },
+        printedAt: null,
       });
     }
   }
@@ -661,6 +662,7 @@ function storedCustomer(
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      printedAt: null,
     },
     previousCustomerId: null,
   };

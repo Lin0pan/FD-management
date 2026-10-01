@@ -247,6 +247,7 @@ class FakeCustomerRepository implements CustomerRepository {
           issuedAt: new Date(TODAY),
           reason: "FIRST_ISSUE",
           countsAtIssue: { grownUps: 1, children: 1 },
+          printedAt: null,
         },
       });
     }
@@ -534,6 +535,7 @@ function household({
       issuedAt: new Date("2026-01-15T09:00:00.000Z"),
       reason: "FIRST_ISSUE",
       countsAtIssue: countsAtIssue ?? composition(details.householdMembers, new Date(TODAY)),
+      printedAt: null,
     },
     registeredOn: new Date("2026-01-15T09:00:00.000Z"),
     previousCustomerId: null,

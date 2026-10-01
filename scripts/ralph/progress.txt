@@ -581,3 +581,27 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
 
 **The card row gains its first mutable column.** Only `printedAt` changes after the insert
 (`setPrintedAt`); every snapshot column beside it still never does.
+
+## 2026-10-01 - US-001
+- `IssuedCard.printedAt: Date | null` (and so `NewCard`, which is an `Omit` of it — no default);
+  `Card.printedAt DateTime?` with a `///` citing ADR-022; migrations regenerated
+  (`20261001193257_init`), both hand-written partial indexes appended back by slicing the old
+  file's tail — `diff` against the old SQL shows exactly one added line. `db:reset` run and both
+  indexes confirmed in `sqlite_master`.
+- `toIssuedCard`, `PrismaCardRepository.issue`, `PrismaCustomerRepository` (`register`'s nested
+  card, `changeCustomerNumber`, and the read model's current card) all carry the column.
+- `issueCard`, `registerCustomer`, `changeCustomerNumber` pass `printedAt: null` for now.
+- New integration test „reads a printed and a not-yet-printed card back exactly as they were
+  written" in `card-repository.test.ts`.
+- Files: prisma/schema.prisma, prisma/migrations/, src/domain/card/card.ts, the two Prisma
+  adapters, the three use cases, ~20 test files (fixtures only).
+- **Learnings for future iterations:**
+  - The fixture break (~70 errors) was fixed by one script: for each `tsc` error line, scan forward
+    to the next `countsAtIssue` property, find the line ending its statement, insert
+    `printedAt: null,` after it. Then the suite finds the two whole-record `toEqual`s `tsc` cannot.
+  - Pre-release was not re-confirmed with the user this iteration; the last regeneration was
+    2026-09-20 and D10 („existing cards count as printed") presupposes no go-live yet.
+  - `tasks/prd-us-39-cards-to-print.md` fails `prettier --check` on `main` already; CI does not
+    run `format:check`, and lint-staged only formats staged files, so it bites nobody until the
+    file is touched.
+---

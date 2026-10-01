@@ -208,6 +208,7 @@ function household({
       issuedAt: new Date(TODAY),
       reason: cardIndex === 1 ? "FIRST_ISSUE" : "LOST",
       countsAtIssue: printed ?? composition(details.householdMembers, new Date(TODAY)),
+      printedAt: null,
     },
     registeredOn: new Date(TODAY),
     previousCustomerId: null,

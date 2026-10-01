@@ -221,6 +221,7 @@ function household({
       issuedAt: new Date("2026-01-15T09:00:00.000Z"),
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 1 },
+      printedAt: null,
     },
     previousCustomerId: null,
   };

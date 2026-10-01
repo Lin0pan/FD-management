@@ -397,6 +397,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(STARTED),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(STARTED)),
+      printedAt: null,
     },
     registeredOn: new Date(STARTED),
     previousCustomerId: null,

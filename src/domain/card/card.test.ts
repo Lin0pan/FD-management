@@ -51,6 +51,7 @@ describe("IssuedCard", () => {
       issuedAt: new Date("2026-08-31T09:00:00Z"),
       reason: "CUSTOMER_NUMBER_CHANGED",
       countsAtIssue: { grownUps: 2, children: 1 },
+      printedAt: null,
     };
 
     expect(formatCardNumber(card.customerNumber, card.index)).toBe("5k4");
@@ -66,6 +67,7 @@ describe("IssuedCard", () => {
       issuedAt: new Date("2026-08-31T09:00:00Z"),
       reason: "CUSTOMER_NUMBER_CHANGED",
       countsAtIssue: { grownUps: 2, children: 1 },
+      printedAt: null,
     };
 
     expect(Object.keys(card)).not.toContain("groupAtIssue");
