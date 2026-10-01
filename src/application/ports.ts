@@ -351,6 +351,12 @@ export interface CardRepository {
    * that could pass it could pass the wrong one.
    */
   issue(customerId: number, card: NewCard): Promise<IssuedCard>;
+  /**
+   * Set or clear the printed date of the customer's card at `index` — `printedAt` and nothing else,
+   * the one column of a card row that changes after the insert (US-39, ADR-022). Whether the card is
+   * current and whether the date may move are the use case's questions, asked before the write.
+   */
+  setPrintedAt(customerId: number, index: number, printedAt: Date | null): Promise<void>;
 }
 
 /** One hand-out's receipt: the record it describes, and the household as it stood at the end. */

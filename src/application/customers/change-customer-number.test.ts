@@ -442,6 +442,10 @@ class FakeCardRepository implements CardRepository {
     return Promise.reject(new Error("a number change writes its card with the number"));
   }
 
+  setPrintedAt(): Promise<void> {
+    return Promise.reject(new Error("ticking a card off has a suite of its own"));
+  }
+
   private cardsOf(customerId: number): ReadonlyArray<IssuedCard> {
     return this.register.cards
       .filter((held) => held.customerId === customerId)

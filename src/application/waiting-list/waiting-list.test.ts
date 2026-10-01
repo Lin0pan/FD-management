@@ -241,6 +241,10 @@ class FakeCardRepository implements CardRepository {
   issue(): Promise<never> {
     return Promise.reject(new Error("A waiting-list use case never issues a card of its own"));
   }
+
+  setPrintedAt(): Promise<never> {
+    return Promise.reject(new Error("A waiting-list use case never ticks a card off"));
+  }
 }
 
 function settingsInput(quotaN: number): SettingsInput {

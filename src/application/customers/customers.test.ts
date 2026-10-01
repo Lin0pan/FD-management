@@ -24,7 +24,10 @@ import {
 } from "@/domain/distribution/session";
 import {
   BirthDateInFuture,
+  CardAlreadyPrinted,
+  CardNotPrinted,
   CardNumberTaken,
+  CardSuperseded,
   CustomerArchived,
   CustomerNumberOutOfRange,
   CustomerNumberTaken,
@@ -58,6 +61,7 @@ import { archiveCustomer } from "./archive-customer";
 import { blockCustomer } from "./block-customer";
 import { draftFromArchived } from "./draft-from-archived";
 import { issueCard } from "./issue-card";
+import { markCardPrinted } from "./mark-card-printed";
 import { proposeRegistration } from "./propose-registration";
 import { readCard } from "./read-card";
 import { readCustomer } from "./read-customer";
@@ -65,6 +69,7 @@ import { registerCustomer, type RegisterCustomerInput } from "./register-custome
 import { reissueCard } from "./reissue-card";
 import { MAX_ARCHIVE_SEARCH_RESULTS, searchArchivedCustomers } from "./search-archived-customers";
 import { unblockCustomer } from "./unblock-customer";
+import { undoCardPrinted } from "./undo-card-printed";
 
 /**
  * Hand-written fakes, per the testing standard, and synthetic data only — never a real name, address
@@ -416,6 +421,17 @@ class FakeCardRepository implements CardRepository {
     const issued = { ...card, customerNumber: this.printedSlotOf(customerId) };
     this.cardsOf(customerId).push(issued);
     return Promise.resolve(issued);
+  }
+
+  /** Rewrites the one card's date and nothing else, as the adapter's single-row update does. */
+  setPrintedAt(customerId: number, index: number, printedAt: Date | null): Promise<void> {
+    const cards = this.cardsOf(customerId);
+    const at = cards.findIndex((card) => card.index === index);
+    if (at === -1) {
+      return Promise.reject(new Error(`no card ${index} on customer ${customerId}`));
+    }
+    cards[at] = { ...cards[at], printedAt };
+    return Promise.resolve();
   }
 
   private cardsOf(customerId: number): IssuedCard[] {
@@ -1397,6 +1413,148 @@ describe("reissueCard", () => {
 
     await expect(cards.currentCard(customerId)).resolves.toMatchObject({ index: 1 });
     expect(audit.entries).toHaveLength(0);
+  });
+});
+
+describe("ticking a card off as printed, and taking it back", () => {
+  const PRINTED_ON = "2026-07-24T15:00:00.000Z";
+  let customers: FakeCustomerRepository;
+  let cards: FakeCardRepository;
+  let audit: FakeAuditLog;
+
+  function deps(today = PRINTED_ON) {
+    return { customers, cards, clock: fakeClock(today), audit };
+  }
+
+  /** A household of the given status holding cards 1 and 2, neither printed; hands back its id. */
+  async function householdWith(status: CustomerStatus): Promise<number> {
+    const customer = await customers.create(storedCustomer(status));
+    cards.place(customer.id, 1, 2);
+    return customer.id;
+  }
+
+  beforeEach(() => {
+    customers = new FakeCustomerRepository();
+    cards = new FakeCardRepository(customers);
+    audit = new FakeAuditLog();
+  });
+
+  it("ticks off the card a household holds", async () => {
+    const customerId = await householdWith("ACTIVE");
+
+    await markCardPrinted(deps(), { customerId, index: 2 });
+
+    const current = await cards.currentCard(customerId);
+    expect(current?.printedAt).toEqual(new Date(PRINTED_ON));
+  });
+
+  it("refuses to tick off a card that has been replaced", async () => {
+    const customerId = await householdWith("ACTIVE");
+
+    await expect(markCardPrinted(deps(), { customerId, index: 1 })).rejects.toThrow(CardSuperseded);
+    const [held, replaced] = await cards.listCards(customerId);
+    expect(held.printedAt).toBeNull();
+    expect(replaced.printedAt).toBeNull();
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses to tick off a card the household was never issued", async () => {
+    const customer = await customers.create(storedCustomer("ACTIVE"));
+
+    await expect(markCardPrinted(deps(), { customerId: customer.id, index: 1 })).rejects.toThrow(
+      CardSuperseded,
+    );
+  });
+
+  it("refuses to tick off a card twice, keeping the first date", async () => {
+    const customerId = await householdWith("ACTIVE");
+    await markCardPrinted(deps(), { customerId, index: 2 });
+
+    await expect(
+      markCardPrinted(deps("2026-07-25T10:00:00.000Z"), { customerId, index: 2 }),
+    ).rejects.toThrow(CardAlreadyPrinted);
+    const current = await cards.currentCard(customerId);
+    expect(current?.printedAt).toEqual(new Date(PRINTED_ON));
+    expect(audit.entries).toHaveLength(1);
+  });
+
+  it("takes back a tick without asking why", async () => {
+    const customerId = await householdWith("ACTIVE");
+    await markCardPrinted(deps(), { customerId, index: 2 });
+
+    await undoCardPrinted(deps(), { customerId, index: 2 });
+
+    const current = await cards.currentCard(customerId);
+    expect(current?.printedAt).toBeNull();
+    expect(audit.entries.at(-1)?.why).toBe("");
+  });
+
+  it("refuses to take back a tick that was never made", async () => {
+    const customerId = await householdWith("ACTIVE");
+
+    await expect(undoCardPrinted(deps(), { customerId, index: 2 })).rejects.toThrow(CardNotPrinted);
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses to take back the tick of a card that has been replaced since", async () => {
+    const customerId = await householdWith("ACTIVE");
+    await markCardPrinted(deps(), { customerId, index: 2 });
+    cards.place(customerId, 3);
+
+    await expect(undoCardPrinted(deps(), { customerId, index: 2 })).rejects.toThrow(CardSuperseded);
+  });
+
+  it("ticks off a blocked household's card, and takes it back", async () => {
+    const customerId = await householdWith("BLOCKED");
+
+    await markCardPrinted(deps(), { customerId, index: 2 });
+    expect((await cards.currentCard(customerId))?.printedAt).toEqual(new Date(PRINTED_ON));
+
+    await undoCardPrinted(deps(), { customerId, index: 2 });
+    expect((await cards.currentCard(customerId))?.printedAt).toBeNull();
+  });
+
+  it("refuses an archived household's card", async () => {
+    const customerId = await householdWith("ARCHIVED");
+
+    await expect(markCardPrinted(deps(), { customerId, index: 2 })).rejects.toThrow(
+      CustomerArchived,
+    );
+    await expect(undoCardPrinted(deps(), { customerId, index: 2 })).rejects.toThrow(
+      CustomerArchived,
+    );
+    expect(audit.entries).toHaveLength(0);
+  });
+
+  it("refuses an id that belongs to nobody", async () => {
+    await expect(markCardPrinted(deps(), { customerId: 404, index: 1 })).rejects.toThrow(
+      CustomerNotFound,
+    );
+    await expect(undoCardPrinted(deps(), { customerId: 404, index: 1 })).rejects.toThrow(
+      CustomerNotFound,
+    );
+  });
+
+  it("writes an audit entry for the tick and for taking it back", async () => {
+    const customerId = await householdWith("ACTIVE");
+
+    await markCardPrinted(deps(), { customerId, index: 2 });
+    await undoCardPrinted(deps("2026-07-24T15:01:00.000Z"), { customerId, index: 2 });
+
+    expect(audit.entries).toEqual([
+      {
+        what: "customer.card.printed",
+        changedFields: ["printedAt"],
+        when: new Date(PRINTED_ON),
+        why: "",
+      },
+      {
+        what: "customer.card.printUndone",
+        changedFields: ["printedAt"],
+        when: new Date("2026-07-24T15:01:00.000Z"),
+        why: "",
+      },
+    ]);
   });
 });
 

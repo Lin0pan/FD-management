@@ -34,6 +34,7 @@ import { PrismaClient } from "@prisma/client";
 import { archiveCustomer } from "../src/application/customers/archive-customer";
 import { blockCustomer } from "../src/application/customers/block-customer";
 import { changeCustomerNumber } from "../src/application/customers/change-customer-number";
+import { markCardPrinted } from "../src/application/customers/mark-card-printed";
 import { recordReminder } from "../src/application/customers/record-reminder";
 import { registerCustomer } from "../src/application/customers/register-customer";
 import { reissueCard } from "../src/application/customers/reissue-card";
@@ -773,7 +774,12 @@ function householdEvents(
         if (target === undefined) {
           throw new Error(`No free ${other} slot for ${shape.key} to move to.`);
         }
-        await changeCustomerNumber(deps, { customerId: customer.id, customerNumber: target });
+        const card = await changeCustomerNumber(deps, {
+          customerId: customer.id,
+          customerNumber: target,
+        });
+        // A move always prints an unprinted card; the demo's was printed on the spot (D10, US-39).
+        await markCardPrinted(deps, { customerId: customer.id, index: card.index });
       },
     });
   }

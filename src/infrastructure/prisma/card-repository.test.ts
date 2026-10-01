@@ -119,6 +119,36 @@ describe("whether a card has been printed", () => {
       TODAY,
     ]);
   });
+
+  it("sets and clears the printed date of exactly one card row", async () => {
+    const customerId = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    for (const [holder, index] of [
+      [customerId, 1],
+      [customerId, 2],
+      [other, 1],
+    ]) {
+      await repository.issue(holder, {
+        index,
+        issuedAt: TODAY,
+        reason: "FIRST_ISSUE",
+        countsAtIssue: PRINTED,
+        printedAt: null,
+      });
+    }
+    const before = await prisma.card.findMany({ orderBy: { id: "asc" } });
+
+    await repository.setPrintedAt(customerId, 2, LATER);
+    const ticked = await prisma.card.findMany({ orderBy: { id: "asc" } });
+    expect(ticked).toEqual(
+      before.map((row) =>
+        row.customerId === customerId && row.index === 2 ? { ...row, printedAt: LATER } : row,
+      ),
+    );
+
+    await repository.setPrintedAt(customerId, 2, null);
+    expect(await prisma.card.findMany({ orderBy: { id: "asc" } })).toEqual(before);
+  });
 });
 
 describe("the counts printed on a card", () => {

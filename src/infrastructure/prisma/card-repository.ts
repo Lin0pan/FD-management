@@ -221,4 +221,11 @@ export class PrismaCardRepository implements CardRepository {
       throw error;
     }
   }
+
+  async setPrintedAt(customerId: number, index: number, printedAt: Date | null): Promise<void> {
+    await this.prisma.card.update({
+      where: { customerId_index: { customerId, index } },
+      data: { printedAt },
+    });
+  }
 }

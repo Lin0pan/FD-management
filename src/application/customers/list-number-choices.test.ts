@@ -151,6 +151,10 @@ class FakeCardRepository implements CardRepository {
   issue(): Promise<IssuedCard> {
     return Promise.reject(new Error("listing the choices prints nothing"));
   }
+
+  setPrintedAt(): Promise<void> {
+    return Promise.reject(new Error("listing the choices ticks no card off"));
+  }
 }
 
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
