@@ -210,8 +210,8 @@
         "Lint passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "DONE: ADR-022 Accepted (Ralph-batch precedent, decisions refined with DF 01.10.2026). arc42 05/06/08/12, handout section „Karten drucken\", CLAUDE.md, prds/README batch 39 row (235 total). Icons were already registered by US-005."
     }
   ]
 }

@@ -773,3 +773,19 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - The card view's printed date is asserted against `germanDate(row.printedAt)` read through Prisma
     rather than a date computed in the spec — exact, and immune to the midnight edge.
 ---
+
+## 2026-10-01 - US-010
+- ADR-022 „Record when a card was printed on the card row" (Accepted), row in chapter 9 (count
+  „twenty-two"). arc42: 05 (51 use cases, customers/ row, `setPrintedAt` on CardRepository,
+  `/karten-drucken` route, fourteen routes, Übersichten owns it), 06 scenario 4 (the reissued card
+  lands on the print list), 08 (ER `printedAt`, audit list), 12 (Card, To-do, new „Printed").
+- Betriebsanleitung: new section „Karten drucken"; Übersichten now lists three, „Zu erledigen" two.
+- CLAUDE.md: printedAt as an event beside the Card snapshots; audit list gains tick/undo.
+- scripts/ralph/prds/README.md: batch 39 row, 235 stories, short paragraph.
+- ui_styling_guide §12 already had `Printer` / `Undo2` from US-005.
+- Gates: arc42:check, lint, typecheck, test:coverage (1456), build.
+- **Learnings for future iterations:**
+  - `arc42.py new-adr` stamps a wrong date (2026-08-07 here) in the ADR file while the index row
+    gets today's — fix the file's **Date** by hand, and pad the new index row with prettier.
+  - Chapter 9's intro counts the ADRs in words („twenty-two decisions"); bump it with each ADR.
+---
