@@ -246,11 +246,16 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await page.waitForURL(/\/kunden\/\d+\/karte$/);
 
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
+    // Not ticked on the reissue, so the card in hand is the temporary one until DF tick it off.
+    await expect(page.getByTestId("card-printed-at")).toHaveText(
+      `${de.customers.cardView.printed}: ${de.customers.cardView.notYetPrinted}`,
+    );
     // The replaced number stays on record with the day and the reason *it* was handed over — a
     // superseded card is invalid, not deleted.
     await expect(page.getByTestId("superseded-card")).toHaveText(
       de.customers.cardView.supersededEntry(
         card(1),
+        SEEDED_CARD_DATE,
         SEEDED_CARD_DATE,
         de.customers.cardReasons.FIRST_ISSUE,
       ),

@@ -458,20 +458,24 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
       de.customers.cardView.supersededEntry(
         card(START, 4),
         "09.09.2025",
+        "09.09.2025",
         de.customers.cardReasons.LOST,
       ),
       de.customers.cardView.supersededEntry(
         card(START, 3),
+        "07.07.2025",
         "07.07.2025",
         de.customers.cardReasons.LOST,
       ),
       de.customers.cardView.supersededEntry(
         card(START, 2),
         "05.05.2025",
+        "05.05.2025",
         de.customers.cardReasons.LOST,
       ),
       de.customers.cardView.supersededEntry(
         card(START, 1),
+        "03.03.2025",
         "03.03.2025",
         de.customers.cardReasons.FIRST_ISSUE,
       ),

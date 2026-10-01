@@ -2157,6 +2157,22 @@ describe("readCard", () => {
     expect(view.superseded[0].card.reason).toBe("FIRST_ISSUE");
   });
 
+  it("says when each card was printed, and which never was", async () => {
+    const customer = await registered();
+    await issueCard(deps(), { customerId: customer.id, reason: "LOST", printed: true });
+    await issueCard(deps("2026-08-01T09:00:00.000Z"), {
+      customerId: customer.id,
+      reason: "LOST",
+      printed: false,
+    });
+    await markCardPrinted(deps("2026-08-03T09:00:00.000Z"), { customerId: customer.id, index: 3 });
+
+    const view = await readCard(deps(), customer.id);
+
+    expect(view.card.printedAt).toEqual(new Date("2026-08-03T09:00:00.000Z"));
+    expect(view.superseded.map((entry) => entry.card.printedAt)).toEqual([new Date(TODAY), null]);
+  });
+
   it("replaces nothing when the household is on its first card", async () => {
     const customer = await registered();
 

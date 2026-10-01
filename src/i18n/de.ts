@@ -587,12 +587,20 @@ export const de = {
       heading: "Kundenkarte",
       issuedAt: "Ausgestellt am",
       issuedBecause: "Grund der Ausstellung",
+      printedAt: "Gedruckt am",
+      printed: "Gedruckt",
+      notYetPrinted: "noch nicht",
       supersededHeading: "Ersetzte Kartennummern",
       supersededNone: "Diese Karte ist die erste des Haushalts und ersetzt keine frühere.",
       // The reason belongs to the card named here — why *it* was handed over, not why it was
       // replaced — so it reads as a note on that line.
-      supersededEntry: (number: string, date: string, reason: string): string =>
-        `${number} — ausgestellt am ${date}, Grund: ${reason}`,
+      supersededEntry: (
+        number: string,
+        date: string,
+        printedDate: string | null,
+        reason: string,
+      ): string =>
+        `${number} — ausgestellt am ${date}, ${printedDate === null ? "nicht gedruckt" : `gedruckt am ${printedDate}`}, Grund: ${reason}`,
       issuedHeading: "Ausgestellte Karten",
       issuedCount: "Karten insgesamt",
       lossCount: "davon nach Verlust",

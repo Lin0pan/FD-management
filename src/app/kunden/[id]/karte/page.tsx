@@ -110,6 +110,19 @@ function Card({ view }: { view: CardView }): React.ReactElement {
           <dt className="inline">{de.customers.cardView.issuedBecause}: </dt>
           <dd className="inline font-medium">{de.customers.cardReasons[view.card.reason]}</dd>
         </div>
+        <div data-testid="card-printed-at">
+          {view.card.printedAt === null ? (
+            <>
+              <dt className="inline">{de.customers.cardView.printed}: </dt>
+              <dd className="inline font-medium">{de.customers.cardView.notYetPrinted}</dd>
+            </>
+          ) : (
+            <>
+              <dt className="inline">{de.customers.cardView.printedAt}: </dt>
+              <dd className="inline font-medium">{germanDate(view.card.printedAt)}</dd>
+            </>
+          )}
+        </div>
       </dl>
     </section>
   );
@@ -128,6 +141,7 @@ function Superseded({ view }: { view: CardView }): React.ReactElement {
               {de.customers.cardView.supersededEntry(
                 entry.number,
                 germanDate(entry.card.issuedAt),
+                entry.card.printedAt === null ? null : germanDate(entry.card.printedAt),
                 de.customers.cardReasons[entry.card.reason],
               )}
             </li>

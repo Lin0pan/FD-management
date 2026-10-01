@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { germanDate } from "@/i18n/format";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -361,7 +362,13 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     expect(await badgeCount(page)).toBe(dueBefore);
 
     const issued = await prisma.card.findFirstOrThrow({ where: { customerId: id, index: 2 } });
-    expect(issued.printedAt).not.toBeNull();
+    if (issued.printedAt === null) {
+      throw new Error("the ticked reissue should have stored a printed date");
+    }
+    await page.goto(`/kunden/${id}/karte`);
+    await expect(page.getByTestId("card-printed-at")).toHaveText(
+      `${de.customers.cardView.printedAt}: ${germanDate(issued.printedAt)}`,
+    );
 
     await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
