@@ -33,6 +33,7 @@ import {
   MissingRequiredField,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
+import { cardPrinted, cardPrintedValue } from "../../card-printed";
 import { certificateTypeMark, resolveCertificateType } from "../../certificate-type-resolver";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
@@ -140,7 +141,8 @@ export async function reissueCardAction(
   formData: FormData,
 ): Promise<ReissueState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
-  if (!customerId.success) {
+  const printed = cardPrinted.safeParse(cardPrintedValue(formData));
+  if (!customerId.success || !printed.success) {
     return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
   }
 
@@ -149,8 +151,7 @@ export async function reissueCardAction(
     const card = await reissueCard(customerDeps, {
       customerId: customerId.data,
       reason: "LOST",
-      // Unticked until the screen offers „Karte ist bereits gedruckt“ (US-39.5).
-      printed: false,
+      printed: printed.data,
     });
     // Both halves off the card the store handed back: the slot it was printed under is on the row
     // itself (ADR-016), so the receipt names what was written rather than what agrees with it.
@@ -174,6 +175,10 @@ export async function reissueCardAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath(`/kunden/${customerId.data}/karte`);
+  // The to-do the new card may have added to (US-39.6): the list itself and both places counting it.
+  revalidatePath("/karten-drucken");
+  revalidatePath("/");
+  revalidatePath("/uebersichten");
   return { status: "saved", cardNumber };
 }
 

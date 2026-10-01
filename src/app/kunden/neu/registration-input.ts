@@ -29,6 +29,7 @@ import {
   NoFreeCustomerNumber,
 } from "@/domain/errors";
 import { customerFieldLabel, customerFormFieldLabel, de } from "@/i18n/de";
+import { cardPrinted, cardPrintedValue } from "../../card-printed";
 import { certificateTypeMark } from "../../certificate-type-resolver";
 import { summarise, type FieldRefusal, type FormRefusal } from "../../field-refusal";
 import { tierOf } from "../../notice-tier";
@@ -104,6 +105,7 @@ export const registrationForm = z.object({
   notes: z.string(),
   customerNumber,
   previousCustomerId,
+  cardPrinted,
   householdMembers: z.array(
     z.object({
       firstName: z.string(),
@@ -153,6 +155,7 @@ export function registrationValues(formData: FormData): Record<string, unknown> 
     notes: text("notes"),
     customerNumber: text("customerNumber"),
     previousCustomerId: text("previousCustomerId"),
+    cardPrinted: cardPrintedValue(formData),
     householdMembers: householdRows(formData),
   };
 }

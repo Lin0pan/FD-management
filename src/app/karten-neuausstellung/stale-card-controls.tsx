@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
 import { reissueStaleCardAction } from "./actions";
 import { initialStaleReissueState } from "./reissue-state";
+import { CardPrintedField } from "../card-printed-field";
 import { ControlSummary } from "../disclosure";
 import { Notice } from "../notice";
 
@@ -53,6 +54,10 @@ export function StaleCardControls({
           <p data-testid="stale-reissue-confirm" className="max-w-prose">
             {de.customers.reissue.confirm(cardNumber, nextCardNumber)}
           </p>
+          <CardPrintedField
+            id={`stale-reissue-printed-${customerId}`}
+            testId="stale-reissue-printed"
+          />
           <Button type="submit" disabled={pending} data-testid="stale-reissue-submit">
             {pending ? de.customers.reissue.submitting : de.customers.reissue.submit}
           </Button>

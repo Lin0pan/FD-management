@@ -187,6 +187,8 @@ async function reissue(page: Page, path: string, current: string, next: string):
   await expect(page.getByTestId("reissue-confirm")).toHaveText(
     de.customers.reissue.confirm(current, next),
   );
+  // Opt-in (US-39.5, D2): left alone, the new card lands on „Karten drucken“.
+  await expect(page.getByTestId("reissue-printed")).not.toBeChecked();
 
   await page.getByTestId("reissue-submit").click();
   // Two things, and they are not the same thing. The number moving is the *write*, read off whichever
@@ -235,6 +237,8 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     page,
   }) => {
     await reissue(page, `/kunden/${id}`, card(1), card(2));
+    const issued = await prisma.card.findFirstOrThrow({ where: { customerId: id, index: 2 } });
+    expect(issued.printedAt).toBeNull();
 
     // The card view is what staff read while they write the new card, so the replacement has to be
     // complete there: the new number, the old one listed as replaced, and the sentence that says so.

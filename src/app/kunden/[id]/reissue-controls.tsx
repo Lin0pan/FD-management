@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
 import { reissueCardAction } from "./actions";
 import { initialReissueState } from "./reissue-state";
+import { CardPrintedField } from "../../card-printed-field";
 import { ControlSummary } from "../../disclosure";
 import { Confirmation, Notice } from "../../notice";
 import { useNoticeSlot } from "../../notice-board";
@@ -58,6 +59,8 @@ export function ReissueControls({
               {de.customers.reissue.confirm(cardNumber, nextCardNumber)}
             </AlertDescription>
           </Alert>
+          {/* Keyed on the card it is about, so the next reissue starts unticked again (D2). */}
+          <CardPrintedField key={nextCardNumber} id="reissue-printed" testId="reissue-printed" />
           <Button type="submit" disabled={pending} data-testid="reissue-submit">
             {pending ? de.customers.reissue.submitting : de.customers.reissue.submit}
           </Button>

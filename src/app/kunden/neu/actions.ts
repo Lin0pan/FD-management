@@ -58,8 +58,7 @@ export async function submitRegistration(
       notes: form.notes,
       customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
-      // Unticked until the screen offers „Karte ist bereits gedruckt“ (US-39.5).
-      cardPrinted: false,
+      cardPrinted: form.cardPrinted,
     });
     id = customer.id;
   } catch (error: unknown) {
@@ -73,6 +72,10 @@ export async function submitRegistration(
   // The hub, which a registration moves three ways at once: a new row, a shifted group balance, and
   // one fewer free number for the badge to read. A `redirect` is a navigation, not a revalidation.
   revalidatePath("/kunden");
+  // The to-do the new card may have added to (US-39.6): the list itself and both places counting it.
+  revalidatePath("/karten-drucken");
+  revalidatePath("/");
+  revalidatePath("/uebersichten");
 
   // Outside the try: `redirect` throws, and catching it would turn a successful registration into
   // "could not be saved". `?aufgenommen=1` is how the good news survives it — this action never

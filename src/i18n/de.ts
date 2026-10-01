@@ -987,6 +987,8 @@ export const de = {
       `Karte ${cardNumber} von ${name} ist als gedruckt abgehakt.`,
     undo: "Rückgängig",
     undoing: "Wird zurückgenommen …",
+    /** The opt-in on every card issued by hand (D2); unticked, the card lands on the list. */
+    alreadyPrinted: "Karte ist bereits gedruckt",
     errors: {
       superseded:
         "Diese Karte ist inzwischen durch eine neue ersetzt worden. Bitte die Seite neu laden.",

@@ -75,8 +75,7 @@ export async function submitPromotedRegistration(
       notes: form.notes,
       customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
-      // Unticked until the screen offers „Karte ist bereits gedruckt“ (US-39.5).
-      cardPrinted: false,
+      cardPrinted: form.cardPrinted,
     });
     id = customer.id;
   } catch (error: unknown) {
@@ -94,6 +93,10 @@ export async function submitPromotedRegistration(
   // queue, and the register has a household, a shifted group balance and one number fewer to give.
   revalidatePath("/warteliste");
   revalidatePath("/kunden");
+  // The to-do the new card may have added to (US-39.6): the list itself and both places counting it.
+  revalidatePath("/karten-drucken");
+  revalidatePath("/");
+  revalidatePath("/uebersichten");
 
   // Outside the try: `redirect` throws, and catching it would turn a successful registration into
   // "could not be saved". The same `?aufgenommen=1` the registration screen sends — promoting an
