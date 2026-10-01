@@ -52,6 +52,8 @@ export async function reissueStaleCardAction(
     const card = await reissueCard(customerDeps, {
       customerId: customerId.data,
       reason: "STALE_COUNTS",
+      // Unticked until the screen offers „Karte ist bereits gedruckt“ (US-39.5).
+      printed: false,
     });
     // Both halves off the card the store handed back: the slot it was printed under is on the row
     // itself (ADR-016), so nothing has to read the household again.

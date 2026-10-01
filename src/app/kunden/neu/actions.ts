@@ -58,6 +58,8 @@ export async function submitRegistration(
       notes: form.notes,
       customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
+      // Unticked until the screen offers „Karte ist bereits gedruckt“ (US-39.5).
+      cardPrinted: false,
     });
     id = customer.id;
   } catch (error: unknown) {

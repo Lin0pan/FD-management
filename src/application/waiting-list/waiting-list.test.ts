@@ -550,6 +550,7 @@ describe("registerFromWaitingList", () => {
     const applicant = application();
     return {
       entryId: 4,
+      cardPrinted: false,
       firstName: applicant.firstName,
       lastName: applicant.lastName,
       birthDate: applicant.birthDate,

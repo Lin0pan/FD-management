@@ -146,7 +146,12 @@ export async function reissueCardAction(
 
   let cardNumber: string;
   try {
-    const card = await reissueCard(customerDeps, { customerId: customerId.data, reason: "LOST" });
+    const card = await reissueCard(customerDeps, {
+      customerId: customerId.data,
+      reason: "LOST",
+      // Unticked until the screen offers „Karte ist bereits gedruckt“ (US-39.5).
+      printed: false,
+    });
     // Both halves off the card the store handed back: the slot it was printed under is on the row
     // itself (ADR-016), so the receipt names what was written rather than what agrees with it.
     cardNumber = formatCardNumber(card.customerNumber, card.index);

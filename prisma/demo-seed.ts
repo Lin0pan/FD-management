@@ -712,6 +712,8 @@ function householdEvents(
           householdMembers: identity.members,
           notes: "",
           previousCustomerId,
+          // Every card that exists at go-live counts as printed (US-39, D10).
+          cardPrinted: true,
         });
         customerIds.set(shape.key, registered.id);
       },
@@ -747,7 +749,7 @@ function householdEvents(
     events.push({
       at: at(-shape.cardLostDaysAgo),
       run: async () => {
-        await reissueCard(deps, { customerId: idOf(), reason: "LOST" });
+        await reissueCard(deps, { customerId: idOf(), reason: "LOST", printed: true });
       },
     });
   }

@@ -630,3 +630,26 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
     maps an array through one insert, so its 10 cards are one line.
   - `tests/e2e/seeding.ts` only deletes cards; no shared insert helper exists.
 ---
+
+## 2026-10-01 - US-003
+- `issueCard` takes a required `printed: boolean`; true writes `printedAt = now` (the issue's own
+  instant), false writes null. Audit `changedFields` is `["card", "printedAt"]` only when printed
+  (`PRINTED_FIELD` exported from `issue-card.ts`). `reissueCard` passes it through.
+- `registerCustomer` takes a required `cardPrinted: boolean`; `REGISTERED_FIELDS` gains `printedAt`
+  only when ticked (placed before `previousCustomerId`). `changeCustomerNumber` unchanged in
+  behaviour (always null) — a test now proves it.
+- The four actions that issue a card pass `false` for now: kunden/neu, reissueCardAction,
+  karten-neuausstellung **and the waiting-list promotion** (warteliste/[entryId]/registrieren),
+  which the PRD did not name but which goes through `registerCustomer` with the same form.
+- `prisma/demo-seed.ts` passes `cardPrinted: true` / `printed: true` (D10). After
+  `npm run db:demo -- --reset`: 22 cards, 1 unprinted (3k2, the number change) — US-004 closes it.
+- Files: issue-card.ts, reissue-card.ts, register-customer.ts, change-customer-number.ts (comment),
+  4 server actions, demo-seed.ts, customers.test.ts, change-customer-number.test.ts,
+  waiting-list.test.ts.
+- **Learnings for future iterations:**
+  - `RegisterFromWaitingListInput extends RegisterCustomerInput`, and the promotion screen renders
+    `RegistrationForm` — any field added to the registration reaches the waiting list too. Noted on
+    US-006.
+  - The ~40 `issueCard`/`reissueCard` test calls were fixed by one regex appending
+    `, printed: false` after `reason: "X"`; `registerInput()` defaults `cardPrinted: false`.
+---

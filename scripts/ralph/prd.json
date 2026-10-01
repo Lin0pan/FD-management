@@ -58,8 +58,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "CARRIED FROM US-002 (D10): prisma/demo-seed.ts must pass cardPrinted: true to registerCustomer and printed: true to reissueCard, so its demo cards are printed at their issue instant. Then `npm run db:demo -- --reset` and check the unprinted count is only the moved household's card (closed in US-004)."
+      "passes": true,
+      "notes": "CARRIED FROM US-002 (D10): prisma/demo-seed.ts must pass cardPrinted: true to registerCustomer and printed: true to reissueCard, so its demo cards are printed at their issue instant. Then `npm run db:demo -- --reset` and check the unprinted count is only the moved household's card (closed in US-004). DONE: demo seed passes cardPrinted/printed: true; after `npm run db:demo -- --reset` exactly one card is unprinted — 3k2, CUSTOMER_NUMBER_CHANGED — the one US-004 closes."
     },
     {
       "id": "US-004",
@@ -127,7 +127,7 @@
       ],
       "priority": 6,
       "passes": false,
-      "notes": "Existing e2e specs that issue cards through the screens leave the box unticked; that is correct behaviour (opt-in) and they do not assert anything about printing."
+      "notes": "Existing e2e specs that issue cards through the screens leave the box unticked; that is correct behaviour (opt-in) and they do not assert anything about printing. FROM US-003: the waiting-list promotion (src/app/warteliste/[entryId]/registrieren/) renders the SAME RegistrationForm and calls registerFromWaitingList, whose input extends RegisterCustomerInput — so the checkbox appears there too, and its action (currently `cardPrinted: false`) must read it like kunden/neu does. That is a fourth action beside the three named above."
     },
     {
       "id": "US-007",

@@ -23,6 +23,9 @@ export const CARD_ISSUED = "customer.card.issued";
 /** Which card they hold, and no more — the index it moved to is on the card row itself. */
 export const ISSUED_FIELDS = ["card"] as const;
 
+/** Named beside {@link ISSUED_FIELDS} only when the card was issued as already printed (US-39). */
+export const PRINTED_FIELD = "printedAt";
+
 export interface IssueCardDeps {
   readonly customers: CustomerRepository;
   readonly cards: CardRepository;
@@ -33,6 +36,11 @@ export interface IssueCardDeps {
 export interface IssueCardInput {
   readonly customerId: number;
   readonly reason: CardIssueReason;
+  /**
+   * DF's statement that the card was printed on the spot — a stated fact, never inferred, so it has
+   * no default. `false` leaves the card on „Karten drucken" (US-39).
+   */
+  readonly printed: boolean;
 }
 
 /**
@@ -47,7 +55,7 @@ export interface IssueCardInput {
  */
 export async function issueCard(
   deps: IssueCardDeps,
-  { customerId, reason }: IssueCardInput,
+  { customerId, reason, printed }: IssueCardInput,
 ): Promise<IssuedCard> {
   // One read of the clock: the card's date and the audit entry's instant are the same event.
   const now = deps.clock.now();
@@ -76,14 +84,14 @@ export async function issueCard(
     issuedAt: now,
     reason,
     countsAtIssue,
-    // Stated by the caller from US-39.2 (the „bereits gedruckt“ checkbox).
-    printedAt: null,
+    // Printed on the spot is the same event as the issue, so it takes the same instant.
+    printedAt: printed ? now : null,
   });
   // The reason *is* the why — chosen by a human from a closed set, and more legible months later
   // than a sentence typed beside it.
   await deps.audit.append({
     what: CARD_ISSUED,
-    changedFields: [...ISSUED_FIELDS],
+    changedFields: printed ? [...ISSUED_FIELDS, PRINTED_FIELD] : [...ISSUED_FIELDS],
     when: now,
     why: reason,
   });

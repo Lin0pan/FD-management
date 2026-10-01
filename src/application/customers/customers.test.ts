@@ -613,6 +613,7 @@ function registerInput(overrides: Partial<RegisterCustomerInput> = {}): Register
     certificate: { type: "Jobcenter", validUntil: new Date("2027-01-31T00:00:00.000Z") },
     householdMembers: [],
     notes: "",
+    cardPrinted: false,
     ...overrides,
   };
 
@@ -942,6 +943,26 @@ describe("registerCustomer", () => {
     expect(Object.keys(audit.entries[0])).not.toContain("who");
   });
 
+  it("registers the first card as printed when DF say so", async () => {
+    const customer = await registerCustomer(deps(), registerInput({ cardPrinted: true }));
+
+    expect(customer.card.printedAt).toEqual(new Date(TODAY));
+    expect(customer.card.printedAt).toEqual(customer.card.issuedAt);
+    expect(audit.entries[0].changedFields).toEqual([
+      "customerNumber",
+      "group",
+      "status",
+      "card",
+      "printedAt",
+    ]);
+  });
+
+  it("registers the first card as not yet printed unless DF say otherwise", async () => {
+    const customer = await registerCustomer(deps(), registerInput({ cardPrinted: false }));
+
+    expect(customer.card.printedAt).toBeNull();
+  });
+
   it("names what registration decided, not what staff typed", async () => {
     await registerCustomer(deps(), registerInput());
 
@@ -1038,7 +1059,7 @@ describe("issueCard", () => {
   it("issues index 1 to a customer who holds no card yet", async () => {
     const customerId = await customerWith("ACTIVE");
 
-    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE", printed: false });
 
     expect(card.index).toBe(1);
   });
@@ -1047,7 +1068,7 @@ describe("issueCard", () => {
     const customerId = await customerWith("ACTIVE");
     cards.place(customerId, 1);
 
-    const card = await issueCard(deps(), { customerId, reason: "LOST" });
+    const card = await issueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(card.index).toBe(2);
     await expect(cards.currentCard(customerId)).resolves.toEqual(card);
@@ -1060,7 +1081,7 @@ describe("issueCard", () => {
     cards.place(predecessor, 1, 2, 3);
     const customerId = await customerWith("ACTIVE");
 
-    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE", printed: false });
 
     expect(card.index).toBe(4);
   });
@@ -1069,7 +1090,7 @@ describe("issueCard", () => {
     const customerId = await customerWith("ACTIVE");
     cards.place(customerId, 1, 4);
 
-    const card = await issueCard(deps(), { customerId, reason: "STALE_COUNTS" });
+    const card = await issueCard(deps(), { customerId, reason: "STALE_COUNTS", printed: false });
 
     expect(card.index).toBe(5);
   });
@@ -1078,7 +1099,7 @@ describe("issueCard", () => {
     const customerId = await customerWith("ACTIVE");
     cards.place(customerId, 1);
 
-    await issueCard(deps(), { customerId, reason: "LOST" });
+    await issueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(cards.cards.get(customerId)?.map((card) => card.index)).toEqual([1, 2]);
   });
@@ -1086,7 +1107,7 @@ describe("issueCard", () => {
   it("stamps the card with the injected clock, so it and the audit entry agree", async () => {
     const customerId = await customerWith("ACTIVE");
 
-    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE", printed: false });
 
     expect(card.issuedAt).toEqual(new Date(TODAY));
     expect(audit.entries[0].when).toEqual(new Date(TODAY));
@@ -1095,7 +1116,7 @@ describe("issueCard", () => {
   it("prints the household counts on the card as they stand at the issue", async () => {
     const customerId = await customerWith("ACTIVE");
 
-    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+    const card = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE", printed: false });
 
     expect(card.countsAtIssue).toEqual({ grownUps: 1, children: 1 });
   });
@@ -1106,10 +1127,11 @@ describe("issueCard", () => {
       member({ birthDate: new Date("2013-08-01T00:00:00.000Z") }),
     ]);
 
-    const before = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+    const before = await issueCard(deps(), { customerId, reason: "FIRST_ISSUE", printed: false });
     const after = await issueCard(deps("2026-08-01T09:00:00.000Z"), {
       customerId,
       reason: "STALE_COUNTS",
+      printed: false,
     });
 
     expect(before.countsAtIssue).toEqual({ grownUps: 1, children: 1 });
@@ -1120,9 +1142,13 @@ describe("issueCard", () => {
     const customerId = await customerWith("ACTIVE", [
       member({ birthDate: new Date("2013-08-01T00:00:00.000Z") }),
     ]);
-    await issueCard(deps(), { customerId, reason: "FIRST_ISSUE" });
+    await issueCard(deps(), { customerId, reason: "FIRST_ISSUE", printed: false });
 
-    await issueCard(deps("2026-08-01T09:00:00.000Z"), { customerId, reason: "STALE_COUNTS" });
+    await issueCard(deps("2026-08-01T09:00:00.000Z"), {
+      customerId,
+      reason: "STALE_COUNTS",
+      printed: false,
+    });
 
     const run = await cards.listCards(customerId);
     expect(run.map((card) => card.countsAtIssue)).toEqual([
@@ -1134,7 +1160,7 @@ describe("issueCard", () => {
   it("keeps the reason on the card, so a later reissue can be explained", async () => {
     const customerId = await customerWith("ACTIVE");
 
-    const card = await issueCard(deps(), { customerId, reason: "OTHER" });
+    const card = await issueCard(deps(), { customerId, reason: "OTHER", printed: false });
 
     expect(card.reason).toBe("OTHER");
   });
@@ -1142,7 +1168,7 @@ describe("issueCard", () => {
   it("records the issue under a stable event name, with the reason as the why", async () => {
     const customerId = await customerWith("ACTIVE");
 
-    await issueCard(deps(), { customerId, reason: "LOST" });
+    await issueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(audit.entries).toHaveLength(1);
     expect(audit.entries[0].what).toBe("customer.card.issued");
@@ -1150,10 +1176,41 @@ describe("issueCard", () => {
     expect(audit.entries[0].why).toBe("LOST");
   });
 
+  it("issues a card as printed when DF say so", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    const card = await issueCard(deps(), { customerId, reason: "LOST", printed: true });
+
+    // The instant of the issue itself: printed on the spot is one event, not two.
+    expect(card.printedAt).toEqual(new Date(TODAY));
+    expect(card.printedAt).toEqual(card.issuedAt);
+  });
+
+  it("issues a card as not yet printed unless DF say otherwise", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    const card = await issueCard(deps(), { customerId, reason: "LOST", printed: false });
+
+    expect(card.printedAt).toBeNull();
+    await expect(cards.currentCard(customerId)).resolves.toMatchObject({ printedAt: null });
+  });
+
+  it("names the printed date in the audit entry only when it was given", async () => {
+    const customerId = await customerWith("ACTIVE");
+
+    await issueCard(deps(), { customerId, reason: "LOST", printed: false });
+    await issueCard(deps(), { customerId, reason: "LOST", printed: true });
+
+    expect(audit.entries.map((entry) => entry.changedFields)).toEqual([
+      ["card"],
+      ["card", "printedAt"],
+    ]);
+  });
+
   it("issues to a blocked customer — a block turns them away, it does not unregister them", async () => {
     const customerId = await customerWith("BLOCKED");
 
-    const card = await issueCard(deps(), { customerId, reason: "LOST" });
+    const card = await issueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(card.index).toBe(1);
   });
@@ -1161,7 +1218,7 @@ describe("issueCard", () => {
   it("refuses a card to an archived customer, whose slot may already be someone else's", async () => {
     const customerId = await customerWith("ARCHIVED");
 
-    await expect(issueCard(deps(), { customerId, reason: "LOST" })).rejects.toThrow(
+    await expect(issueCard(deps(), { customerId, reason: "LOST", printed: false })).rejects.toThrow(
       CustomerArchived,
     );
   });
@@ -1169,16 +1226,16 @@ describe("issueCard", () => {
   it("writes neither card nor audit entry when the customer is archived", async () => {
     const customerId = await customerWith("ARCHIVED");
 
-    await issueCard(deps(), { customerId, reason: "LOST" }).catch(() => undefined);
+    await issueCard(deps(), { customerId, reason: "LOST", printed: false }).catch(() => undefined);
 
     expect(cards.cards.get(customerId)).toBeUndefined();
     expect(audit.entries).toHaveLength(0);
   });
 
   it("refuses an id that belongs to nobody rather than issuing a card into the void", async () => {
-    await expect(issueCard(deps(), { customerId: 404, reason: "LOST" })).rejects.toThrow(
-      CustomerNotFound,
-    );
+    await expect(
+      issueCard(deps(), { customerId: 404, reason: "LOST", printed: false }),
+    ).rejects.toThrow(CustomerNotFound);
   });
 });
 
@@ -1224,16 +1281,26 @@ describe("reissueCard", () => {
   it("issues the index after the current card, so the lost one is no longer the highest", async () => {
     const customerId = await holderOfCardOne();
 
-    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+    const card = await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(card.index).toBe(2);
     await expect(cards.currentCard(customerId)).resolves.toEqual(card);
   });
 
+  it("passes on whether the replacement was printed on the spot", async () => {
+    const customerId = await holderOfCardOne();
+
+    const printed = await reissueCard(deps(), { customerId, reason: "LOST", printed: true });
+    const unprinted = await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
+
+    expect(printed.printedAt).toEqual(new Date(TODAY));
+    expect(unprinted.printedAt).toBeNull();
+  });
+
   it("goes through issueCard rather than a second issuing path of its own", async () => {
     const customerId = await holderOfCardOne();
 
-    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+    const card = await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     // The one card-issuing path is recognisable by what it leaves behind: a card stamped with the
     // injected clock and one entry under the card-issued event.
@@ -1246,7 +1313,7 @@ describe("reissueCard", () => {
   it("records the reissue with LOST as the why, so the log tells losses from birthdays apart", async () => {
     const customerId = await holderOfCardOne();
 
-    await reissueCard(deps(), { customerId, reason: "LOST" });
+    await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(audit.entries[0].why).toBe("LOST");
   });
@@ -1254,7 +1321,7 @@ describe("reissueCard", () => {
   it("keeps the superseded card on record — it is invalid only by being outranked", async () => {
     const customerId = await holderOfCardOne();
 
-    await reissueCard(deps(), { customerId, reason: "LOST" });
+    await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     await expect(cards.listCards(customerId)).resolves.toMatchObject([{ index: 2 }, { index: 1 }]);
   });
@@ -1262,8 +1329,8 @@ describe("reissueCard", () => {
   it("counts on again when a replacement is lost in its turn", async () => {
     const customerId = await holderOfCardOne();
 
-    await reissueCard(deps(), { customerId, reason: "LOST" });
-    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+    await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
+    const card = await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(card.index).toBe(3);
     await expect(cards.currentCard(customerId)).resolves.toEqual(card);
@@ -1273,7 +1340,7 @@ describe("reissueCard", () => {
     const customerId = await holderOfCardOne();
 
     for (let issue = 0; issue < 10; issue += 1) {
-      await reissueCard(deps(), { customerId, reason: "LOST" });
+      await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
     }
 
     await expect(cards.currentCard(customerId)).resolves.toMatchObject({ index: 11 });
@@ -1283,7 +1350,7 @@ describe("reissueCard", () => {
     const customerId = await holderOfCardOne();
     const before = await customers.findById(customerId);
 
-    await reissueCard(deps(), { customerId, reason: "LOST" });
+    await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     const after = await customers.findById(customerId);
     expect(after).toMatchObject({
@@ -1297,7 +1364,7 @@ describe("reissueCard", () => {
     const customerId = await holderOfCardOne();
     distribution = new FakeDistributionRecordRepository(collected(customerId));
 
-    await reissueCard(deps(), { customerId, reason: "LOST" });
+    await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     await expect(distribution.listForCustomer(customerId)).resolves.toEqual([
       collected(customerId),
@@ -1308,7 +1375,7 @@ describe("reissueCard", () => {
   it("reissues to a blocked customer — a block pauses the counter, not the card", async () => {
     const customerId = await holderOfCardOne("BLOCKED");
 
-    const card = await reissueCard(deps(), { customerId, reason: "LOST" });
+    const card = await reissueCard(deps(), { customerId, reason: "LOST", printed: false });
 
     expect(card.index).toBe(2);
   });
@@ -1316,15 +1383,17 @@ describe("reissueCard", () => {
   it("refuses a reissue to an archived customer, whose slot may already be someone else's", async () => {
     const customerId = await holderOfCardOne("ARCHIVED");
 
-    await expect(reissueCard(deps(), { customerId, reason: "LOST" })).rejects.toThrow(
-      CustomerArchived,
-    );
+    await expect(
+      reissueCard(deps(), { customerId, reason: "LOST", printed: false }),
+    ).rejects.toThrow(CustomerArchived);
   });
 
   it("writes neither card nor audit entry when the customer is archived", async () => {
     const customerId = await holderOfCardOne("ARCHIVED");
 
-    await reissueCard(deps(), { customerId, reason: "LOST" }).catch(() => undefined);
+    await reissueCard(deps(), { customerId, reason: "LOST", printed: false }).catch(
+      () => undefined,
+    );
 
     await expect(cards.currentCard(customerId)).resolves.toMatchObject({ index: 1 });
     expect(audit.entries).toHaveLength(0);
@@ -1765,6 +1834,7 @@ describe("readCustomer", () => {
       certificate: { type: "Jobcenter", validUntil: new Date("2027-06-30T00:00:00.000Z") },
       notes: "",
       previousCustomerId: archived.id,
+      cardPrinted: false,
     });
 
     const view = await readCustomer(deps(), returning.id);
@@ -1902,7 +1972,7 @@ describe("readCard", () => {
 
   it("shows the highest-indexed card as the current one after a reissue", async () => {
     const customer = await registered();
-    await issueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await issueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
 
     const view = await readCard(deps(), customer.id);
 
@@ -1912,8 +1982,8 @@ describe("readCard", () => {
 
   it("names the numbers the current card replaced, newest first", async () => {
     const customer = await registered();
-    await issueCard(deps(), { customerId: customer.id, reason: "LOST" });
-    await issueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
+    await issueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
+    await issueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS", printed: false });
 
     const view = await readCard(deps(), customer.id);
 
@@ -1922,7 +1992,7 @@ describe("readCard", () => {
 
   it("keeps the reason a superseded card was issued for, which its number cannot say", async () => {
     const customer = await registered();
-    await issueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await issueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
 
     const view = await readCard(deps(), customer.id);
 
@@ -1990,8 +2060,8 @@ describe("readCard", () => {
 
   it("counts every card the household has been through, the one they hold included", async () => {
     const customer = await registered();
-    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
-    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
+    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS", printed: false });
 
     const view = await readCard(deps(), customer.id);
 
@@ -2000,9 +2070,9 @@ describe("readCard", () => {
 
   it("keeps a stale-counts reissue out of the loss count, which is not the household's doing", async () => {
     const customer = await registered();
-    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
-    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS" });
-    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
+    await reissueCard(deps(), { customerId: customer.id, reason: "STALE_COUNTS", printed: false });
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
 
     const view = await readCard(deps(), customer.id);
 
@@ -2013,7 +2083,7 @@ describe("readCard", () => {
   it("reports the tenth loss without a word of warning — the judgement is the staff's", async () => {
     const customer = await registered();
     for (let reissue = 0; reissue < 10; reissue += 1) {
-      await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+      await reissueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
     }
 
     const view = await readCard(deps(), customer.id);
@@ -2032,7 +2102,7 @@ describe("readCard", () => {
 
   it("counts the next number on from the card held, not from the first one ever issued", async () => {
     const customer = await registered();
-    await reissueCard(deps(), { customerId: customer.id, reason: "LOST" });
+    await reissueCard(deps(), { customerId: customer.id, reason: "LOST", printed: false });
 
     const view = await readCard(deps(), customer.id);
 
@@ -2925,6 +2995,7 @@ describe("re-registering a household from an archived record", () => {
       ...draft,
       certificate: { type: "Jobcenter", validUntil: new Date("2027-06-30T00:00:00.000Z") },
       notes: "",
+      cardPrinted: false,
       previousCustomerId: archivedCustomerId,
       customerNumber,
     });

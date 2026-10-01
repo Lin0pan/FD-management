@@ -735,6 +735,14 @@ describe("changeCustomerNumber", () => {
     expect(card.issuedAt).toEqual(new Date(TODAY));
   });
 
+  it("prints a moved household's card as not yet printed", async () => {
+    // No checkbox is offered on a move: the card waits on „Karten drucken" (US-39).
+    const card = await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 23 });
+
+    expect(card.printedAt).toBeNull();
+    await expect(cards.currentCard(1)).resolves.toMatchObject({ printedAt: null });
+  });
+
   it("records the reason as a number change", async () => {
     const card = await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 23 });
 
