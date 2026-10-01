@@ -756,3 +756,20 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - Changing a `de.ts` sentence function's arity is caught by `tsc` in every e2e spec that asserts
     it — `grep -rn "<key>(" tests/e2e` first to see what the seeded rows' printedAt is.
 ---
+
+## 2026-10-01 - US-009
+- New isolated `tests/e2e/cards-to-print.spec.ts` (added to `ISOLATED_SPECS`): empty register → no
+  Start row, tile 0, empty list; unticked registration → listed, Start 1, tile 1, counter
+  CLEAR_TO_SERVE on `1k1`; ticked registration → off the list, card view „Gedruckt am <today>“;
+  tick → row gone + done + undo; undo → back; tick again, `goto /karten-drucken` → no undo, Start
+  row gone; loss reissue → exactly `1k2`; number change 3 → 5 → `5k2` listed; block keeps the row
+  (blocked word); archive drops it. Every count step checks Start and Übersichten together.
+- Other specs named in the story (overviews, home, reissue, registration, number-change,
+  navigation) needed no change — US-007 had already ticked `stale-reissue-printed` in overviews.
+- Gates: lint, typecheck, test:coverage (1456), build, test:e2e (251), test:e2e:webkit (251).
+- **Learnings for future iterations:**
+  - A number change prints `max(next on slot, next of the household)` (`nextCardIndexOnMove`), so a
+    household holding `3k1` moved to an empty slot 5 gets `5k2`, not `5k1`.
+  - The card view's printed date is asserted against `germanDate(row.printedAt)` read through Prisma
+    rather than a date computed in the spec — exact, and immune to the midnight edge.
+---
