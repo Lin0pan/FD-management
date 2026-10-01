@@ -117,8 +117,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 36  | `36-us-36-sessions-not-the-calendar.json`       | 7       | `ralph/us-36-sessions-not-the-calendar`       |
 | 37  | `37-us-37-session-overview-and-detail.json`     | 6       | `ralph/us-37-session-overview-and-detail`     |
 | 38  | `38-us-38-overviews-and-to-dos.json`            | 6       | `ralph/us-38-overviews-and-to-dos`            |
+| 39  | `39-us-39-cards-to-print.json`                  | 10      | `ralph/us-39-cards-to-print`                  |
 
-225 stories total — the rows sum to it. Every story cites its source PRD section in its
+235 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -388,6 +389,14 @@ use cases** (`readOverviews`, `listToDos`) that measure the lists they stand for
 anew, so Start and Übersichten cannot disagree. No schema change, no port method, no domain edit, no
 ADR — and no URL moves: `/ausgabetermine` and `/karten-neuausstellung` only change which tab they
 mark. Its e2e is the fifth isolated spec, because „nothing due" is a claim about the whole register.
+
+**39 (US-39)** is the first list that arrives into that place: **„Karten drucken"**, every household
+whose current card DF have not yet ticked off as printed, with a checkbox „Karte ist bereits
+gedruckt" on every card issued by hand. A **schema change** — `Card.printedAt`, nullable, with the
+migration history regenerated and **both hand-written partial indexes re-added** — plus one port
+method (`CardRepository.setPrintedAt`, the only write to a card row after its insert), two domain
+functions (`markPrinted`, `unmarkPrinted`), three typed errors (`CardAlreadyPrinted`,
+`CardNotPrinted`, `CardSuperseded`) and ADR-022. Its e2e is the sixth isolated spec.
 
 ## Regenerating
 

@@ -145,13 +145,38 @@ mit ihren Zahlen. Eine Kundennummer lässt sich dann nicht nachschlagen — Kund
 ## Übersichten und „Zu erledigen"
 
 **Übersichten.** Der Reiter **Übersichten** sammelt die Listen, in denen man etwas nachschlägt —
-nach Bereichen geordnet, jede mit ihrer Anzahl. Heute sind es zwei: **Karten neu ausstellen**
-(unter _Kunden_) und **Ausgabetermine** (unter _Ausgaben_). Eine **0** heißt: die Liste ist leer.
+nach Bereichen geordnet, jede mit ihrer Anzahl. Heute sind es drei: **Karten neu ausstellen** und
+**Karten drucken** (unter _Kunden_) sowie **Ausgabetermine** (unter _Ausgaben_). Eine **0** heißt:
+die Liste ist leer.
 
 **Zu erledigen.** Wartet etwas darauf, erledigt zu werden, steht es auf der **Start**-Seite unter
-**Zu erledigen** — heute nur die Karten, die neu ausgestellt werden müssen. Ein Klick führt zur
+**Zu erledigen** — die Karten, die neu ausgestellt werden müssen, und die Karten, die noch gedruckt
+werden müssen. Ein Klick führt zur
 selben Liste wie in den Übersichten, mit derselben Zahl. Der Block erscheint **nur, wenn etwas
 ansteht**, und verschwindet von selbst, sobald alles erledigt ist.
+
+## Karten drucken
+
+Die Software druckt keine Karten. Manchmal bekommt ein Haushalt erst eine vorläufige Karte und die
+richtige wird später gedruckt — damit das nicht vergessen wird, merkt sich die Software jede Karte,
+die noch nicht gedruckt ist.
+
+**Beim Ausstellen.** Bei der Aufnahme, beim Neuausstellen nach Verlust und in der Liste **Karten neu
+ausstellen** steht das Kästchen **„Karte ist bereits gedruckt"**. Haken Sie es an, wenn Sie die
+Karte gleich mitdrucken — dann erscheint sie nirgends mehr. Bleibt es leer, kommt die Karte auf die
+Liste **Karten drucken**. Eine Karte aus einem **Wechsel der Kundennummer** kommt immer auf die
+Liste; dort gibt es kein Kästchen.
+
+**Die Liste.** **Karten drucken** finden Sie unter **Übersichten** und, solange etwas aussteht, auf
+der Start-Seite unter **Zu erledigen**. Pro Haushalt steht dort nur seine aktuelle Karte, die am
+längsten wartende zuoberst. Ist die Karte gedruckt, klicken Sie in ihrer Zeile auf **Gedruckt** —
+die Zeile verschwindet. Gesperrte Haushalte bleiben auf der Liste, archivierte fallen heraus.
+
+> **Zurücknehmen geht nur sofort.** Direkt nach dem Abhaken steht oben **Rückgängig**. Sobald Sie die
+> Seite verlassen oder neu laden, ist diese Möglichkeit weg.
+
+An der Ausgabe ändert sich nichts: Eine noch nicht gedruckte Karte gilt genauso wie eine gedruckte.
+Wann eine Karte gedruckt wurde, steht in der Kartenansicht des Kunden bei jeder Karte.
 
 ## Frühere Ausgaben nachschlagen
 

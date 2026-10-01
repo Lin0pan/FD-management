@@ -49,6 +49,7 @@ erDiagram
         int grownUpsAtIssue "snapshot of the printed card"
         int childrenAtIssue "snapshot of the printed card"
         string reason "FIRST_ISSUE LOST STALE_COUNTS CUSTOMER_NUMBER_CHANGED OTHER"
+        datetime printedAt "null until DF tick it off; the one column written after the insert"
     }
     DistributionSession {
         datetime startedAt "by hand, never by the clock"
@@ -287,7 +288,8 @@ tell its volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the-
 
 - Required on every state change: archive, block, unblock, number change, card reissue, note edit,
   policy edit, a change to the list of Nachweis-Arten, **ending and reopening a distribution
-  session**. Skipping one is a defect, not an omission.
+  session**, ticking a card off as printed and taking that back
+  ([ADR-022](adr/022-record-when-a-card-was-printed-on-the-card-row.md)). Skipping one is a defect, not an omission.
 - **A session is written to the log only when it ends**, in one entry carrying both instants and the
   groups it served. Starting writes nothing, because an entry at the start would show a session that
   began and never ended; a session discarded while empty writes nothing either, so DF get no

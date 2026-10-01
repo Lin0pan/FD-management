@@ -1,8 +1,8 @@
 # 9. Architectural decisions
 
-_Last reviewed: 2026-09-20_
+_Last reviewed: 2026-10-01_
 
-A timeline. The twenty-one decisions that constrain future work and are hard to reverse have an ADR
+A timeline. The twenty-two decisions that constrain future work and are hard to reverse have an ADR
 of their own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more,
 because a decision log full of trivia teaches people to skim it.
 
@@ -31,6 +31,7 @@ because a decision log full of trivia teaches people to skim it.
 | [019](adr/019-keep-the-certificate-type-list-out-of-the-versioned-settings-history.md)             | Keep the certificate-type list out of the versioned settings history              | Accepted | 2026-09-17 |
 | [020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)          | The distribution session, not the calendar, is what a hand-out belongs to         | Accepted | 2026-09-20 |
 | [021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)               | Capture the household's state when a distribution session is ended                | Accepted | 2026-09-20 |
+| [022](adr/022-record-when-a-card-was-printed-on-the-card-row.md)                                   | Record when a card was printed on the card row                                    | Accepted | 2026-10-01 |
 
 ## Smaller decisions, recorded without an ADR
 
