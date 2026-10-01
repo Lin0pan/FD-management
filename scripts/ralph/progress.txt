@@ -739,3 +739,20 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - A to-do test fixture whose card defaults to *unprinted* puts every household on the print count;
     default fixtures to `printedAt` set and opt into null, or every older to-do test breaks.
 ---
+
+## 2026-10-01 - US-008
+- Card view (`/kunden/[id]/karte`): a third `dl` entry `card-printed-at` — „Gedruckt am: <date>“ or
+  „Gedruckt: noch nicht“ (`de.customers.cardView.printedAt` / `printed` / `notYetPrinted`).
+  `supersededEntry(number, date, printedDate | null, reason)` now reads „…, gedruckt am X, Grund: …“
+  or „…, nicht gedruckt, Grund: …“. `readCard` needed no code change — `printedAt` rides on
+  `IssuedCard`; one named test proves it for the current and superseded cards.
+- e2e: number-change/number-group/reissue pass the new printed argument (seeded cards printed,
+  UI-registered ones not); reissue asserts „Gedruckt: noch nicht“, age-13 asserts „Gedruckt am“.
+  /ausgabe untouched.
+- Gates: lint, typecheck, test:coverage (1456, 100%), build, test:e2e (244 passed).
+- playwright-cli on the demo register: both states read as term/definition pairs; superseded list
+  item names the printed date.
+- **Learnings for future iterations:**
+  - Changing a `de.ts` sentence function's arity is caught by `tsc` in every e2e spec that asserts
+    it — `grep -rn "<key>(" tests/e2e` first to see what the seeded rows' printedAt is.
+---

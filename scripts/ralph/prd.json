@@ -167,7 +167,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "card.spec.ts / reissue.spec.ts may assert the exact superseded-entry text — update them deliberately to the new wording."
     },
     {
