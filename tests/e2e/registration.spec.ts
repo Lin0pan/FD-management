@@ -160,6 +160,7 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
           customerNumber,
           index: 1,
           issuedAt: new Date(SEEDED_ISSUED_AT),
+          printedAt: new Date(SEEDED_ISSUED_AT),
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,

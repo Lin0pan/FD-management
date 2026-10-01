@@ -170,6 +170,7 @@ async function seedHousehold({
           customerNumber,
           index: seeded.index,
           issuedAt: new Date(`${seeded.issuedAt}T00:00:00.000Z`),
+          printedAt: new Date(`${seeded.issuedAt}T00:00:00.000Z`),
           reason: seeded.reason,
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,

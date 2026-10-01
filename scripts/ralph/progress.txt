@@ -87,6 +87,14 @@ bullets that sat under „Where batch 38 starts" are not carried over — they a
   - A regeneration **renames a directory that documents cite by name**. `grep -rn "<old-timestamp>_init"
     docs/ src/ tests/` afterwards; prefer the `prisma/migrations/*_init/migration.sql` glob, which
     survives the next one.
+- **`prisma/demo-seed.ts` writes nothing with Prisma** — every row comes from a use case under a
+  wound clock (its header says so and why). A story asking the seeds for a column value is answered
+  by the use case's input (`cardPrinted: true`), never by an `UPDATE` after the fact; if the input
+  does not exist yet, carry the seed's half to the story that adds it. `prisma/seed.ts` writes
+  settings only, no customers and no cards.
+- **`customer-record.spec.ts`'s „refused renewal" test can flake in a full run** on its
+  certificate-type select (it read the configured types while another spec changed them). Rerun it
+  alone before chasing it; it passed alone and in the next full run in batch 39.
 - **Never `pkill -f "next dev"`, and never `pkill -f "node.*next-server"`** — both patterns match the
   Bash tool's own wrapper command line and kill the shell (exit 144, no output). **And `ss` is not
   installed in this sandbox**, so `ss -ltnp | grep :3000 || echo free` reports "free" for every port,
@@ -604,4 +612,21 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - `tasks/prd-us-39-cards-to-print.md` fails `prettier --check` on `main` already; CI does not
     run `format:check`, and lint-staged only formats staged files, so it bites nobody until the
     file is touched.
+---
+
+## 2026-10-01 - US-002
+- Every e2e spec that inserts a card through Prisma (20 inserts in 19 specs) now states
+  `printedAt`, equal to the `issuedAt` it already used. No assertion changed.
+- `prisma/seed.ts` writes no cards; `db:reset` leaves 0 cards, 0 unprinted (checked, not committed).
+- `prisma/demo-seed.ts` is NOT changed here: it writes only through the use cases, and they cannot
+  yet be told a card is printed. Its half of D10 is carried into the notes of US-003
+  (`cardPrinted`/`printed: true`) and US-004 (`markCardPrinted` right after the number change).
+- Gates: typecheck, lint, `test:e2e` (242 passed; one flake in customer-record.spec.ts on the first
+  run, green alone and on the rerun), `test:e2e:webkit` (242 passed).
+- Files: tests/e2e/*.spec.ts (19), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - The inserts were found with `grep -n "cards: {" tests/e2e/*.ts` and patched by a script that
+    copies each `issuedAt: X,` line inside such a block to `printedAt: X,`. `number-change.spec.ts`
+    maps an array through one insert, so its 10 cards are one line.
+  - `tests/e2e/seeding.ts` only deletes cards; no shared insert helper exists.
 ---

@@ -128,6 +128,7 @@ test("the counts and the price are derived from the household, not stored", asyn
           customerNumber: CUSTOMER_NUMBER,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
+          printedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           // The printed card matches the seeded household — one grown-up and one child — so the
           // first reading below is the derivation's doing and nothing else's.

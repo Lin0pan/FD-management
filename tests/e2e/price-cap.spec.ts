@@ -148,6 +148,7 @@ async function seedHousehold(): Promise<number> {
           customerNumber: CUSTOMER_NUMBER,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
+          printedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           // The printed card matches the household it belongs to, so this spec adds no row to the
           // cards-due list the reissue spec reads after it.

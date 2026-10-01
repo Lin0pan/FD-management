@@ -125,6 +125,7 @@ async function seedHousehold(): Promise<void> {
             customerNumber: CUSTOMER_NUMBER,
             index: 1,
             issuedAt: new Date("2025-01-02T00:00:00.000Z"),
+            printedAt: new Date("2025-01-02T00:00:00.000Z"),
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,

@@ -126,6 +126,7 @@ async function seedHousehold(customerNumber: number): Promise<number> {
             customerNumber,
             index: 1,
             issuedAt: NOW,
+            printedAt: NOW,
             reason: "FIRST_ISSUE",
             // What the printed card says about the household — matching the seeded one, so no
             // spec here trips the cards-due-for-reissue list (US-13).

@@ -159,6 +159,7 @@ async function seedHousehold(): Promise<number> {
           customerNumber: CUSTOMER_NUMBER,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
+          printedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           // Printed before the birthday, and true when it was printed. Everything this spec asserts
           // about the cards-due list follows from this pair going out of date on its own.

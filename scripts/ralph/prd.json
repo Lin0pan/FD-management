@@ -38,8 +38,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Mechanical, but the reason matters: printedAt is nullable, so an insert that omits it produces an UNPRINTED card and any spec asserting an empty „Zu erledigen\" breaks once US-007 lands. Do not change any assertion here."
+      "passes": true,
+      "notes": "Mechanical, but the reason matters: printedAt is nullable, so an insert that omits it produces an UNPRINTED card and any spec asserting an empty „Zu erledigen\" breaks once US-007 lands. Do not change any assertion here. DONE: prisma/seed.ts writes no cards (settings only), and prisma/demo-seed.ts writes NO row with Prisma — every card goes through registerCustomer / reissueCard / changeCustomerNumber, by its own header's rule. Its printedAt = issuedAt is therefore carried by US-003 and US-004 (see their notes), not by an UPDATE here."
     },
     {
       "id": "US-003",
@@ -59,7 +59,7 @@
       ],
       "priority": 3,
       "passes": false,
-      "notes": ""
+      "notes": "CARRIED FROM US-002 (D10): prisma/demo-seed.ts must pass cardPrinted: true to registerCustomer and printed: true to reissueCard, so its demo cards are printed at their issue instant. Then `npm run db:demo -- --reset` and check the unprinted count is only the moved household's card (closed in US-004)."
     },
     {
       "id": "US-004",
@@ -81,7 +81,7 @@
       ],
       "priority": 4,
       "passes": false,
-      "notes": "A card is identified by (customerId, index) — @@unique([customerId, index]) already guarantees it. Passing the index from the row DF saw is what lets the tick notice a replaced card instead of ticking off one DF never looked at."
+      "notes": "A card is identified by (customerId, index) — @@unique([customerId, index]) already guarantees it. Passing the index from the row DF saw is what lets the tick notice a replaced card instead of ticking off one DF never looked at. CARRIED FROM US-002 (D10): the demo household whose number changes (weekChangedDaysAgo in prisma/demo-seed.ts) gets an unprinted card from changeCustomerNumber; call markCardPrinted right after it in the SAME event (same wound clock instant, so printedAt = issuedAt). Then `npm run db:demo -- --reset` must leave zero cards with printedAt NULL."
     },
     {
       "id": "US-005",

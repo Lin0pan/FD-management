@@ -71,6 +71,7 @@ async function seedHouseholdWithStaleCard(): Promise<void> {
             customerNumber: CUSTOMER_NUMBER,
             index: 1,
             issuedAt: NOW,
+            printedAt: NOW,
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 2,
             childrenAtIssue: 0,
