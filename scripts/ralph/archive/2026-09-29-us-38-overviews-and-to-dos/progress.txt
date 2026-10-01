@@ -1,10 +1,10 @@
 # Ralph Progress Log
-Started: Thu Oct 01 2026 (batch 39 — US-39 „Karten drucken", cards still to be printed)
+Started: Tue Sep 29 2026 (batch 38 — US-38 the Übersichten tab and „Zu erledigen")
 
 The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on purpose
-(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-38-specific
-bullets that sat under „Where batch 38 starts" are not carried over — they are in
-`scripts/ralph/archive/2026-09-29-us-38-overviews-and-to-dos/progress.txt`.
+(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-37-specific
+bullets that sat under „Where batch 37 starts" are not carried over — they are in
+`scripts/ralph/archive/2026-09-21-us-37-session-overview-and-detail/progress.txt`.
 
 ## Codebase Patterns
 - **A PRD saying a helper „moves to `<path>`" is not a promise that `<path>` is free.**
@@ -556,28 +556,180 @@ bullets that sat under „Where batch 38 starts" are not carried over — they a
   it. Two copies of one argument is the fault this project exists to remove, and the handout is
   where it is most expensive — DF read it away from the code that would contradict it.
 
-### Where batch 39 starts
+### Where batch 38 starts
 
-A card is now **printed** (`Card.printedAt` set) or **not yet printed** (`null`). Issued by hand —
-registration, the loss reissue, the stale-counts reissue — DF can tick „Karte ist bereits gedruckt"
-(unticked by default). Issued by a number change it is always unprinted. `/karten-drucken` lists
-every active or blocked household whose **current** card is unprinted; DF tick rows off one at a
-time and can take a tick back only right after. It is the second US-38 to-do: a row in „Zu
-erledigen" and a tile under Übersichten, both from `countCardsToPrint`.
+DF want more lists, and the two that exist are scattered. This batch gives lists a place before a
+third arrives: a **to-do** (something a person resolves, which then returns to 0) goes on the Start
+screen in a block **„Zu erledigen"**, present only while something is due; an **overview** goes
+behind a new fifth nav tab **„Übersichten"**, always, 0 included.
 
-Requirements: `local_only/cards-to-print/requirement.md` (decisions D1–D12). Full PRD:
-`tasks/prd-us-39-cards-to-print.md`. Ten stories.
+Requirements: `local_only/overviews-and-to-dos/requirement.md` (rules in `ui-concept.md` beside it).
+Full PRD: `tasks/prd-us-38-overviews-and-to-dos.md`. Six stories.
 
-**It is a schema change.** Migrations are regenerated (still pre-release — re-confirm), so the two
-hand-written partial indexes (`Customer.customerNumber` unique where not archived; one running
-session) must be put back by hand. Grep the new `migration.sql` for `WHERE`.
+**It moves what exists and builds no new list.** Ausgabetermine gets its home in Übersichten;
+Karten neu ausstellen is a tile there **and** the one row of „Zu erledigen"; the Warteliste is
+untouched. The Kunden hub's reissue link and the counter screen's two Ausgabetermine links **stay**,
+as shortcuts.
 
-**`printedAt` is nullable, so an insert that omits it is an unprinted card.** ~20 e2e specs insert
-cards through Prisma; story 2 makes each state `printedAt`, or every spec asserting an empty „Zu
-erledigen" breaks once story 7 lands.
+**The URLs do not move** (decided 29.09.2026). `/ausgabetermine`, `/ausgabetermine/[id]` and
+`/karten-neuausstellung` stay put; only `active-section.ts` changes which tab marks them. Do not
+create `/uebersichten/ausgabetermine` — the concept note sketched it, the refinement dropped it.
 
-**Nothing changes at the counter.** A not-yet-printed card is valid exactly as before. If a story
-finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
+**The three things most likely to go wrong:**
 
-**The card row gains its first mutable column.** Only `printedAt` changes after the insert
-(`setPrintedAt`); every snapshot column beside it still never does.
+- **The count has one source.** `listToDos` and `readOverviews` both go through
+  `countCardsDueForReissue`; the Ausgabetermine tile through `countDistributionSessions`, measured
+  off `listDistributionSessions`. The „count > 0" rule lives in `listToDos`, tested — not in
+  `page.tsx`.
+- **Three files must agree on who owns `/karten-neuausstellung`**: `active-section.ts`, its unit
+  test, `navigation.spec.ts`. All change in story 2.
+- **The Start screen now reads the whole register.** `home.spec.ts` pins the clock as early as
+  2025-12-31 on the SHARED register; a household with a birthdate after that makes
+  `listCardsDueForReissue` throw `BirthDateInFuture` and Start error where it did not before. And
+  the shared register may hold a stale card, so the block's **absence** is asserted only in the
+  isolated `overviews.spec.ts` (story 5), which joins `ISOLATED_SPECS`.
+
+**One wording per list.** The requirement says „Karten zur Neuausstellung"; the screen's heading is
+„Karten neu ausstellen" (`de.cardsDue.heading`), and the tile and the row read that key.
+
+**`ChevronRight`, not `ArrowRight`**, on a to-do row: `ArrowRight` already means _before → after_
+(`ui_styling_guide.md` §12). Register the new glyph there.
+
+**No schema, no port method, no domain edit, no audit entry, no ADR.**
+
+
+## 2026-09-29 - US-001 (US-38.1 The counts, from one place)
+- `countDistributionSessions` added beside `listDistributionSessions` (measured off the list, like
+  `countCardsDueForReissue`). New `src/application/overviews/`: `read-overviews.ts`
+  (`{ cardsDue, pastSessions }`, deps = `CardsDueForReissueDeps & ListDistributionSessionsDeps`) and
+  `list-to-dos.ts` (`ToDoKind = "CARDS_DUE"`, entries at 0 filtered out in the use case).
+  One suite, `overviews.test.ts`, holds the six named tests — one compares the two use cases, so
+  they share fakes.
+- Files: src/application/distribution/list-distribution-sessions.ts,
+  src/application/overviews/{read-overviews,list-to-dos,overviews.test}.ts
+- **Learnings for future iterations:**
+  - The composition roots for US-002/US-004 need `{ customers, clock, sessions, records }` for
+    `readOverviews` and `{ customers, clock }` for `listToDos` — `ListToDosDeps` is just
+    `CardsDueForReissueDeps`, so an existing customers composition root already satisfies it.
+  - A fake whose `summariseBySession` returns `new Map()` must type it
+    (`new Map<number, SessionSummary>()`) — a bare `new Map()` is `Map<any, any>` and fails `tsc`
+    against a `ReadonlyMap<number, never>` return type.
+  - Nothing documented yet: chapter 05's counting words (use cases, routes) move in US-006.
+---
+
+## 2026-09-29 - US-002 (US-38.2 The Übersichten tab and its page)
+- `NavSection` gains `overviews` (between customers and settings) owning `/uebersichten`,
+  `/ausgabetermine`, `/karten-neuausstellung`; distribution owns `/ausgabe` only, customers
+  `/kunden` + `/warteliste`. New `/uebersichten` (force-dynamic, `readOverviews` only) with
+  composition root `overviewDeps`; two areas (h2 Kunden / Ausgaben), one tile each: a `Link`
+  wrapping `Stat`, accessible name „Karten neu ausstellen 1" / „Ausgabetermine 8". h1 reads
+  `de.nav.overviews` directly — no duplicate heading key; `de.overviews.areas` holds the h2s.
+- Files: src/app/active-section{,.test}.ts, src/app/nav.tsx (comment), src/i18n/de.ts,
+  src/app/uebersichten/{page.tsx,deps.ts}, tests/e2e/navigation.spec.ts
+- Browser (playwright-cli, chromium): snapshot confirms one link per tile carrying number + name;
+  hover and focus-visible tint the tile, focus ring shows; five nav items stay on ONE line at 1440,
+  1280 and 1024 px. `npm run test:e2e` 234 passed.
+- **Learnings for future iterations:**
+  - A linked tile is `<Link className="group rounded-lg … focus-visible:ring-3">` around
+    `<Stat className="group-hover:bg-muted group-focus-visible:bg-muted">`; reuse it rather than
+    a second tile shape.
+  - The playwright-cli banner about a skill/tool version mismatch is noise; the commands work.
+    Pipe its output to /dev/null and use `--raw` for evals.
+  - Docs still say „four items" (ui_styling_guide.md nav passage, chapter 05) — US-006's job.
+---
+
+## 2026-09-29 - US-003 (US-38.3 The two lists find their way home)
+- New `src/app/uebersichten/back-link.tsx` (`BackToOverviews`: ghost button, `ArrowLeft`
+  aria-hidden, label `de.nav.overviews`), placed beside the h1 on `/ausgabetermine`
+  (`past-sessions-back`) and `/karten-neuausstellung` (`cards-due-back`). The detail page's
+  „Alle Ausgabetermine" link gained the `ArrowLeft` the PRD said it already had — it did not.
+  Counter-screen shortcut comments and the `pastSessions.link` doc comment corrected;
+  `/kunden/[id]`'s „four-item bar" comment made count-free. Hub link and Warteliste untouched.
+- `ui_styling_guide.md` §2 said „No back-link to a section" — this story contradicts it on the
+  PRD's instruction, so the rule now names Übersichten's lists as its one exception, and its two
+  „four" counts became count-free. §12's nav passage (line ~687, „Four items") is left for US-006.
+- `navigation.spec.ts`: `OVERVIEW_ROUTES` became `{ route, back }` pairs; one new test per list
+  follows the back link to `/uebersichten`.
+- Files: src/app/uebersichten/back-link.tsx, src/app/ausgabetermine/{page,[id]/page}.tsx,
+  src/app/karten-neuausstellung/page.tsx, src/app/ausgabe/page.tsx, src/app/kunden/[id]/page.tsx,
+  src/i18n/de.ts, docs/guideline/ui_styling_guide.md, tests/e2e/navigation.spec.ts
+- Browser (playwright-cli, chromium, 1280 + 390): the link sits right of the h1 at 1280 and wraps
+  under it at 390; accessible name „Übersichten" (same as the nav item, same target — fine).
+  `npm run test:e2e` 236 passed.
+- **Learnings for future iterations:**
+  - `ui_styling_guide.md` §2 has a „no back-link to a section" rule; any back link to a tab
+    contradicts it unless the guide says otherwise — check it before adding one.
+  - `/warteliste/[entryId]/registrieren/page.tsx` still says „four-item bar" in a comment; left
+    alone because the story said the Warteliste is not touched. US-006's doc sweep should take it.
+  - Pre-existing: `/ausgabetermine`'s table clips the Summe column at 390px (no horizontal
+    scroll hint). Not this batch's to fix; worth raising with DF feedback.
+  - `playwright-cli` sessions are bound to the cwd — run it from the repo, not from `/tmp`.
+---
+
+## 2026-09-29 - US-004 (US-38.4 „Zu erledigen" on the Start screen)
+- `src/app/page.tsx` adds `listToDos(overviewDeps)` to its one `Promise.all` and renders a
+  `ToDos` section (`to-dos`, h2 `de.home.toDos`) between the running-session panel and the date,
+  only when the array is non-empty. Each row is one `Link` (`min-h-12`, border, neutral
+  hover/focus tint like the Übersichten tile): count (`to-do-cards-due-count`, tabular-nums),
+  `de.cardsDue.heading`, trailing `ChevronRight` aria-hidden. `TO_DO_LINKS: Record<ToDoKind,
+  { href, label, testId }>` holds all three per kind. Header comment rewritten; home.spec's
+  „moved to the hub" comment corrected. `ChevronRight` registered in ui_styling_guide.md §12.
+- Files: src/app/page.tsx, src/i18n/de.ts, tests/e2e/home.spec.ts,
+  docs/guideline/ui_styling_guide.md
+- Browser (playwright-cli, chromium, demo register with one card due): snapshot reads
+  `link "1 Karten neu ausstellen"`; order h1 → to-dos → date; row 50px high; focus ring and tint
+  show; fits at 390; click lands on /karten-neuausstellung with nav-overviews current.
+  home.spec.ts alone 3 passed; `npm run test:e2e` 236 passed — the 2025-12-31 pin did NOT make
+  Start throw `BirthDateInFuture` on the shared register.
+- **Learnings for future iterations:**
+  - `overviewDeps` satisfies `ListToDosDeps` structurally — Start imports it from
+    `./uebersichten/deps` rather than growing a third composition root.
+  - A `<section>` without an accessible name shows as `generic` in the snapshot; that is fine for
+    a headed block, don't add an `aria-label` just to make it a region.
+  - `npm run db:demo` refuses (exit 1) when the register already holds customers — that is not a
+    failure, the existing demo data is usable. `--reset` only if you need it fresh.
+---
+
+## 2026-09-29 - US-005 (US-38.5 Two entry points, one count, proved end to end)
+- New `tests/e2e/overviews.spec.ts` on the isolated register (added to `ISOLATED_SPECS`; it sorts
+  between number-group and session-detail). Real clock, `clearRegister` in `beforeAll`. Six serial
+  tests: nothing due (no `to-dos`, tiles 0/0); one stale card seeded via Prisma (one-person
+  household, card printed `grownUpsAtIssue: 2` → HOUSEHOLD_CHANGE) reads 1 on Start, Übersichten
+  and the hub badge; the Start row lands on /karten-neuausstellung with only `nav-overviews`
+  marked; reissuing from the list removes the block and zeroes the tile; start/end/start → tile 2
+  and two list rows; end, start, discard → still 2.
+- `registers.ts` comment made count-free („The specs here"), and session-detail's „run ahead of
+  it" sentence names overviews too.
+- Files: tests/e2e/overviews.spec.ts, tests/e2e/registers.ts, tests/e2e/session-detail.spec.ts
+- Gates: lint, typecheck, test:coverage, build green; `npm run test:e2e` 242 passed and
+  `npm run test:e2e:webkit` 242 passed (1 skipped each, the pre-existing settings.spec skip).
+- **Learnings for future iterations:**
+  - The cheapest stale card is a seeded card whose `grownUpsAtIssue` disagrees with the member
+    rows — no clock pin and no birthday needed, unlike age-13.spec.ts.
+  - A „German quote" in a test title must close with „…“ (U+201C), not a straight `"` — the
+    straight one ends the string literal and Prettier reports a syntax error.
+  - Asserting an element's ABSENCE right after `goto` needs a presence check first (the h1), or a
+    page that failed to render passes it.
+---
+
+## 2026-09-29 - US-006 (US-38.6 The Betriebsanleitung and the architecture record)
+- Handout: new section „Übersichten und ‚Zu erledigen'" before „Frühere Ausgaben nachschlagen",
+  which now names Übersichten as the list's home and the Ausgabe screen link as the shortcut. Stand
+  date moved to 29. September 2026.
+- arc42 (via the arc42 skill): 05 — `overviews/` row, 47 use cases, thirteen routes, `/uebersichten`
+  row, `/ausgabetermine` and `/karten-neuausstellung` say their tab is Übersichten, six composition
+  roots (the Level-1 diagram label said „four" — stale since batch 37). 12 — Overview and To-do
+  terms, composition roots „six". 06 — the age-13 flow's list node also shows the to-do. 07 — the
+  isolated register's fourth reason and fifth spec (`overviews`). No ADR.
+- ui_styling_guide.md: nav bar „Five items" in §12's refusals and the §10 contract line („five
+  labels"). The ChevronRight registry row was already there from US-004.
+- scripts/ralph/prds/README.md: batch 38 row, 225 stories total, a paragraph above „Regenerating".
+- Files: docs/architecture/05,06,07,12, docs/guideline/ui_styling_guide.md,
+  docs/handout/betriebsanleitung.md, scripts/ralph/prds/README.md
+- **Learnings for future iterations:**
+  - A docs story's „update chapter 5/12" is never the whole list: grep docs/architecture for the
+    counts a batch changes (deps.ts files, use cases, routes, isolated specs, nav items) — 06 and 07
+    were stale too, and 05's Mermaid label had been stale for a batch already.
+  - Only `scripts/ralph/prd.json` gets `passes: true`; the split files in `scripts/ralph/prds/` stay
+    as authored (batch 37's file has no story marked either).
+---

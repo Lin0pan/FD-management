@@ -1,0 +1,130 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-38-overviews-and-to-dos",
+  "description": "US-38 The Übersichten tab and „Zu erledigen\" on the Start screen. DF WANT MORE LISTS (certificates about to run out, cards not yet printed, reports later) AND THE LISTS THAT EXIST ARE SCATTERED: Karten neu ausstellen hangs off the Kunden hub, Ausgabetermine off the counter screen, neither has a tab. Before a third list arrives each gets a place. TWO KINDS OF LIST, TWO PLACES: a TO-DO (push — 'do I have to do something?') goes on the Start screen in a block „Zu erledigen\", shown ONLY WHEN ITS COUNT IS ABOVE 0; an OVERVIEW (pull — 'I want to look something up') goes behind a NEW FIFTH NAV TAB „Übersichten\", shown ALWAYS, 0 INCLUDED. RULES: every to-do has its home in Übersichten, not every overview is a to-do; only something a person can resolve, and which thereby returns to 0, is a to-do (Ausgabetermine never is); a to-do row links to the SAME page its tile does and the count comes from ONE use case, so Start and Übersichten can never disagree; a page belongs to exactly ONE tab and links from other screens are shortcuts. THIS BATCH MOVES WHAT EXISTS AND BUILDS NO NEW LIST: Ausgabetermine gets its home in Übersichten (the counter screen keeps its two links as shortcuts, what is counted does not change); Karten neu ausstellen is a tile in Übersichten AND a row in Zu erledigen (the Kunden hub keeps its link for now — a refinement decision, revisit after DF feedback); the Warteliste is untouched. THE URLS DO NOT MOVE (decided 29.09.2026): /ausgabetermine, /ausgabetermine/[id] and /karten-neuausstellung stay where they are, only the tab that marks them changes (active-section.ts). The requirement calls the second list 'Karten zur Neuausstellung'; the screen's heading is „Karten neu ausstellen\" (de.cardsDue.heading) and THAT is what the tile and the row say — one wording of one list. NO SCHEMA CHANGE, NO NEW PORT METHOD, NOTHING IN src/domain/, NO AUDIT ENTRY (nothing writes), NO ADR. A story that finds itself in prisma/, src/infrastructure/, src/application/ports.ts or src/domain/ has misread the batch. Requirements: local_only/overviews-and-to-dos/requirement.md (+ ui-concept.md for the rules). Full PRD: tasks/prd-us-38-overviews-and-to-dos.md.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The counts, from one place (application)",
+      "description": "As DF, I want the Start screen and the Übersichten tab to count from the same source, so that the number I see on one is the number I see on the other. Source: tasks/prd-us-38-overviews-and-to-dos.md §US-38.1",
+      "acceptanceCriteria": [
+        "NEW countDistributionSessions(deps) in src/application/distribution/list-distribution-sessions.ts, BUILT FROM listDistributionSessions AND MEASURED — the shape countCardsDueForReissue already takes, so a tile can never promise a row the list does not show. The running session COUNTS (it is a row of the list); a discarded one does NOT",
+        "NEW use case src/application/overviews/read-overviews.ts returning { cardsDue: number; pastSessions: number } — the figure of every Übersichten tile, 0 included",
+        "NEW use case src/application/overviews/list-to-dos.ts returning ReadonlyArray<{ kind: ToDoKind; count: number }>, ToDoKind a union with ONE member today: \"CARDS_DUE\". An entry with count 0 is OMITTED — the rule is the use case's, not the Start screen's. An empty array means the block is absent",
+        "Both read the cards-due figure through countCardsDueForReissue — NEVER a second derivation (no COUNT(*), no filter of their own)",
+        "Both carry the @throws of what they call (EmptyHousehold, BirthDateInFuture)",
+        "TDD against HAND-WRITTEN FAKES. Named tests: leaves a to-do off the list when nothing is due / lists the cards due for reissue with their count / counts the cards due exactly as the overview does / shows an overview at zero / counts the running afternoon among the Ausgabetermine / counts no discarded afternoon",
+        "No schema change, no new port method, nothing in src/domain/",
+        "Full unit suite passes with coverage (application stays at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Two tiny use cases rather than one: the Start screen and the Übersichten page ask different questions (what is due / how big is every list) of the same counts. ls src/application/overviews before creating it — it should not exist yet."
+    },
+    {
+      "id": "US-002",
+      "title": "The Übersichten tab and its page (presentation)",
+      "description": "As DF, I want a tab where every list I can look something up in is one click away, with its size on it, so that I see at a glance what there is before I open it. Source: tasks/prd-us-38-overviews-and-to-dos.md §US-38.2",
+      "acceptanceCriteria": [
+        "NavSection in src/app/active-section.ts gains \"overviews\"; NAV_ITEMS gains { section: \"overviews\", href: \"/uebersichten\", routes: [\"/uebersichten\", \"/ausgabetermine\", \"/karten-neuausstellung\"] } placed BETWEEN customers AND settings: Start · Ausgabe · Kunden verwalten · Übersichten · Einstellungen",
+        "distribution owns [\"/ausgabe\"] only; customers owns [\"/kunden\", \"/warteliste\"] only. The comments that justified the old ownership (why /ausgabetermine had no item, 'four items US-17 settled on', 'The four areas') are REPLACED, not left arguing with the new table",
+        "src/app/active-section.test.ts updated: /uebersichten, /ausgabetermine, /ausgabetermine/7 and /karten-neuausstellung mark overviews; /ausgabe still marks distribution; /warteliste still marks customers",
+        "de.nav.overviews: \"Übersichten\"; the page h1 says the same word (LABEL = HEADING). The de.nav.label comment counting 'four links' is corrected",
+        "NEW route src/app/uebersichten/page.tsx, export const dynamic = \"force-dynamic\" (a birthday overtakes a card at midnight with nothing written), calling readOverviews AND NOTHING ELSE; composition root in NEW src/app/uebersichten/deps.ts",
+        "Tiles grouped by area under an h2 each (new de.ts keys): KUNDEN — one tile, the cards-due count, labelled de.cardsDue.heading, linking to /karten-neuausstellung; AUSGABEN — one tile, the session count, labelled de.distribution.pastSessions.heading, linking to /ausgabetermine",
+        "A tile is ONE LINK whose accessible name carries BOTH the number and the list's name — check the playwright-cli accessibility snapshot, not the screenshot. Built on Stat (src/app/stat.tsx: tabular-nums, same figure size), not a new tile shape; hover/focus shows it is clickable. Test ids: overview-cards-due and overview-past-sessions on the VALUES, overview-cards-due-link and overview-past-sessions-link on the links",
+        "0 IS SHOWN — 'none due' is information in an overview",
+        "NO descriptions under the tiles and NO intro text (CLAUDE.md 'Don't explain the screen', ui_styling_guide.md §8)",
+        "tests/e2e/navigation.spec.ts updated IN THIS STORY so CI stays green: SECTIONS gains the fifth section (path /uebersichten, its heading), HUB_ROUTES loses /karten-neuausstellung, and the routes Übersichten owns without naming them (/ausgabetermine, /karten-neuausstellung) are asserted to mark nav-overviews and nothing else",
+        "Five items checked in the browser at a MacBook window width: they fit on one line, or the existing flex-wrap wraps them cleanly",
+        "Typecheck passes",
+        "Lint passes",
+        "npm run test:coverage passes",
+        "npm run test:e2e passes",
+        "Verify in browser using the playwright-cli skill"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "active-section.ts, its unit test and navigation.spec.ts must all agree on who owns /karten-neuausstellung — change all three here or CI goes red. The tab only highlights; NO URL moves."
+    },
+    {
+      "id": "US-003",
+      "title": "The two lists find their way home (presentation)",
+      "description": "As DF, I want each list to lead back to Übersichten, so that its tab and its way out agree. Source: tasks/prd-us-38-overviews-and-to-dos.md §US-38.3",
+      "acceptanceCriteria": [
+        "/ausgabetermine and /karten-neuausstellung each gain a back link to /uebersichten, labelled with the tab's name, in the shape /ausgabetermine/[id]'s link back to its list already has (ArrowLeft = 'back to the list', ui_styling_guide.md §12). Test ids past-sessions-back and cards-due-back",
+        "The counter screen's two links to /ausgabetermine (session-past-link, last-session-past-link) STAY as shortcuts. The comments beside them saying the list 'has no item in the nav bar', and the de.distribution.pastSessions.link comment calling the counter screen 'the only screen this one is reached from', are corrected",
+        "The Kunden hub's link to /karten-neuausstellung (hub-cards-due and its badge) stays UNCHANGED",
+        "The Warteliste is not touched",
+        "Typecheck passes",
+        "Lint passes",
+        "npm run test:e2e passes",
+        "Verify in browser using the playwright-cli skill"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Small story. Grep src/ for other comments that still say /ausgabetermine is reached only from the counter screen."
+    },
+    {
+      "id": "US-004",
+      "title": "„Zu erledigen\" on the Start screen (presentation)",
+      "description": "As DF, I want the Start screen to tell me when something is waiting to be done, so that a card due for reissue is not left until somebody happens to open the list. Source: tasks/prd-us-38-overviews-and-to-dos.md §US-38.4",
+      "acceptanceCriteria": [
+        "src/app/page.tsx calls listToDos beside the two reads it already makes (ONE Promise.all), deps composed in a composition root (src/app/uebersichten/deps.ts or an existing one), never constructed in the page",
+        "Position, by urgency: h1 → running-session panel (when one runs) → „Zu erledigen\" → the date line → the not-configured card",
+        "When listToDos is EMPTY THE WHOLE BLOCK IS ABSENT — no heading, no 'alles erledigt', no empty card. Test id to-dos on the block",
+        "Headed „Zu erledigen\" (h2, new key under de.home). One row per to-do: the count, the list's name (de.cardsDue.heading — the tile's own words), a trailing ChevronRight with aria-hidden",
+        "The WHOLE ROW IS ONE LINK to the same page its Übersichten tile opens (/karten-neuausstellung), hit target at least the nav's h-12. Test ids to-do-cards-due (the row link) and to-do-cards-due-count (the number)",
+        "href and label per ToDoKind come from a Record<ToDoKind, …> in the app layer, so a second kind added later fails the BUILD until it is given a place to link to",
+        "NEUTRAL styling — a to-do is not an error: no amber, no red, no Alert box",
+        "ChevronRight registered in docs/guideline/ui_styling_guide.md §12 as 'opens the list' (affordance) — NOT ArrowRight, which already means before → after on /karten-neuausstellung",
+        "The page's header comment no longer says the signals live only on the hub; tests/e2e/home.spec.ts's comment 'The to-do signals moved to the hub in US-17.2' is corrected",
+        "Typecheck passes",
+        "Lint passes",
+        "npm run test:e2e passes",
+        "Verify in browser using the playwright-cli skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "home.spec.ts runs on the SHARED register, which may hold a stale card from another spec — do not assert the block's absence there; that belongs to US-005's isolated spec. home.spec pins the clock as early as 2025-12-31: if any shared-register household has a birthdate after the pinned today, listCardsDueForReissue throws BirthDateInFuture and Start now errors where it did not before. Run home.spec.ts on its own AND in the full suite to rule that out."
+    },
+    {
+      "id": "US-005",
+      "title": "Two entry points, one count, proved end to end (e2e)",
+      "description": "As a developer, I want the promise that Start and Übersichten never disagree proved through the screens, because two pages counting the same thing is exactly where they drift. Source: tasks/prd-us-38-overviews-and-to-dos.md §US-38.5",
+      "acceptanceCriteria": [
+        "NEW tests/e2e/overviews.spec.ts. It asserts WHOLE-REGISTER counts (nothing due, how many sessions), so it OWNS ITS REGISTER: add \"**/overviews.spec.ts\" to ISOLATED_SPECS in tests/e2e/registers.ts and empty the register in its own beforeAll, like session-detail.spec.ts / no-shows.spec.ts",
+        "With nothing due: Start has NO to-dos block, Übersichten shows the cards-due tile at 0",
+        "With ONE card due (produce the stale card the way reissue.spec.ts / age-13.spec.ts already do): Start shows the block with count 1, Übersichten shows 1, the Kunden hub badge says the same — three screens, one number",
+        "Following the Start row lands on /karten-neuausstellung with nav-overviews marked",
+        "Reissuing the card there and returning to Start: the block is GONE again, and the tile reads 0",
+        "The Ausgabetermine tile counts what /ausgabetermine lists: start a session, end it, start a second — the tile reads 2 and the list has 2 rows; a discarded session changes neither. Build on tests/e2e/session.ts, not a second way of starting a session",
+        "Typecheck passes",
+        "Lint passes",
+        "Both engines pass: npm run test:e2e AND npm run test:e2e:webkit"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "The isolated register is shared by the ISOLATED_SPECS and each empties it in beforeAll — read the comment above ISOLATED_SPECS before adding the glob."
+    },
+    {
+      "id": "US-006",
+      "title": "The Betriebsanleitung and the architecture record (documentation)",
+      "description": "As DF, I want the handout to say where the lists now live, so that the new tab is found without being shown. Source: tasks/prd-us-38-overviews-and-to-dos.md §US-38.6",
+      "acceptanceCriteria": [
+        "docs/handout/betriebsanleitung.md gains a short German, printable section on Übersichten and Zu erledigen: where the lists are, that „Zu erledigen\" appears only when something is due and disappears once it is done. „Frühere Ausgaben nachschlagen\" says the list is under Übersichten (still reachable from the Ausgabe screen)",
+        "arc42 updated WITH THE arc42 SKILL: 05-building-block-view.md — the /uebersichten route, the two new use cases, and the /ausgabetermine row no longer claims it is reached from the counter screen alone or that the bar holds four items; 12-glossary.md — Übersicht and Zu erledigen if the words are worth fixing. NO ADR: a fifth tab is reversible in one commit",
+        "docs/guideline/ui_styling_guide.md: the nav-bar passage that says 'Four items' says five; the ChevronRight row from US-004 is in the §12 registry",
+        "scripts/ralph/prds/README.md: the batch 38 row in the Batches table (6 stories, ralph/us-38-overviews-and-to-dos), the story total updated, and a short paragraph — presentation + two application use cases, no schema change, no port method, no domain edit",
+        "npm run arc42:check passes",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": ""
+    }
+  ]
+}
