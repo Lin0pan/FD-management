@@ -77,6 +77,10 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   InvalidCardNumber: "error",
   CardIndexTaken: "error",
   CardNumberTaken: "error",
+  // A row of „Karten drucken" that another workstation ticked, took back or replaced meanwhile.
+  CardAlreadyPrinted: "error",
+  CardNotPrinted: "error",
+  CardSuperseded: "error",
   InvalidPaymentAmount: "error",
   InvalidSessionGroups: "error",
   // The three session codes the *screen* is wrong about: with no session running the counter offers

@@ -24,6 +24,9 @@ export type DomainErrorCode =
   | "InvalidCardNumber"
   | "CardIndexTaken"
   | "CardNumberTaken"
+  | "CardAlreadyPrinted"
+  | "CardNotPrinted"
+  | "CardSuperseded"
   | "AlreadyServedInSession"
   | "ReminderAlreadyLoggedInSession"
   | "InvalidSessionGroups"
@@ -381,6 +384,51 @@ export class CardNumberTaken extends DomainError {
   constructor(customerNumber: number, index: number) {
     super(`Card number ${customerNumber}k${index} has already been issued`);
     this.customerNumber = customerNumber;
+    this.index = index;
+  }
+}
+
+/**
+ * The card was already ticked off as printed (US-39). A second tick must not move the first date, so
+ * it is refused rather than ignored — reaching it means another workstation ticked the row first.
+ */
+export class CardAlreadyPrinted extends DomainError {
+  readonly code = "CardAlreadyPrinted";
+  readonly customerNumber: number;
+  readonly index: number;
+
+  constructor(customerNumber: number, index: number) {
+    super(`Card ${customerNumber}k${index} has already been ticked off as printed`);
+    this.customerNumber = customerNumber;
+    this.index = index;
+  }
+}
+
+/** A tick was taken back from a card that carries none (US-39). */
+export class CardNotPrinted extends DomainError {
+  readonly code = "CardNotPrinted";
+  readonly customerNumber: number;
+  readonly index: number;
+
+  constructor(customerNumber: number, index: number) {
+    super(`Card ${customerNumber}k${index} has not been ticked off as printed`);
+    this.customerNumber = customerNumber;
+    this.index = index;
+  }
+}
+
+/**
+ * The card a row named is no longer the one its household holds — it was replaced after the row was
+ * read (US-39, D4). Refused rather than redirected to the current card, which DF never looked at.
+ */
+export class CardSuperseded extends DomainError {
+  readonly code = "CardSuperseded";
+  readonly customerId: number;
+  readonly index: number;
+
+  constructor(customerId: number, index: number) {
+    super(`Card ${index} of customer ${customerId} is no longer the card they hold`);
+    this.customerId = customerId;
     this.index = index;
   }
 }

@@ -6,7 +6,7 @@
  */
 
 import type { HouseholdComposition } from "../customer/householdComposition";
-import { InvalidCustomerRecord } from "../errors";
+import { CardAlreadyPrinted, CardNotPrinted, InvalidCustomerRecord } from "../errors";
 
 /**
  * Why a card was issued — a closed set, because the audit log is read by people who did not make the
@@ -87,3 +87,27 @@ export interface IssuedCard {
  * its household does not hold is invisible to every query in the system.
  */
 export type NewCard = Omit<IssuedCard, "customerNumber">;
+
+/**
+ * Tick a card off as printed on `at` (US-39).
+ *
+ * @throws {CardAlreadyPrinted} if it already carries a date — the first tick's date stands.
+ */
+export function markPrinted(card: IssuedCard, at: Date): IssuedCard {
+  if (card.printedAt !== null) {
+    throw new CardAlreadyPrinted(card.customerNumber, card.index);
+  }
+  return { ...card, printedAt: at };
+}
+
+/**
+ * Take a tick back: the card is not yet printed again (US-39).
+ *
+ * @throws {CardNotPrinted} if it carries no date to take back.
+ */
+export function unmarkPrinted(card: IssuedCard): IssuedCard {
+  if (card.printedAt === null) {
+    throw new CardNotPrinted(card.customerNumber, card.index);
+  }
+  return { ...card, printedAt: null };
+}
