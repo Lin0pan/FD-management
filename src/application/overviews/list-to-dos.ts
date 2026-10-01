@@ -8,15 +8,16 @@ import {
   countCardsDueForReissue,
   type CardsDueForReissueDeps,
 } from "../customers/cards-due-for-reissue";
+import { countCardsToPrint, type CardsToPrintDeps } from "../customers/cards-to-print";
 
-export type ToDoKind = "CARDS_DUE";
+export type ToDoKind = "CARDS_DUE" | "CARDS_TO_PRINT";
 
 export interface ToDo {
   readonly kind: ToDoKind;
   readonly count: number;
 }
 
-export type ListToDosDeps = CardsDueForReissueDeps;
+export type ListToDosDeps = CardsDueForReissueDeps & CardsToPrintDeps;
 
 /**
  * The to-dos with something waiting, in the order they are shown. One at 0 is left out here, not
@@ -26,8 +27,13 @@ export type ListToDosDeps = CardsDueForReissueDeps;
  * @throws {BirthDateInFuture} if a stored birthdate lies after today.
  */
 export async function listToDos(deps: ListToDosDeps): Promise<ReadonlyArray<ToDo>> {
+  const [cardsDue, cardsToPrint] = await Promise.all([
+    countCardsDueForReissue(deps),
+    countCardsToPrint(deps),
+  ]);
   const toDos: ReadonlyArray<ToDo> = [
-    { kind: "CARDS_DUE", count: await countCardsDueForReissue(deps) },
+    { kind: "CARDS_DUE", count: cardsDue },
+    { kind: "CARDS_TO_PRINT", count: cardsToPrint },
   ];
   return toDos.filter((toDo) => toDo.count > 0);
 }

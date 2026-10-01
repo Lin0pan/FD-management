@@ -43,6 +43,12 @@ export default async function OverviewsPage(): Promise<React.ReactElement> {
           linkTestId="overview-cards-due-link"
           valueTestId="overview-cards-due"
         />
+        <ListLink
+          list="cardsToPrint"
+          count={overviews.cardsToPrint}
+          linkTestId="overview-cards-to-print-link"
+          valueTestId="overview-cards-to-print"
+        />
       </Area>
 
       <Area heading={areas.distribution}>

@@ -28,9 +28,9 @@ const clock: Clock = { now: () => TODAY };
 
 /**
  * An active household of one grown-up whose card prints `printedGrownUps` of them — so a card is
- * due for reissue exactly when that number is not 1.
+ * due for reissue exactly when that number is not 1 — and is still to be printed unless `printed`.
  */
-function household(id: number, printedGrownUps: number): RegisteredCustomer {
+function household(id: number, printedGrownUps: number, printed = true): RegisteredCustomer {
   const self = {
     firstName: faker.person.firstName(),
     lastName: faker.person.lastName(),
@@ -65,7 +65,7 @@ function household(id: number, printedGrownUps: number): RegisteredCustomer {
       issuedAt: TODAY,
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: printedGrownUps, children: 0 },
-      printedAt: null,
+      printedAt: printed ? TODAY : null,
     },
     registeredOn: TODAY,
     previousCustomerId: null,
@@ -238,11 +238,38 @@ describe("listToDos", () => {
 
     expect(toDos).toEqual([{ kind: "CARDS_DUE", count: overviews.cardsDue }]);
   });
+
+  it("lists the cards to print with their count, after the cards due", async () => {
+    const holders = [household(1, 2), household(2, 1, false), household(3, 1, false)];
+
+    expect(await listToDos(deps(holders))).toEqual([
+      { kind: "CARDS_DUE", count: 1 },
+      { kind: "CARDS_TO_PRINT", count: 2 },
+    ]);
+  });
+
+  it("counts the cards to print exactly as the overview does", async () => {
+    const register = deps([household(1, 1, false), household(2, 1), household(3, 1, false)]);
+
+    const [toDos, overviews] = await Promise.all([listToDos(register), readOverviews(register)]);
+
+    expect(toDos).toEqual([{ kind: "CARDS_TO_PRINT", count: overviews.cardsToPrint }]);
+  });
+
+  it("leaves the cards to print off the list when none are waiting", async () => {
+    const toDos = await listToDos(deps([household(1, 2), household(2, 1)]));
+
+    expect(toDos.map((toDo) => toDo.kind)).toEqual(["CARDS_DUE"]);
+  });
 });
 
 describe("readOverviews", () => {
   it("shows an overview at zero", async () => {
-    expect(await readOverviews(deps([household(1, 1)]))).toEqual({ cardsDue: 0, pastSessions: 0 });
+    expect(await readOverviews(deps([household(1, 1)]))).toEqual({
+      cardsDue: 0,
+      cardsToPrint: 0,
+      pastSessions: 0,
+    });
   });
 
   it("counts the running afternoon among the Ausgabetermine", async () => {

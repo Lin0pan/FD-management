@@ -15,5 +15,6 @@ export const LISTS: Record<
   }
 > = {
   cardsDue: { href: "/karten-neuausstellung", name: de.cardsDue.countedName },
+  cardsToPrint: { href: "/karten-drucken", name: de.cardsToPrint.countedName },
   pastSessions: { href: "/ausgabetermine", name: de.distribution.pastSessions.countedName },
 };

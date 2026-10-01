@@ -975,6 +975,9 @@ export const de = {
   /** The cards still to be printed at /karten-drucken (US-39.4). */
   cardsToPrint: {
     heading: "Karten drucken",
+    /** The heading after a count, wherever the list is offered with its size (US-38). */
+    countedName: (count: number): string =>
+      count === 1 ? "Karte drucken" : de.cardsToPrint.heading,
     listTitle: "Karten",
     count: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
     empty: "Keine Karten zu drucken.",
