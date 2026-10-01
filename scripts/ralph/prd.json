@@ -148,8 +148,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": "FROM US-005: de.cardsToPrint exists (heading, count(n) for the list header) but has no countedName — add it here, inflected like de.cardsDue.countedName."
+      "passes": true,
+      "notes": "FROM US-005: de.cardsToPrint exists (heading, count(n) for the list header) but has no countedName — add it here, inflected like de.cardsDue.countedName. DONE: ListToDosDeps and ReadOverviewsDeps now include CardsToPrintDeps (customers only, already in overviewDeps). The overviews.test.ts household() fixture takes `printed = true`; a new fixture defaulting to printed keeps unrelated cards off the print count."
     },
     {
       "id": "US-008",

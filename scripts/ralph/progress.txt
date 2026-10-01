@@ -723,3 +723,19 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - `PLAYWRIGHT_CLI_NO_SKILL_CHECK` does not silence the skill-version banner; filter it with
     `grep -v "║\|╔\|╚"` or use `--raw`.
 ---
+
+## 2026-10-01 - US-007
+- `readOverviews` returns `cardsToPrint` and `listToDos` adds `CARDS_TO_PRINT` after `CARDS_DUE`,
+  both from `countCardsToPrint`. 3 new named tests + the zero-overview test extended.
+- `de.cardsToPrint.countedName`, `LISTS.cardsToPrint` → `/karten-drucken`, a second ListLink under
+  Kunden on Übersichten (overview-cards-to-print[-link]), `TO_DO_LISTS.CARDS_TO_PRINT`
+  (to-do-cards-to-print[-count]) on Start. No Kunden hub link.
+- overviews.spec.ts: its stale reissue ticks `stale-reissue-printed` (else `to-dos` stays visible).
+- Gates: lint, typecheck, test:coverage (100%), build, test:e2e (244 passed).
+- playwright-cli on the demo register: 0 → tile „0 Karten drucken“, no Start row; after an
+  unticked stale reissue → Start „1 Karte drucken“ (the cards-due row gone), tile 1, link opens
+  /karten-drucken with Übersichten marked.
+- **Learnings for future iterations:**
+  - A to-do test fixture whose card defaults to *unprinted* puts every household on the print count;
+    default fixtures to `printedAt` set and opt into null, or every older to-do test breaks.
+---
