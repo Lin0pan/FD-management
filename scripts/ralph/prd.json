@@ -126,7 +126,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Existing e2e specs that issue cards through the screens leave the box unticked; that is correct behaviour (opt-in) and they do not assert anything about printing. FROM US-003: the waiting-list promotion (src/app/warteliste/[entryId]/registrieren/) renders the SAME RegistrationForm and calls registerFromWaitingList, whose input extends RegisterCustomerInput — so the checkbox appears there too, and its action (currently `cardPrinted: false`) must read it like kunden/neu does. That is a fourth action beside the three named above."
     },
     {

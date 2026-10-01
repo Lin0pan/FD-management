@@ -700,3 +700,26 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
   - `db:demo -- --reset` does not reset autoincrement ids here: the demo customers were 41–60, not
     1–20. Query ids before scripting against them.
 ---
+
+## 2026-10-01 - US-006
+- „Karte ist bereits gedruckt“ (`de.cardsToPrint.alreadyPrinted`) as a native checkbox in one
+  shared client component, `src/app/card-printed-field.tsx`; the wire half (field name, Zod reader
+  `cardPrinted` — `on` → true, absent → false, anything else refused) in `src/app/card-printed.ts`
+  with 3 unit tests. Placed above „Aufnehmen“ (registration-card-printed), in the loss reissue's
+  confirmation (reissue-printed) and the stale-card row's (stale-reissue-printed).
+- Four actions read it: kunden/neu and the waiting-list promotion through `registrationForm`
+  (new `cardPrinted` field), reissueCardAction and reissueStaleCardAction via `safeParse`. All four
+  also revalidate `/karten-drucken`, `/` and `/uebersichten`. Number change untouched.
+- e2e: registration refusal test ticks the box, asserts it survives the refusal (checked + the
+  `checked` attribute) and that the saved card has a printedAt; reissue asserts the box is unticked
+  and the card unprinted; age-13 stale reissue ticks it and asserts printedAt set.
+- Gates: lint, typecheck, test:coverage, build, test:e2e (244), test:e2e:webkit (244).
+- playwright-cli on the demo register: checkbox has the label as its accessible name; a ticked loss
+  reissue wrote printedAt = issuedAt; afterwards the control shows an unticked box for the next card.
+- **Learnings for future iterations:**
+  - A controlled checkbox needs the same `ref` → `defaultChecked` line as the group radios, or React's
+    post-action `form.reset()` unticks it. Where a *successful* save should start fresh again, `key`
+    the field on what it is about (here `nextCardNumber`), rather than adding reset logic.
+  - `PLAYWRIGHT_CLI_NO_SKILL_CHECK` does not silence the skill-version banner; filter it with
+    `grep -v "║\|╔\|╚"` or use `--raw`.
+---
