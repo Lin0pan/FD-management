@@ -66,6 +66,7 @@ const HUB_ROUTES = ["/kunden", "/warteliste"] as const;
 const OVERVIEW_ROUTES = [
   { route: "/ausgabetermine", back: "past-sessions-back" },
   { route: "/karten-neuausstellung", back: "cards-due-back" },
+  { route: "/karten-drucken", back: "cards-to-print-back" },
 ] as const;
 
 /** The path of the page currently open, without the origin the base url supplies. */

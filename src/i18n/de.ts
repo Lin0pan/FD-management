@@ -972,6 +972,30 @@ export const de = {
      */
     customerLink: "Zur Kundenübersicht",
   },
+  /** The cards still to be printed at /karten-drucken (US-39.4). */
+  cardsToPrint: {
+    heading: "Karten drucken",
+    listTitle: "Karten",
+    count: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
+    empty: "Keine Karten zu drucken.",
+    issuedAt: "Ausgestellt am",
+    submit: "Gedruckt",
+    submitting: "Wird abgehakt …",
+    /** Read after „Gedruckt“ by a screen reader only, so the button says which card it ticks off. */
+    submitCard: (cardNumber: string): string => ` (Karte ${cardNumber})`,
+    done: (cardNumber: string, name: string): string =>
+      `Karte ${cardNumber} von ${name} ist als gedruckt abgehakt.`,
+    undo: "Rückgängig",
+    undoing: "Wird zurückgenommen …",
+    errors: {
+      superseded:
+        "Diese Karte ist inzwischen durch eine neue ersetzt worden. Bitte die Seite neu laden.",
+      alreadyPrinted: "Diese Karte ist bereits als gedruckt abgehakt. Bitte die Seite neu laden.",
+      notPrinted: "Diese Karte ist nicht als gedruckt abgehakt. Bitte die Seite neu laden.",
+      archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
+      unknown: "Die Änderung konnte nicht gespeichert werden.",
+    },
+  },
   /**
    * The waiting list at /warteliste (US-12.4).
    *

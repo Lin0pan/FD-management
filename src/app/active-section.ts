@@ -27,10 +27,10 @@ export const NAV_ITEMS: ReadonlyArray<NavItem> = [
   { section: "customers", href: "/kunden", routes: ["/kunden", "/warteliste"] },
   {
     section: "overviews",
-    // A route's URL and the tab that marks it are independent: `/ausgabetermine` and
-    // `/karten-neuausstellung` are not under `/uebersichten` (US-38).
+    // A route's URL and the tab that marks it are independent: `/ausgabetermine`,
+    // `/karten-neuausstellung` and `/karten-drucken` are not under `/uebersichten` (US-38).
     href: "/uebersichten",
-    routes: ["/uebersichten", "/ausgabetermine", "/karten-neuausstellung"],
+    routes: ["/uebersichten", "/ausgabetermine", "/karten-neuausstellung", "/karten-drucken"],
   },
   { section: "settings", href: "/einstellungen", routes: ["/einstellungen"] },
 ];
