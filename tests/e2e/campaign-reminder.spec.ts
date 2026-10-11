@@ -289,6 +289,10 @@ test.describe("Aktionserinnerung", () => {
     await fillSticky(page.getByTestId("campaign-reminder-name"), "Ostertüte");
     await page.getByTestId("campaign-reminder-rename").click();
     await expect(page.getByText(de.settings.campaignReminder.renamed)).toBeVisible();
+    await page.getByTestId("campaign-reminder-end-open").click();
+    await expect(page.getByTestId("campaign-reminder-end-warning")).toHaveText(
+      de.settings.campaignReminder.endWarning("Ostertüte", 1),
+    );
 
     await expectProgress(page, 1, 4);
     await lookUp(page, NUMBERS.blocked);
