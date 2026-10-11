@@ -680,3 +680,30 @@ misread the batch.
     „the reminder is off", which is the more useful notice.
   - ADR-024 is cited as plain text in the use case's doc comment — it is written in US-010.
 ---
+
+## 2026-10-11 22:05 - US-005
+- `lookupCustomer` and `readCustomer` gain `campaignReminder: CampaignReminderCheckbox | null`, read
+  through `campaignReminderFor` inside each use case's existing `Promise.all`; deps gain
+  `campaignReminders`. `null` on NOT_FOUND, archived and while none is on.
+- Named tests: the counter shows whether the household has received / … no reminder for a number
+  nobody holds / … for an archived household / … while none is on / never turns a household away
+  for not having received (lookup-customer.test.ts); the record shows whether the household has
+  received / … while none is on (customers.test.ts); serving a household does not tick it off
+  (record-attendance.test.ts — the serve is handed the store via a spread variable and still blind).
+- Composition roots: `distributionDeps` and `counterActionDeps` (the tick write for US-007),
+  `customerDeps`, and a new `campaignReminderDeps` in `src/app/einstellungen/deps.ts`.
+- Chapter 05 composition-roots paragraph names the second settings object.
+- Files: src/application/customers/{lookup,read}-customer.ts + 4 test files,
+  src/application/distribution/record-attendance.test.ts, src/app/{ausgabe,kunden,einstellungen}/deps.ts,
+  docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - **`settingsDeps.customers` is a `CustomerCounter`, not a `CustomerRepository`**, and the campaign
+    use cases need `listWithStatus`/`findById`. Hence `campaignReminderDeps` (`campaignReminders`,
+    `customers`, `audit`, `clock`) — US-006's page and actions should use that object, not
+    `settingsDeps`.
+  - Suites that never switch a reminder on use a `NoCampaignReminder` stub (`findActive` → null,
+    everything else rejects); `lookup-customer.test.ts` and `customers.test.ts` have a
+    `FakeCampaignReminderRepository` with settable `active` and a `ticked` set.
+  - Passing an extra dep to a use case in a test needs a variable, not an inline spread literal —
+    the inline literal trips TS's excess-property check.
+---

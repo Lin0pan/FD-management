@@ -95,7 +95,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Adding a dependency breaks every fake deps object at once — the house stub for a method a suite does not exercise is Promise.reject(new Error('… has a suite of its own')). No screen changes yet: the new field is unused until US-007/US-008."
     },
     {
