@@ -213,7 +213,7 @@ settings screen reporting that nothing is configured.
   A **nullable** relation must say `onDelete: Restrict` out loud: Prisma's default for an optional
   relation is `SetNull`, which the schema test cannot see, so it also greps the generated migration
   SQL. An integration test that clears the register therefore deletes children first — use
-  `clearRegister` from `src/infrastructure/prisma/test-support.ts`. There are exactly three
+  `clearRegister` from `src/infrastructure/prisma/test-support.ts`. There are exactly four
   deliberate exceptions. A household's member rows: editing a household **replaces** the set
   (`updateHousehold`, and `updateDetails` with it — the customer is one of those rows, so their own
   name lives there too), because no history of past compositions is kept (US-16, FR-2) and what a
@@ -222,14 +222,18 @@ settings screen reporting that nothing is configured.
   the list, on an argument of its own (US-33, ADR-019). And a `HandoutReceipt`, deleted when its
   session is **reopened**: the row is not history but the freeze itself, re-taken whole by the next
   ending — and a receipt left standing would make the database refuse the hand-out removal a
-  reopening exists to allow. Nothing else in the schema may be deleted.
+  reopening exists to allow. And a `CampaignReminderTick`, deleted when its household is unticked
+  and, every tick at once, when DF switch the reminder off: a tick is a note to self, not customer
+  data, and nothing points at it (US-40, ADR-023). Nothing else in the schema may be deleted.
 - ❌ Don't skip the audit entry on a state change (archive, block, number change, card reissue,
   policy edit, a change to the Nachweis-Arten, ending or reopening a distribution session, ticking a
-  card off as printed or taking that back). With no login, the log is the only accountability the
-  system has — and it records _what, when and why_, never _who_. The _why_ is required where it is
-  the record (archive, block, a reopening) and optional where the changed fields already say it (a
-  policy edit). Starting a session writes nothing and a discarded one writes nothing either, which
-  is the one deliberate gap (ADR-020).
+  card off as printed or taking that back, switching a campaign reminder on, renaming it or
+  switching it off). With no login, the log is the only accountability the system has — and it
+  records _what, when and why_, never _who_. The _why_ is required where it is the record (archive,
+  block, a reopening) and optional where the changed fields already say it (a policy edit). There
+  are two deliberate gaps: starting a session writes nothing and a discarded one writes nothing
+  either (ADR-020), and ticking a household off a campaign reminder or taking the tick back writes
+  nothing (ADR-024).
 - ❌ Don't add a dependency to avoid ~50 lines of code, and don't reach for a heavier pattern
   (events, CQRS, aggregates) than the problem needs.
 - ❌ Don't bump the Next.js major casually — it is pinned on purpose.

@@ -1,6 +1,6 @@
 # 8. Cross-cutting concepts
 
-_Last reviewed: 2026-09-20_
+_Last reviewed: 2026-10-11_
 
 The rules that apply everywhere, so that five modules do not solve one problem five ways. Each says
 what it is, why it exists, the rules that follow, and where it shows up. The "why did we choose this
@@ -8,7 +8,7 @@ over that" is [chapter 9](09-architectural-decisions.md); this chapter is "how d
 
 ## Domain model and persistence
 
-Thirteen tables. The schema doubles as domain documentation and carries the argument for every
+Fifteen tables. The schema doubles as domain documentation and carries the argument for every
 unusual decision in its comments.
 
 ```mermaid
@@ -23,6 +23,8 @@ erDiagram
     DistributionRecord ||--|| HandoutReceipt : "is settled by (US-35)"
     Customer ||--o| Customer : "re-registered from"
     SettingsVersion ||--o{ EggAllowanceRow : "awards (US-28)"
+    CampaignReminder ||--o{ CampaignReminderTick : "ticked off (US-40)"
+    Customer ||--o{ CampaignReminderTick : "has received"
     SettingsVersion {
         datetime recordedAt "indexed, NOT unique"
         int quotaN
@@ -90,6 +92,15 @@ erDiagram
     CertificateType {
         string label "unique; the vocabulary, not a policy version (US-33)"
     }
+    CampaignReminder {
+        string name "DF's own, renamed in place"
+        datetime startedAt
+        datetime endedAt "null while on; at most one; never deleted"
+    }
+    CampaignReminderTick {
+        int reminderId FK "unique with customerId; no timestamp"
+        int customerId FK "no row = not yet received; deleted on switch-off"
+    }
 ```
 
 `WaitingListEntry` and `AuditEntry` have **no relation to `Customer`** — deliberately. An applicant
@@ -146,6 +157,10 @@ drop-down and never joined
   them afresh — there is no update path, and a receipt left standing would make the database refuse
   the hand-out removal a reopening exists to allow
   ([ADR-021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)).
+- `CampaignReminderTick` rows are the **fourth**: a tick is a note to self, not customer data, and
+  nothing points at one. Unticking deletes the row, and switching the reminder off deletes every
+  tick of it in the transaction that stamps its `endedAt`; the `CampaignReminder` row is never
+  deleted ([ADR-023](adr/023-delete-a-campaign-reminder-s-ticks-when-it-is-switched-off.md)).
 - **A hand-out and a reminder belong to a `DistributionSession`, not to a calendar day** —
   [ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md).
   The FK is permanent: „once per afternoon", „the wrong group" and „still correctable" are all read
@@ -289,12 +304,18 @@ tell its volunteers apart — [ADR-006](adr/006-record-what-when-and-why-in-the-
 - Required on every state change: archive, block, unblock, number change, card reissue, note edit,
   policy edit, a change to the list of Nachweis-Arten, **ending and reopening a distribution
   session**, ticking a card off as printed and taking that back
-  ([ADR-022](adr/022-record-when-a-card-was-printed-on-the-card-row.md)). Skipping one is a defect, not an omission.
+  ([ADR-022](adr/022-record-when-a-card-was-printed-on-the-card-row.md)), switching a campaign
+  reminder on, renaming it and switching it off. Skipping one is a defect, not an omission.
 - **A session is written to the log only when it ends**, in one entry carrying both instants and the
   groups it served. Starting writes nothing, because an entry at the start would show a session that
   began and never ended; a session discarded while empty writes nothing either, so DF get no
   paperwork for a misclick
   ([ADR-020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)).
+- **Ticking a household off a campaign reminder writes nothing**, and neither does taking the tick
+  back — the second deliberate gap. A tick changes no entitlement, no money and no record DF are
+  accountable for, and some 240 entries a campaign would bury the ones that matter; switching off
+  names the number of ticks it deleted instead
+  ([ADR-024](adr/024-do-not-audit-the-individual-campaign-reminder-tick.md)).
 - The _why_ is **mandatory** where the judgement is the record (block, archive) and optional where
   the changed fields already say it (a settings edit).
 - `changedFields` is a comma-joined string because SQLite has no array type; it is only read back for

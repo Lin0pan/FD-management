@@ -199,14 +199,15 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   `bg-primary`. Never `text-foreground/70`, `border-foreground/20`, `bg-foreground/5`.
 - **`src/app/accents.ts` is the list of permitted literal colours**, each reserved for one meaning:
 
-  | Export                    | Meaning                                      |
-  | ------------------------- | -------------------------------------------- |
-  | `GROUP_STYLES`            | the RED / BLUE printed card                  |
-  | `FREE_SLOT_ACCENT`        | a customer number is free, somebody waits    |
-  | `CONFIRMATION_ACCENT`     | a write went through                         |
-  | `REFUSAL_ACCENT`          | a write was refused, nothing is broken       |
-  | `PAYMENT_STANDING_STYLES` | a hand-out was paid short, exactly or over   |
-  | `BALANCE_STYLES`          | a household owes, has paid ahead, or neither |
+  | Export                        | Meaning                                                              |
+  | ----------------------------- | -------------------------------------------------------------------- |
+  | `GROUP_STYLES`                | the RED / BLUE printed card                                          |
+  | `FREE_SLOT_ACCENT`            | a customer number is free, somebody waits                            |
+  | `CONFIRMATION_ACCENT`         | a write went through                                                 |
+  | `REFUSAL_ACCENT`              | a write was refused, nothing is broken                               |
+  | `CAMPAIGN_OUTSTANDING_ACCENT` | a household has not yet received the campaign item — never a verdict |
+  | `PAYMENT_STANDING_STYLES`     | a hand-out was paid short, exactly or over                           |
+  | `BALANCE_STYLES`              | a household owes, has paid ahead, or neither                         |
 
   **Before painting a state, look for it there.** If it is not listed, the question is what the state
   means, not which green — and the answer is a new named export in that file, never a tint in a
@@ -632,25 +633,26 @@ A new icon extends one of these rather than inventing a role of its own.
 The registry, so a second use cannot quietly contradict the first — the same discipline
 `src/app/accents.ts` imposes on colour (§5).
 
-| Glyph                      | Means                                      | Role     |
-| -------------------------- | ------------------------------------------ | -------- |
-| `Check`                    | it happened / clear to serve / collected   | tone     |
-| `TriangleAlert`            | refused, and nothing is broken             | tone     |
-| `CircleAlert`              | it did not happen and something is wrong   | tone     |
-| `CircleHelp`               | no such household                          | tone     |
-| `Search`                   | search — the filter box and „Nachschlagen" | afford.  |
-| `UserPlus`                 | take a household on                        | afford.  |
-| `Users`                    | the waiting list                           | afford.  |
-| `IdCard` / `CreditCard`    | the cards due list / reissue this card     | afford.  |
-| `Printer`                  | tick this card off as printed              | afford.  |
-| `Undo2`                    | take back what was just done               | afford.  |
-| `Ban`                      | block — a refusal, not a locked record     | afford.  |
-| `Archive`                  | archive the household                      | afford.  |
-| `SquarePen`                | edit what is already written               | afford.  |
-| `Plus` / `X`               | add a row / take a row off an unsaved form | afford.  |
-| `ChevronDown`              | this folds (`FoldChevron`, §6)             | afford.  |
-| `ChevronRight`             | opens the list — a `ListLink` (§4)         | afford.  |
-| `ArrowRight` / `ArrowLeft` | before → after / back to the list          | relation |
+| Glyph                      | Means                                            | Role     |
+| -------------------------- | ------------------------------------------------ | -------- |
+| `Check`                    | it happened / clear to serve / collected         | tone     |
+| `TriangleAlert`            | refused, and nothing is broken                   | tone     |
+| `CircleAlert`              | it did not happen and something is wrong         | tone     |
+| `CircleHelp`               | no such household                                | tone     |
+| `Gift`                     | not yet received — the campaign reminder (US-40) | tone     |
+| `Search`                   | search — the filter box and „Nachschlagen"       | afford.  |
+| `UserPlus`                 | take a household on                              | afford.  |
+| `Users`                    | the waiting list                                 | afford.  |
+| `IdCard` / `CreditCard`    | the cards due list / reissue this card           | afford.  |
+| `Printer`                  | tick this card off as printed                    | afford.  |
+| `Undo2`                    | take back what was just done                     | afford.  |
+| `Ban`                      | block — a refusal, not a locked record           | afford.  |
+| `Archive`                  | archive the household                            | afford.  |
+| `SquarePen`                | edit what is already written                     | afford.  |
+| `Plus` / `X`               | add a row / take a row off an unsaved form       | afford.  |
+| `ChevronDown`              | this folds (`FoldChevron`, §6)                   | afford.  |
+| `ChevronRight`             | opens the list — a `ListLink` (§4)               | afford.  |
+| `ArrowRight` / `ArrowLeft` | before → after / back to the list                | relation |
 
 `X` is the one glyph with two meanings — a verdict tone on `/ausgabe` and a row control on three
 other screens. It is tolerable because the two are different roles at different scales and **never

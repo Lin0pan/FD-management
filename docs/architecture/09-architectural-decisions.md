@@ -1,8 +1,8 @@
 # 9. Architectural decisions
 
-_Last reviewed: 2026-10-01_
+_Last reviewed: 2026-10-11_
 
-A timeline. The twenty-two decisions that constrain future work and are hard to reverse have an ADR
+A timeline. The twenty-four decisions that constrain future work and are hard to reverse have an ADR
 of their own in [`adr/`](adr/); the smaller ones below them are recorded as a row and nothing more,
 because a decision log full of trivia teaches people to skim it.
 
@@ -32,6 +32,8 @@ because a decision log full of trivia teaches people to skim it.
 | [020](adr/020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)          | The distribution session, not the calendar, is what a hand-out belongs to         | Accepted | 2026-09-20 |
 | [021](adr/021-capture-the-household-s-state-when-a-distribution-session-is-ended.md)               | Capture the household's state when a distribution session is ended                | Accepted | 2026-09-20 |
 | [022](adr/022-record-when-a-card-was-printed-on-the-card-row.md)                                   | Record when a card was printed on the card row                                    | Accepted | 2026-10-01 |
+| [023](adr/023-delete-a-campaign-reminder-s-ticks-when-it-is-switched-off.md)                       | Delete a campaign reminder's ticks when it is switched off                        | Accepted | 2026-10-11 |
+| [024](adr/024-do-not-audit-the-individual-campaign-reminder-tick.md)                               | Do not audit the individual campaign reminder tick                                | Accepted | 2026-10-11 |
 
 ## Smaller decisions, recorded without an ADR
 
