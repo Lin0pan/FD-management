@@ -1,0 +1,217 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-39-cards-to-print",
+  "description": "US-39 „Karten drucken\" — a reminder for cards still to be printed. THE SOFTWARE PRINTS NO CARDS; DF sometimes hand out a TEMPORARY card and print the real one later, and today only memory keeps track. EVERY NEWLY ISSUED CARD IS NOW 'PRINTED' (a stored printedAt date) OR 'NOT YET PRINTED' (null). ISSUED BY HAND — registration, loss reissue (record + card view), stale-counts reissue on /karten-neuausstellung — a checkbox „Karte ist bereits gedruckt\", UNTICKED BY DEFAULT (opt-in). ISSUED AUTOMATICALLY — a customer-number change, incl. group change — ALWAYS NOT YET PRINTED, no checkbox. A NEW LIST /karten-drucken shows every ACTIVE OR BLOCKED household (ARCHIVED leave it) whose CURRENT card is not yet printed — at most one row per household, a replaced card leaves the list — oldest issue first; each row is ticked off ONE AT A TIME (no batch), and RIGHT AFTER a tick the list offers „Rückgängig\" (no reason asked; no undo anywhere else or later). It is a real US-38 TO-DO: a row in „Zu erledigen\" on Start only while > 0, and a tile under Übersichten (area Kunden) always, 0 included, both from ONE count. /karten-drucken belongs to the Übersichten tab. The card view shows „Gedruckt am …\" per card. Ticking and undoing write AUDIT entries (customer.card.printed / customer.card.printUndone; what and when, never who). ALL CARDS EXISTING AT GO-LIVE COUNT AS PRINTED (seeds write printedAt = issuedAt). NOTHING CHANGES AT THE COUNTER — a not-yet-printed card is valid exactly as before. SCHEMA CHANGE: Card.printedAt DateTime?, migrations regenerated (pre-release; re-add BOTH hand-written partial indexes). One new port method (CardRepository.setPrintedAt), two domain functions (markPrinted/unmarkPrinted), three typed errors (CardAlreadyPrinted, CardNotPrinted, CardSuperseded), ADR-022. Requirement: local_only/cards-to-print/requirement.md (decisions D1–D12). Full PRD: tasks/prd-us-39-cards-to-print.md.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "A card records its printed date (schema + adapter + domain type)",
+      "description": "As a developer, I need each card to record when it was printed, so that the list, the card history and the tick-off all read one stored fact. Source: tasks/prd-us-39-cards-to-print.md §US-39.1",
+      "acceptanceCriteria": [
+        "IssuedCard (src/domain/card/card.ts) gains `readonly printedAt: Date | null` — null means NOT YET PRINTED. NewCard gains the SAME field, REQUIRED, so every writer states it; no default anywhere",
+        "prisma/schema.prisma: `Card.printedAt DateTime?` with a SHORT /// comment: a recorded EVENT, not a derived value; the ONE column of a card row that changes after the insert (ticked or taken back) — the snapshot columns beside it still never do. Cite ADR-022 (written in the docs story)",
+        "Migrations REGENERATED per CLAUDE.md 'Database migrations' (pre-release): delete prisma/migrations/, `npx prisma migrate dev --name init`, then RE-ADD BOTH HAND-WRITTEN INDEXES verbatim with their comments from the old migration: the partial unique index on Customer.customerNumber (WHERE \"status\" <> 'ARCHIVED') and the one-running-session index (WHERE \"endedAt\" IS NULL AND \"discardedAt\" IS NULL). Then npm run db:reset",
+        "PrismaCardRepository reads and writes printedAt on EVERY path: currentCard, listCards, issue — and the card written inside PrismaCustomerRepository.changeCustomerNumber. The customer read model's current card (customer.card, as listWithStatus returns it) carries it too",
+        "Every caller compiles by passing `printedAt: null` for now (issueCard, registerCustomer, changeCustomerNumber) — behaviour arrives in US-003",
+        "Every hand-written fake CardRepository / CustomerRepository in the application tests carries the field",
+        "Infrastructure integration test (throwaway SQLite): one card issued with printedAt set and one with null read back exactly as written through currentCard and listCards",
+        "src/infrastructure/prisma/schema.test.ts still passes (no onDelete: Cascade, no implicit SetNull)",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Only the compile-forced set: type, column, adapter, fakes. Seeds and e2e inserts are US-002. The two hand-written indexes are dropped by every regeneration (batches 25, 26, 34 all had to re-add them) — grep the new migration.sql for WHERE before committing. Re-confirm the project is still pre-release (memory: confirmed 2026-08-24); if DF hold real data, append a migration that adds the column and sets printedAt = issuedAt instead of regenerating."
+    },
+    {
+      "id": "US-002",
+      "title": "Seeds and e2e inserts state the printed date",
+      "description": "As a developer, I want every card written outside the use cases to say whether it is printed, so that seeded households do not silently land on the new list. Source: tasks/prd-us-39-cards-to-print.md §US-39.1",
+      "acceptanceCriteria": [
+        "Both seeds (prisma/seed.ts, prisma/demo-seed.ts) write printedAt = issuedAt for EVERY card — D10: every card existing at go-live counts as printed, the list starts empty",
+        "EVERY e2e spec that inserts a card directly (`grep -n \"cards: {\" tests/e2e/*.ts` — about twenty specs, plus any helper in tests/e2e/seeding.ts) states printedAt EXPLICITLY: the issuedAt value it already uses. None is about an unprinted card yet",
+        "npm run db:reset, then the seeded register has zero cards with printedAt NULL (check with a one-off query, do not commit it)",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "npm run test:e2e:webkit passes",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Mechanical, but the reason matters: printedAt is nullable, so an insert that omits it produces an UNPRINTED card and any spec asserting an empty „Zu erledigen\" breaks once US-007 lands. Do not change any assertion here. DONE: prisma/seed.ts writes no cards (settings only), and prisma/demo-seed.ts writes NO row with Prisma — every card goes through registerCustomer / reissueCard / changeCustomerNumber, by its own header's rule. Its printedAt = issuedAt is therefore carried by US-003 and US-004 (see their notes), not by an UPDATE here."
+    },
+    {
+      "id": "US-003",
+      "title": "Issuing a card states whether it is printed (application)",
+      "description": "As DF, I want to say when I issue a card by hand that it is already printed, so that a card I printed on the spot never reminds me to print it. Source: tasks/prd-us-39-cards-to-print.md §US-39.2",
+      "acceptanceCriteria": [
+        "issueCard input (src/application/customers/issue-card.ts) gains `printed: boolean` — REQUIRED, not optional. printed: true writes printedAt = the SAME `now` the card's issuedAt uses (one clock read, one event); false writes null",
+        "reissueCard passes it through unchanged",
+        "registerCustomer input gains `cardPrinted: boolean`, handled the same way for the first card (D1: registration counts as issuing by hand)",
+        "changeCustomerNumber ALWAYS writes printedAt: null and takes NO such input — there is no moment in which DF could say otherwise; a test proves the card it prints is unprinted",
+        "The issue's audit entry names printedAt among changedFields ONLY when the card was issued as printed (['card','printedAt']), else stays ['card']; registerCustomer's REGISTERED_FIELDS likewise gains printedAt only when ticked",
+        "The three server actions that issue a card (src/app/kunden/neu/actions.ts, reissueCardAction in src/app/kunden/[id]/actions.ts, src/app/karten-neuausstellung/actions.ts) pass `false` FOR NOW — screens unchanged until US-006",
+        "TDD against HAND-WRITTEN fakes. Named tests: issues a card as printed when DF say so / issues a card as not yet printed unless DF say otherwise / registers the first card as printed when DF say so / prints a moved household's card as not yet printed / names the printed date in the audit entry only when it was given",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "CARRIED FROM US-002 (D10): prisma/demo-seed.ts must pass cardPrinted: true to registerCustomer and printed: true to reissueCard, so its demo cards are printed at their issue instant. Then `npm run db:demo -- --reset` and check the unprinted count is only the moved household's card (closed in US-004). DONE: demo seed passes cardPrinted/printed: true; after `npm run db:demo -- --reset` exactly one card is unprinted — 3k2, CUSTOMER_NUMBER_CHANGED — the one US-004 closes."
+    },
+    {
+      "id": "US-004",
+      "title": "Ticking a card off and taking the tick back (domain + application + port + adapter)",
+      "description": "As DF, I want to tick a card off once it is printed — and take that back if I clicked the wrong row — so that the list says what is really still to print. Source: tasks/prd-us-39-cards-to-print.md §US-39.1, §US-39.3",
+      "acceptanceCriteria": [
+        "Domain, STRICT TDD FIRST, in src/domain/card/card.ts: markPrinted(card, at) returns the card with printedAt = at, throws CardAlreadyPrinted if already set (a second tick must not move the first date); unmarkPrinted(card) returns it with printedAt = null, throws CardNotPrinted if not printed. Named tests: records the day a card was printed / refuses to tick off a card twice / takes a tick back / refuses to take back a tick that was never made",
+        "CardAlreadyPrinted, CardNotPrinted and CardSuperseded added to src/domain/errors.ts as typed domain errors (errors.test.ts covers them), each tiered in TIERS in src/app/notice-tier.ts — the build fails until they are",
+        "New port method on CardRepository (src/application/ports.ts), documented ONCE on the port: setPrintedAt(customerId: number, index: number, printedAt: Date | null): Promise<void> — it touches printedAt and nothing else. Implemented in PrismaCardRepository; every fake gains it",
+        "New use case src/application/customers/mark-card-printed.ts: markCardPrinted(deps, { customerId, index }) — CustomerNotFound / CustomerArchived as issueCard throws them; CardSuperseded if `index` is not the household's CURRENT card (the row DF saw was replaced meanwhile, D4); then markPrinted(card, clock.now()), setPrintedAt, audit { what: 'customer.card.printed', changedFields: ['printedAt'], when: now, why: '' }",
+        "New use case src/application/customers/undo-card-printed.ts: undoCardPrinted(deps, { customerId, index }) — same guards, unmarkPrinted, setPrintedAt(…, null), audit { what: 'customer.card.printUndone', changedFields: ['printedAt'], when: now, why: '' }. NO reason is asked for (D7)",
+        "A BLOCKED household may be ticked off and taken back (D6)",
+        "Both use cases carry full @throws lists",
+        "Named application tests (hand-written fakes): ticks off the card a household holds / refuses to tick off a card that has been replaced / takes back a tick without asking why / ticks off a blocked household's card / refuses an archived household's card / writes an audit entry for the tick and for taking it back",
+        "Infrastructure integration test: setPrintedAt sets and clears the column of exactly ONE card row",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "A card is identified by (customerId, index) — @@unique([customerId, index]) already guarantees it. Passing the index from the row DF saw is what lets the tick notice a replaced card instead of ticking off one DF never looked at. CARRIED FROM US-002 (D10): the demo household whose number changes (weekChangedDaysAgo in prisma/demo-seed.ts) gets an unprinted card from changeCustomerNumber; call markCardPrinted right after it in the SAME event (same wound clock instant, so printedAt = issuedAt). Then `npm run db:demo -- --reset` must leave zero cards with printedAt NULL. DONE: demo seed calls markCardPrinted right after the move; `npm run db:demo -- --reset` leaves 22 cards, 0 unprinted, every printedAt = issuedAt."
+    },
+    {
+      "id": "US-005",
+      "title": "The „Karten drucken\" list and its screen",
+      "description": "As DF, I want one list of every household whose card still has to be printed, with a tick-off per row and an undo right after, so that no card is forgotten. Source: tasks/prd-us-39-cards-to-print.md §US-39.4",
+      "acceptanceCriteria": [
+        "New src/application/customers/cards-to-print.ts: listCardsToPrint(deps) reads listWithStatus('ACTIVE') AND listWithStatus('BLOCKED') (archived excluded, D6) and keeps every household whose CURRENT card has printedAt === null — one row per household, a replaced card never listed (D4). Row: customerId, customerNumber, firstName, lastName, blocked: boolean, index, cardNumber (formatCardNumber(card.customerNumber, card.index) — the card's OWN slot, ADR-016), issuedAt, reason. Ordered OLDEST issuedAt first, ties by customer number",
+        "countCardsToPrint(deps) BUILT FROM listCardsToPrint and measured — the shape countCardsDueForReissue takes",
+        "Named application tests: lists a household whose card is not yet printed / leaves out a household whose card is printed / lists only the card a household holds / keeps a blocked household on the list / drops an archived household from the list / puts the longest-waiting card first / counts exactly the rows it lists",
+        "New route src/app/karten-drucken/page.tsx, force-dynamic, calling listCardsToPrint and nothing else; deps from src/app/kunden/deps.ts",
+        "h1 „Karten drucken\" (de.cardsToPrint.heading). One row per household (test id cards-to-print-row): card number, the name linking to /kunden/[id]/karte, issue date, reason in de.customers.cardReasons' words; a blocked row shows the existing blocked state word — nothing else extra",
+        "One button per row „Gedruckt\" (test id cards-to-print-submit) with a lucide icon (proposal: Printer) registered in ui_styling_guide.md §12; NO confirmation step (the undo is the safety net); hidden fields customerId and index; its accessible name says which card it ticks off",
+        "markCardPrintedAction in src/app/karten-drucken/actions.ts: Zod-validates the two ids, calls markCardPrinted, revalidates /karten-drucken, /, /uebersichten, /kunden/[id], /kunden/[id]/karte, then REDIRECTS to /karten-drucken?kunde=<customerId>&karte=<index> (as reissueStaleCardAction does — the row disappears). Refusals (CardSuperseded, CardAlreadyPrinted, CustomerArchived) come back as a Notice beside the row, German from de.ts, tier from tierOf",
+        "UNDO RIGHT AFTER (D7): when the params name a card that is still the household's current card AND printed, a Confirmation above the list names the card and household (test id cards-to-print-done) with a button „Rückgängig\" (test id cards-to-print-undo). undoCardPrintedAction calls undoCardPrinted, revalidates the same paths, redirects to /karten-drucken with NO params. Params naming anything else render no notice and no error. NO other screen offers an undo",
+        "Empty list: heading plus one plain line from de.ts (e.g. „Keine Karten zu drucken.\") — no explanation of what the list is for (CLAUDE.md 'Don't explain the screen')",
+        "BackLink to /uebersichten as /karten-neuausstellung has it (test id cards-to-print-back)",
+        "/karten-drucken belongs to the ÜBERSICHTEN tab: added to its routes in src/app/active-section.ts, asserted in active-section.test.ts, and added to the routes navigation.spec.ts checks mark nav-overviews and nothing else",
+        "All German strings in src/i18n/de.ts under a new cardsToPrint group",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Build it like /karten-neuausstellung (D12): same shell, row layout, redirect-with-notice. Does NOT touch readOverviews/listToDos yet — that is US-007, so LISTS never points at a route that 404s. Nothing reaches this list on screen yet except via number change or direct DB edits; seed a row by hand for the playwright-cli review. FROM US-004: the use cases take { customerId, index } and share deps CardPrintDeps (customers, cards, clock, audit) — markCardPrinted in mark-card-printed.ts, undoCardPrinted in undo-card-printed.ts. All three new codes (CardAlreadyPrinted, CardNotPrinted, CardSuperseded) are already tiered 'error'; their German messages in de.ts are this story's. DONE: the page also calls justPrintedCard (cards-to-print.ts) — the undo offer's rule (current card, printed, not archived) lives in the application layer, not the page. de.cardsToPrint has no countedName yet; US-007 adds it with the LISTS entry."
+    },
+    {
+      "id": "US-006",
+      "title": "The checkbox „Karte ist bereits gedruckt\" on every manual issue",
+      "description": "As DF, I want to tick „Karte ist bereits gedruckt\" when I issue a card I have printed on the spot, so that it never reaches the list. Source: tasks/prd-us-39-cards-to-print.md §US-39.5",
+      "acceptanceCriteria": [
+        "A checkbox labelled „Karte ist bereits gedruckt\" (de.cardsToPrint.alreadyPrinted), UNTICKED by default (D2), in all three places a card is issued by hand: the registration form (src/app/kunden/neu/registration-form.tsx), near submit — test id registration-card-printed; the loss reissue control (src/app/kunden/[id]/reissue-controls.tsx, used on the record AND the card view), inside the confirmation step beside submit — test id reissue-printed; the stale-card reissue control on /karten-neuausstellung (stale-card-controls.tsx) — test id stale-reissue-printed",
+        "The three actions read the checkbox (Zod-validated, 'on' → true) and pass it to registerCustomer (cardPrinted) / reissueCard (printed) instead of the false from US-003. A registration form re-rendered after a validation error keeps the box as it was",
+        "Every issuing action also revalidates /, /uebersichten and /karten-drucken",
+        "The number-change control gets NO checkbox",
+        "No hint text under the checkbox — the label is the whole statement",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Existing e2e specs that issue cards through the screens leave the box unticked; that is correct behaviour (opt-in) and they do not assert anything about printing. FROM US-003: the waiting-list promotion (src/app/warteliste/[entryId]/registrieren/) renders the SAME RegistrationForm and calls registerFromWaitingList, whose input extends RegisterCustomerInput — so the checkbox appears there too, and its action (currently `cardPrinted: false`) must read it like kunden/neu does. That is a fourth action beside the three named above."
+    },
+    {
+      "id": "US-007",
+      "title": "„Karten drucken\" in Übersichten and in „Zu erledigen\"",
+      "description": "As DF, I want Start to tell me when cards are waiting to be printed and Übersichten to show how many, so that I do not have to remember to look. Source: tasks/prd-us-39-cards-to-print.md §US-39.6",
+      "acceptanceCriteria": [
+        "readOverviews returns { cardsDue, cardsToPrint, pastSessions }, cardsToPrint read through countCardsToPrint — NEVER a second derivation",
+        "ToDoKind gains 'CARDS_TO_PRINT'; listToDos lists CARDS_DUE then CARDS_TO_PRINT (two consecutive steps, in order), each omitted at 0. Named tests: lists the cards to print with their count / counts the cards to print exactly as the overview does / leaves the cards to print off the list when none are waiting",
+        "LISTS in src/app/uebersichten/lists.ts gains cardsToPrint: { href: '/karten-drucken', name: de.cardsToPrint.countedName } — inflected by count like its siblings",
+        "Übersichten, area Kunden: a second ListLink after the cards-due tile, test ids overview-cards-to-print / overview-cards-to-print-link, shown at 0 too",
+        "Start's „Zu erledigen\": the ToDoKind → list mapping gains the new kind (the build fails until it does); test ids to-do-cards-to-print / to-do-cards-to-print-count; neutral styling, no amber/red",
+        "The Kunden hub gets NO link for this list",
+        "overviews.spec.ts adjusted only as far as needed to stay green (full rework is US-009): if its stale-card reissue now leaves an unprinted card that makes `to-dos` visible, tick stale-reissue-printed there",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "FROM US-005: de.cardsToPrint exists (heading, count(n) for the list header) but has no countedName — add it here, inflected like de.cardsDue.countedName. DONE: ListToDosDeps and ReadOverviewsDeps now include CardsToPrintDeps (customers only, already in overviewDeps). The overviews.test.ts household() fixture takes `printed = true`; a new fixture defaulting to printed keeps unrelated cards off the print count."
+    },
+    {
+      "id": "US-008",
+      "title": "The printed date in the card history",
+      "description": "As DF, I want to see on the card view when each card was printed, so that I can answer 'has this household had its proper card yet?' without the list. Source: tasks/prd-us-39-cards-to-print.md §US-39.7",
+      "acceptanceCriteria": [
+        "The card view's read model (src/application/customers/read-card.ts) carries printedAt for the current card and every superseded one",
+        "Current card on /kunden/[id]/karte, in the dl beside „Ausgestellt am\" / „Grund\": a third entry „Gedruckt am: 01.10.2026\", or „Gedruckt: noch nicht\" when null. Test id card-printed-at",
+        "Each superseded entry (de.customers.cardView.supersededEntry) names the printed date or that it was never printed, e.g. „12k2 — ausgestellt am 03.09.2026, gedruckt am 05.09.2026, Grund: Verlust\" / „…, nicht gedruckt, Grund: …\"",
+        "NOTHING about printing appears on the counter screen /ausgabe (D3, D11)",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "card.spec.ts / reissue.spec.ts may assert the exact superseded-entry text — update them deliberately to the new wording."
+    },
+    {
+      "id": "US-009",
+      "title": "The whole round trip, proved end to end",
+      "description": "As a developer, I want the list's promises proved through the screens: a card enters on issue, leaves on tick, comes back on undo, and the counts agree. Source: tasks/prd-us-39-cards-to-print.md §US-39.8",
+      "acceptanceCriteria": [
+        "New tests/e2e/cards-to-print.spec.ts, ISOLATED (claims about the whole register): added to ISOLATED_SPECS in tests/e2e/registers.ts (ADR-012); clears the register in beforeAll like overviews.spec.ts",
+        "Empty register: Start has no to-do-cards-to-print, the Übersichten tile overview-cards-to-print reads 0",
+        "Registering a household WITHOUT the checkbox: it is on /karten-drucken, Start's row reads 1, the tile reads 1 — and the counter (/ausgabe, with a session started) still answers „Ausgabe frei\" for the new card number (D11)",
+        "Registering a second household WITH the checkbox: not on the list, counts unchanged, its card view shows card-printed-at with today",
+        "Ticking off the first: it leaves the list, cards-to-print-done and cards-to-print-undo show; „Rückgängig\" puts it back; ticking again then reloading /karten-drucken shows no undo; Start's row is gone; the card view shows the printed date",
+        "Reissuing for loss WITHOUT the checkbox puts the household back with the NEW card number only — exactly one row (D4)",
+        "Changing a household's customer number puts it on the list with the new card number (automatic issue)",
+        "Blocking a listed household keeps it on the list; archiving it removes it (D6)",
+        "overviews.spec.ts still proves what it was written to prove (its seeded card states printedAt; its stale reissue ticks stale-reissue-printed or its assertion narrows to to-do-cards-due) — never by deleting an assertion",
+        "home.spec.ts, reissue.spec.ts, registration.spec.ts, number-change.spec.ts, navigation.spec.ts pass; any that asserted an empty „Zu erledigen\" is adjusted deliberately",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "npm run test:e2e:webkit passes",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Reuse startSession/endSession helpers from tests/e2e/session.ts for the counter check, and endSessionInHook in afterAll. DONE: tests/e2e/cards-to-print.spec.ts (isolated, real clock, slots 1/3 → 5). A move lands on 5k2, not 5k1: nextCardIndexOnMove never reprints an index the household held. overviews/home/reissue/registration/number-change/navigation needed no change."
+    },
+    {
+      "id": "US-010",
+      "title": "Betriebsanleitung, ADR-022 and the architecture record",
+      "description": "As DF, I want the handout to explain the checkbox and the list, and as a future maintainer I want the decision to store a printed date recorded. Source: tasks/prd-us-39-cards-to-print.md §US-39.9",
+      "acceptanceCriteria": [
+        "docs/handout/betriebsanleitung.md (German, printable): a short section „Karten drucken\" — what the checkbox „Karte ist bereits gedruckt\" does, that a card from a number change always lands on the list, that a tick can only be taken back right after ticking, that the list is under Übersichten and in „Zu erledigen\". The Übersichten section lists the new tile",
+        "ADR-022 via the record-adr skill: record when a card was printed on the card row — a stored EVENT (not derivable, so NOT a fifth 'derive, don't store' exception); nullable, null = not printed; the one card column that changes after the insert; undo clears it and the audit log keeps both events; alternatives weighed (separate CardPrint table; boolean without a date). Row in the chapter 9 log",
+        "arc42 via the arc42 skill: 05 — /karten-drucken, the new use cases (listCardsToPrint/countCardsToPrint, markCardPrinted, undoCardPrinted), the setPrintedAt port method; 08 if the audit-event list lives there; 12 — glossary entry if worth fixing. A gap is a marked > **TODO:**, not a guess",
+        "CLAUDE.md: the 'Don't skip the audit entry' list gains ticking a card off as printed or taking that back; the Card bullet under 'Derive, don't store' notes in ONE line that printedAt is a recorded event beside the snapshots (ADR-022) — no history",
+        "ui_styling_guide.md §12 registers the tick-off icon (and the undo icon, if one is used) — if US-005 did not already",
+        "scripts/ralph/prds/README.md gains the batch 39 row (10 stories, ralph/us-39-cards-to-print) with the total updated, and a short paragraph: schema change (migrations regenerated, both hand-written indexes re-added), one new port method, two domain functions, three typed errors, ADR-022",
+        "npm run arc42:check passes",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "DONE: ADR-022 Accepted (Ralph-batch precedent, decisions refined with DF 01.10.2026). arc42 05/06/08/12, handout section „Karten drucken\", CLAUDE.md, prds/README batch 39 row (235 total). Icons were already registered by US-005."
+    }
+  ]
+}
