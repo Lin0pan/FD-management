@@ -1646,6 +1646,15 @@ export const de = {
         unknown: "Die Änderung konnte nicht gespeichert werden.",
       },
     },
+    campaignReminder: {
+      errors: {
+        tooLong: (length: number, maxLength: number): string =>
+          `Der Name ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
+          `möglich.`,
+        alreadyActive: "Es ist bereits eine Erinnerung eingeschaltet. Bitte die Seite neu laden.",
+        notActive: "Diese Erinnerung ist nicht mehr eingeschaltet. Bitte die Seite neu laden.",
+      },
+    },
     reason: "Grund der Änderung (optional)",
     reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
     save: "Speichern",

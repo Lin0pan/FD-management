@@ -56,7 +56,10 @@ export type DomainErrorCode =
   | "OverpaymentNotConfirmed"
   | "InvalidPaymentAmount"
   | "CertificateTypeTooLong"
-  | "DuplicateCertificateType";
+  | "DuplicateCertificateType"
+  | "CampaignReminderNameTooLong"
+  | "CampaignReminderAlreadyActive"
+  | "CampaignReminderNotActive";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -843,5 +846,44 @@ export class DuplicateCertificateType extends DomainError {
   constructor(label: string) {
     super(`"${label}" is already in the list of Nachweis-Arten`);
     this.label = label;
+  }
+}
+
+/**
+ * A campaign reminder's name outgrew what a checkbox label at the counter can carry (US-40.1). In
+ * the shape of {@link CertificateTypeTooLong}.
+ */
+export class CampaignReminderNameTooLong extends DomainError {
+  readonly code = "CampaignReminderNameTooLong";
+  readonly length: number;
+  readonly maxLength: number;
+
+  constructor(length: number, maxLength: number) {
+    super(`A campaign reminder's name may hold at most ${maxLength} characters, not ${length}`);
+    this.length = length;
+    this.maxLength = maxLength;
+  }
+}
+
+/** A campaign reminder was switched on while another one is on — never more than one (US-40). */
+export class CampaignReminderAlreadyActive extends DomainError {
+  readonly code = "CampaignReminderAlreadyActive";
+
+  constructor() {
+    super("A campaign reminder is already switched on");
+  }
+}
+
+/**
+ * A write named a campaign reminder that is no longer the one switched on (US-40) — a screen read
+ * before another workstation switched it off or on again.
+ */
+export class CampaignReminderNotActive extends DomainError {
+  readonly code = "CampaignReminderNotActive";
+  readonly reminderId: number;
+
+  constructor(reminderId: number) {
+    super(`Campaign reminder ${reminderId} is not the one switched on`);
+    this.reminderId = reminderId;
   }
 }
