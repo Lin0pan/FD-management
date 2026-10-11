@@ -614,3 +614,28 @@ misread the batch.
   - `MissingRequiredField` from the name names the field `name` — the settings action (US-006) can
     mark its input with that path.
 ---
+
+## 2026-10-11 21:20 - US-002
+- `CampaignReminder` + `CampaignReminderTick` in `schema.prisma` (both relations `onDelete: Restrict`
+  out loud, `@@unique([reminderId, customerId])`, no timestamp); `Customer.campaignTicks` back-relation.
+- Migrations regenerated (`20261011190927_init`); the two old hand-written indexes sliced off the old
+  file and re-appended byte-identical, plus `one_active_campaign_reminder` (shape of
+  `one_running_session`, predicate `"endedAt" IS NULL`). Three `WHERE`s. `db:reset` run.
+- Port `CampaignReminderRepository` + `CampaignReminder` read type in `ports.ts`;
+  `PrismaCampaignReminderRepository` with 7 integration tests; `clearRegister` deletes ticks, then
+  reminders, before cards/customers; `schema.test.ts` greps for the third index.
+- Docs: chapter 02 („Three are hand-written…"), chapter 08 concurrency table + transactions line.
+- Files: prisma/schema.prisma, prisma/migrations/*, src/application/ports.ts,
+  src/infrastructure/prisma/campaign-reminder-repository(.test).ts, schema.test.ts, test-support.ts,
+  docs/architecture/02-*.md, 08-*.md
+- **Learnings for future iterations:**
+  - `schema.test.ts` keeps **no** list of deletable models — nothing to add there for the ticks.
+  - `setReceived(true)` is an `upsert` that also swallows `P2002`: SQLite upserts are read-then-
+    insert in Prisma, so two workstations ticking the same household can collide, and the tick is
+    there either way. `false` is `deleteMany` (no throw when absent).
+  - `end` is `$transaction([tick.deleteMany, reminder.update])` — the batch form is enough; no
+    interactive transaction needed.
+  - The port's `CampaignReminder` type deliberately omits `endedAt`, like `SessionRow.discardedAt`:
+    only the active reminder is ever read.
+  - No fake of the new port exists yet — US-003 writes the first one in its test file.
+---

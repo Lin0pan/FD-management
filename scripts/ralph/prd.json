@@ -39,7 +39,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "The two existing hand-written indexes are dropped by every regeneration (batches 25, 26, 34, 39 all had to re-add them) — grep the new migration.sql for WHERE before committing; there must be THREE. Re-confirm the project is still pre-release (memory: confirmed 2026-08-24); if DF hold real data, APPEND a migration instead. No use case yet — the port is wired to nothing until US-003."
     },
     {
