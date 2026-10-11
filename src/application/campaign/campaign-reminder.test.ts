@@ -11,6 +11,8 @@ import {
   CampaignReminderAlreadyActive,
   CampaignReminderNameTooLong,
   CampaignReminderNotActive,
+  CustomerArchived,
+  CustomerNotFound,
   MissingRequiredField,
 } from "@/domain/errors";
 import type {
@@ -22,9 +24,11 @@ import type {
   Clock,
   CustomerRepository,
 } from "../ports";
+import { campaignReminderFor } from "./campaign-reminder-for";
 import { endCampaignReminder } from "./end-campaign-reminder";
 import { readCampaignReminder } from "./read-campaign-reminder";
 import { renameCampaignReminder } from "./rename-campaign-reminder";
+import { setCampaignReminderReceived } from "./set-campaign-reminder-received";
 import { startCampaignReminder } from "./start-campaign-reminder";
 
 /** Hand-written fakes and synthetic data only. */
@@ -404,5 +408,103 @@ describe("the campaign reminder", () => {
         why: "Ostertüte · 2 Häkchen",
       },
     ]);
+  });
+});
+
+describe("ticking a household off", () => {
+  let campaignReminders: FakeCampaignReminderRepository;
+  let customers: FakeCustomerRepository;
+  let audit: FakeAuditLog;
+
+  // No distribution session in these deps at all: a tick needs none (D3).
+  function deps() {
+    return { campaignReminders, customers, clock: fakeClock(SWITCHED_ON), audit };
+  }
+
+  async function switchedOn(name = "Weihnachtstüte"): Promise<number> {
+    const { id } = await startCampaignReminder(deps(), { name });
+    audit.entries.length = 0;
+    return id;
+  }
+
+  beforeEach(() => {
+    campaignReminders = new FakeCampaignReminderRepository();
+    customers = new FakeCustomerRepository();
+    audit = new FakeAuditLog();
+    customers.holders.push(household(1), household(2, "BLOCKED"), household(3, "ARCHIVED"));
+  });
+
+  it("ticks off a household at any time", async () => {
+    const reminderId = await switchedOn();
+
+    await setCampaignReminderReceived(deps(), { reminderId, customerId: 1, received: true });
+    await setCampaignReminderReceived(deps(), { reminderId, customerId: 1, received: true });
+
+    expect(await campaignReminderFor(deps(), 1)).toEqual({
+      reminderId,
+      name: "Weihnachtstüte",
+      received: true,
+    });
+    expect(await readCampaignReminder(deps())).toMatchObject({ received: 1, total: 2 });
+  });
+
+  it("unticks a household without asking why", async () => {
+    const reminderId = await switchedOn();
+    await setCampaignReminderReceived(deps(), { reminderId, customerId: 1, received: true });
+
+    await setCampaignReminderReceived(deps(), { reminderId, customerId: 1, received: false });
+
+    expect(await campaignReminderFor(deps(), 1)).toMatchObject({ received: false });
+  });
+
+  it("ticks off a blocked household", async () => {
+    const reminderId = await switchedOn();
+
+    await setCampaignReminderReceived(deps(), { reminderId, customerId: 2, received: true });
+
+    expect(await campaignReminderFor(deps(), 2)).toMatchObject({ received: true });
+  });
+
+  it("refuses an archived household", async () => {
+    const reminderId = await switchedOn();
+
+    await expect(
+      setCampaignReminderReceived(deps(), { reminderId, customerId: 3, received: true }),
+    ).rejects.toThrow(CustomerArchived);
+    await expect(
+      setCampaignReminderReceived(deps(), { reminderId, customerId: 99, received: true }),
+    ).rejects.toThrow(CustomerNotFound);
+    expect(await campaignReminders.receivedCustomerIds(reminderId)).toEqual(new Set());
+  });
+
+  it("refuses a tick for a reminder that has been switched off", async () => {
+    const first = await switchedOn();
+    await endCampaignReminder(deps(), { reminderId: first });
+    const second = await switchedOn("Ostertüte");
+
+    await expect(
+      setCampaignReminderReceived(deps(), { reminderId: first, customerId: 1, received: true }),
+    ).rejects.toThrow(CampaignReminderNotActive);
+    expect(await campaignReminders.receivedCustomerIds(second)).toEqual(new Set());
+  });
+
+  it("does not audit a single tick", async () => {
+    const reminderId = await switchedOn();
+
+    await setCampaignReminderReceived(deps(), { reminderId, customerId: 1, received: true });
+    await setCampaignReminderReceived(deps(), { reminderId, customerId: 1, received: false });
+
+    expect(audit.entries).toEqual([]);
+  });
+
+  it("shows no checkbox while no reminder is on", async () => {
+    expect(await campaignReminderFor(deps(), 1)).toBeNull();
+  });
+
+  it("shows no checkbox for an archived household", async () => {
+    await switchedOn();
+
+    expect(await campaignReminderFor(deps(), 3)).toBeNull();
+    expect(await campaignReminderFor(deps(), 99)).toBeNull();
   });
 });
