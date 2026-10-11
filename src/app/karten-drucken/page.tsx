@@ -21,7 +21,7 @@ import { Confirmation } from "../notice";
 import { SHELL } from "../shell";
 import { BackToOverviews } from "../uebersichten/back-link";
 import { MarkPrintedControl, UndoPrintedControl } from "./print-controls";
-import { PRINTED_CARD, PRINTED_CUSTOMER } from "./print-state";
+import { PRINTED_CARD, PRINTED_CUSTOMER, wholeNumber } from "./print-state";
 
 export const dynamic = "force-dynamic";
 
@@ -76,16 +76,17 @@ function Row({ card }: { card: CardToPrint }): React.ReactElement {
 }
 
 /** A positive whole number off the address bar, or `null` — anything typed there is no offer. */
-function wholeNumber(value: string | string[] | undefined): number | null {
-  return typeof value === "string" && /^[1-9]\d*$/.test(value) ? Number(value) : null;
+function paramNumber(value: string | string[] | undefined): number | null {
+  const parsed = wholeNumber.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 async function undoOffer(params: {
   [PRINTED_CUSTOMER]?: string | string[];
   [PRINTED_CARD]?: string | string[];
 }): Promise<JustPrintedCard | null> {
-  const customerId = wholeNumber(params[PRINTED_CUSTOMER]);
-  const index = wholeNumber(params[PRINTED_CARD]);
+  const customerId = paramNumber(params[PRINTED_CUSTOMER]);
+  const index = paramNumber(params[PRINTED_CARD]);
   return customerId === null || index === null
     ? null
     : justPrintedCard(customerDeps, { customerId, index });

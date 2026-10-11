@@ -1,13 +1,8 @@
 "use client";
 
 /**
- * The checkbox „Karte ist bereits gedruckt“ beside every manual issue (US-39.5), unticked by default
- * (D2). Native rather than Radix's, because the actions read it as presence in the `FormData`.
- *
- * Controlled, with `defaultChecked` kept equal to the state: React resets the form once its action
- * resolves, and a reset restores a checkbox from that attribute — so without it a refused
- * registration would untick the box behind the staff member's back. A caller that wants it unticked
- * again for the next card remounts it with a `key`.
+ * „Karte ist bereits gedruckt“ beside every manual issue (US-39.5), unticked by default (D2). Native
+ * rather than Radix's, because the actions read it as presence in the `FormData`.
  */
 
 import { useState } from "react";
@@ -31,6 +26,8 @@ export function CardPrintedField({
         name={CARD_PRINTED_FIELD}
         data-testid={testId}
         checked={checked}
+        // React resets the form after its action, restoring a checkbox from `defaultChecked`: kept
+        // equal to the state, a refused registration does not untick it. Remount with a `key` to clear.
         ref={(node) => {
           if (node !== null) {
             node.defaultChecked = checked;

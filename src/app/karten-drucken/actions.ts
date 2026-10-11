@@ -21,13 +21,8 @@ import {
 import { de } from "@/i18n/de";
 import { customerDeps } from "../kunden/deps";
 import { tierOf } from "../notice-tier";
-import { PRINTED_CARD, PRINTED_CUSTOMER, type PrintState } from "./print-state";
-
-/** A surrogate id or an index as a hidden field carries it — a positive whole number. */
-const wholeNumber = z
-  .string()
-  .regex(/^[1-9]\d*$/)
-  .transform((value): number => Number(value));
+import { revalidateCardsToPrint } from "./revalidate";
+import { PRINTED_CARD, PRINTED_CUSTOMER, wholeNumber, type PrintState } from "./print-state";
 
 const cardInput = z.object({ customerId: wholeNumber, index: wholeNumber });
 
@@ -56,9 +51,7 @@ function refusal(error: unknown): PrintState {
 
 /** Everything that shows whether a card is printed — the list, its counts and the household. */
 function revalidate(customerId: number): void {
-  revalidatePath("/karten-drucken");
-  revalidatePath("/");
-  revalidatePath("/uebersichten");
+  revalidateCardsToPrint();
   revalidatePath(`/kunden/${customerId}`);
   revalidatePath(`/kunden/${customerId}/karte`);
 }

@@ -35,6 +35,7 @@ import {
 import { customerFieldLabel, de } from "@/i18n/de";
 import { cardPrinted, cardPrintedValue } from "../../card-printed";
 import { certificateTypeMark, resolveCertificateType } from "../../certificate-type-resolver";
+import { revalidateCardsToPrint } from "../../karten-drucken/revalidate";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import {
@@ -175,10 +176,7 @@ export async function reissueCardAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath(`/kunden/${customerId.data}/karte`);
-  // The to-do the new card may have added to (US-39.6): the list itself and both places counting it.
-  revalidatePath("/karten-drucken");
-  revalidatePath("/");
-  revalidatePath("/uebersichten");
+  revalidateCardsToPrint();
   return { status: "saved", cardNumber };
 }
 

@@ -19,6 +19,7 @@ import { formatCardNumber } from "@/domain/card/cardNumber";
 import { CustomerArchived } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { cardPrinted, cardPrintedValue } from "../card-printed";
+import { revalidateCardsToPrint } from "../karten-drucken/revalidate";
 import { tierOf } from "../notice-tier";
 import { customerDeps } from "../kunden/deps";
 import { customerErrorMessage } from "../kunden/neu/registration-input";
@@ -81,9 +82,6 @@ export async function reissueStaleCardAction(
   revalidatePath(`/kunden/${customerId.data}/karte`);
   // The hub, which counts this list in a badge of its own (US-17.2).
   revalidatePath("/kunden");
-  // The to-do the new card may have added to (US-39.6): the list itself and both places counting it.
-  revalidatePath("/karten-drucken");
-  revalidatePath("/");
-  revalidatePath("/uebersichten");
+  revalidateCardsToPrint();
   redirect(`/karten-neuausstellung?${ISSUED_CARD}=${encodeURIComponent(cardNumber)}`);
 }
