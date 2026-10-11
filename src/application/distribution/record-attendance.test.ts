@@ -34,12 +34,15 @@ import type {
   ArchivedCustomer,
   AuditEntry,
   AuditLog,
+  CampaignReminder,
+  CampaignReminderRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
   DistributionSessionRepository,
   SettingsRepository,
 } from "../ports";
+import { campaignReminderFor } from "../campaign/campaign-reminder-for";
 import { recordAttendance } from "./record-attendance";
 
 /**
@@ -405,6 +408,47 @@ function existingRecord(date: string, overrides: RecordOverrides = {}): Distribu
   };
 }
 
+/**
+ * One campaign reminder switched on, whose ticks really are kept — so a serve that ticked the
+ * household off would show. Switching on, renaming and off have a suite of their own.
+ */
+class FakeCampaignReminderRepository implements CampaignReminderRepository {
+  readonly ticked = new Set<number>();
+
+  findActive(): Promise<CampaignReminder | null> {
+    return Promise.resolve({
+      id: 1,
+      name: "Weihnachtstüte",
+      startedAt: new Date("2026-07-01T09:00:00.000Z"),
+    });
+  }
+
+  start(): Promise<CampaignReminder> {
+    return Promise.reject(new Error("start has a suite of its own"));
+  }
+
+  rename(): Promise<void> {
+    return Promise.reject(new Error("rename has a suite of its own"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("end has a suite of its own"));
+  }
+
+  receivedCustomerIds(): Promise<ReadonlySet<number>> {
+    return Promise.resolve(new Set(this.ticked));
+  }
+
+  setReceived(_reminderId: number, customerId: number, received: boolean): Promise<void> {
+    if (received) {
+      this.ticked.add(customerId);
+    } else {
+      this.ticked.delete(customerId);
+    }
+    return Promise.resolve();
+  }
+}
+
 describe("recordAttendance", () => {
   let customers: FakeCustomerRepository;
   let records: FakeDistributionRecordRepository;
@@ -676,5 +720,16 @@ describe("recordAttendance", () => {
 
     expect(record.sessionId).toBe(SESSION_ID);
     expect(records.records).toHaveLength(2);
+  });
+
+  it("serving a household does not tick it off", async () => {
+    // Handed the reminder's store and still blind to it: the checkbox is DF's to tick (US-40, D4).
+    const campaignReminders = new FakeCampaignReminderRepository();
+
+    const servingDeps = { ...deps(), campaignReminders };
+    await recordAttendance(servingDeps, { customerId: 1 });
+
+    const checkbox = await campaignReminderFor({ campaignReminders, customers }, 1);
+    expect(checkbox?.received).toBe(false);
   });
 });

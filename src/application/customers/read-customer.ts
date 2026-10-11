@@ -12,7 +12,12 @@ import type { DistributionRecord } from "@/domain/distribution/distributionRecor
 import { CustomerNotFound } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { describeAllowance, type Allowance } from "../allowance/describe-allowance";
+import {
+  campaignReminderFor,
+  type CampaignReminderCheckbox,
+} from "../campaign/campaign-reminder-for";
 import type {
+  CampaignReminderRepository,
   CardRepository,
   Clock,
   CustomerRepository,
@@ -32,6 +37,7 @@ export interface ReadCustomerDeps {
   readonly records: DistributionRecordRepository;
   /** Read only, for the no-show count: the afternoons that took place are what a miss is one of. */
   readonly sessions: DistributionSessionRepository;
+  readonly campaignReminders: CampaignReminderRepository;
   readonly clock: Clock;
 }
 
@@ -111,6 +117,11 @@ export interface CustomerCardView {
    */
   readonly numberChoices: ReadonlyArray<NumberChoice>;
   /**
+   * The campaign reminder's checkbox (US-40), or `null` while none is on and for an archived
+   * household — through the read the counter uses, so the two screens cannot disagree.
+   */
+  readonly campaignReminder: CampaignReminderCheckbox | null;
+  /**
    * The day every figure above was worked out as of, and the day the household editor judges its rows
    * against while they are typed (US-16.5). Handed out rather than read in the browser, whose clock is
    * its own and in a zone of its own — a household counted against it would flicker onto a different
@@ -131,13 +142,15 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
   }
 
   const today = deps.clock.now();
-  const [allowance, records, endedSessions, takenNumbers, numberChoices] = await Promise.all([
-    describeAllowance(deps, customer.details.householdMembers),
-    deps.records.listForCustomer(customer.id),
-    deps.sessions.listEnded(),
-    deps.customers.takenActiveNumbers(),
-    listNumberChoices(deps, customer),
-  ]);
+  const [allowance, records, endedSessions, takenNumbers, numberChoices, campaignReminder] =
+    await Promise.all([
+      describeAllowance(deps, customer.details.householdMembers),
+      deps.records.listForCustomer(customer.id),
+      deps.sessions.listEnded(),
+      deps.customers.takenActiveNumbers(),
+      listNumberChoices(deps, customer),
+      campaignReminderFor(deps, customer.id),
+    ]);
   // Counted off the numbers the register holds rather than asked of it: a group is not a column, it
   // is what a number is (ADR-017).
   const groupCounts = countByGroup(takenNumbers);
@@ -170,6 +183,7 @@ export async function readCustomer(deps: ReadCustomerDeps, id: number): Promise<
     history: [...replayPayments(records)].reverse(),
     groupCounts,
     numberChoices,
+    campaignReminder,
     today,
   };
 }

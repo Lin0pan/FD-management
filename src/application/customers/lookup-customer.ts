@@ -31,8 +31,13 @@ import {
 import { NoDistributionSessionRunning } from "@/domain/errors";
 import type { Cents } from "@/domain/money";
 import { describeAllowance } from "../allowance/describe-allowance";
+import {
+  campaignReminderFor,
+  type CampaignReminderCheckbox,
+} from "../campaign/campaign-reminder-for";
 import { countNoShows } from "./count-no-shows";
 import type {
+  CampaignReminderRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
@@ -47,6 +52,7 @@ export interface LookupCustomerDeps {
   readonly records: DistributionRecordRepository;
   readonly reminders: ReminderLogRepository;
   readonly sessions: DistributionSessionRepository;
+  readonly campaignReminders: CampaignReminderRepository;
   readonly clock: Clock;
 }
 
@@ -161,6 +167,11 @@ export interface CounterLookup {
    * stays disabled across reloads — the screen must not offer what the rule is bound to refuse.
    */
   readonly reminderLoggedInSession: boolean;
+  /**
+   * The campaign reminder's checkbox (US-40), or `null` while none is on and for an archived
+   * household. Shown and nothing more — `evaluateAtCounter` never sees it.
+   */
+  readonly campaignReminder: CampaignReminderCheckbox | null;
 }
 
 /**
@@ -200,15 +211,17 @@ export async function lookupCustomer(
       customerId: null,
       sessionRecord: null,
       reminderLoggedInSession: false,
+      campaignReminder: null,
     };
   }
 
   // Loaded with the customer rather than on a later click, so the serve action, the correction of an
   // existing record and the reminder action are all offered in one render (US-04.3, US-05.4, US-06.4).
-  const [recordsForCustomer, sessionReminder, endedSessions] = await Promise.all([
+  const [recordsForCustomer, sessionReminder, endedSessions, campaignReminder] = await Promise.all([
     deps.records.listForCustomer(customer.id),
     deps.reminders.findInSession(customer.id, session.id),
     deps.sessions.listEnded(),
+    campaignReminderFor(deps, customer.id),
   ]);
   const existing = recordForSession(recordsForCustomer, session.id);
 
@@ -252,6 +265,7 @@ export async function lookupCustomer(
     customerId: customer.id,
     sessionRecord,
     reminderLoggedInSession: sessionReminder !== null,
+    campaignReminder,
     customer: {
       firstName: customer.details.firstName,
       lastName: customer.details.lastName,

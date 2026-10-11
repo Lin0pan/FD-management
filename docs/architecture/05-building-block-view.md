@@ -154,6 +154,8 @@ component as a client-reference proxy rather than a string.
 their screens may do. The counter's is split in two — a read-only object for the page holding no
 audit log, and a write object for the actions — so the page cannot record a hand-out even by
 mistake; and the Ausgabetermine and Übersichten ones hold no audit log at all, because their routes only read.
+The Einstellungen one holds a second object for the campaign reminder, whose progress reads the
+register where the policy only counts it.
 
 ---
 

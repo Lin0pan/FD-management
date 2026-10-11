@@ -25,6 +25,8 @@ import type { Cents } from "@/domain/money";
 import { createSettings, type SettingsInput, type SettingsVersion } from "@/domain/policy/settings";
 import type {
   ArchivedCustomer,
+  CampaignReminder,
+  CampaignReminderRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
@@ -491,15 +493,57 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
   };
 }
 
+/**
+ * The campaign reminder as the reads see it: one switched on or none, and the households ticked off
+ * under it. Every write has a suite of its own (`campaign-reminder.test.ts`).
+ */
+class FakeCampaignReminderRepository implements CampaignReminderRepository {
+  active: CampaignReminder | null = null;
+  readonly ticked = new Set<number>();
+
+  findActive(): Promise<CampaignReminder | null> {
+    return Promise.resolve(this.active);
+  }
+
+  start(): Promise<CampaignReminder> {
+    return Promise.reject(new Error("start has a suite of its own"));
+  }
+
+  rename(): Promise<void> {
+    return Promise.reject(new Error("rename has a suite of its own"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("end has a suite of its own"));
+  }
+
+  receivedCustomerIds(): Promise<ReadonlySet<number>> {
+    return Promise.resolve(new Set(this.ticked));
+  }
+
+  setReceived(): Promise<void> {
+    return Promise.reject(new Error("setReceived has a suite of its own"));
+  }
+}
+
 describe("lookupCustomer", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
   let reminders: FakeReminderLogRepository;
   let sessions: FakeDistributionSessionRepository;
+  let campaignReminders: FakeCampaignReminderRepository;
 
   function deps(today = TODAY) {
-    return { customers, settings, records, reminders, sessions, clock: fakeClock(today) };
+    return {
+      customers,
+      settings,
+      records,
+      reminders,
+      sessions,
+      campaignReminders,
+      clock: fakeClock(today),
+    };
   }
 
   beforeEach(() => {
@@ -508,6 +552,7 @@ describe("lookupCustomer", () => {
     records = new FakeDistributionRecordRepository();
     reminders = new FakeReminderLogRepository();
     sessions = new FakeDistributionSessionRepository();
+    campaignReminders = new FakeCampaignReminderRepository();
   });
 
   it("reports an unassigned number as not found, not as an error", async () => {
@@ -1011,5 +1056,72 @@ describe("lookupCustomer", () => {
 
     expect(result.customer?.balanceCents).toBe(0);
     expect(result.sessionRecord?.balanceWithoutRecordCents).toBe(-300);
+  });
+
+  describe("the campaign reminder", () => {
+    const WEIHNACHTSTUETE = {
+      id: 7,
+      name: "Weihnachtstüte",
+      startedAt: new Date("2026-07-01T09:00:00.000Z"),
+    };
+
+    it("the counter shows whether the household has received", async () => {
+      customers = new FakeCustomerRepository(
+        customerRecord({ id: 1 }),
+        customerRecord({ id: 2, customerNumber: 52 }),
+      );
+      campaignReminders.active = WEIHNACHTSTUETE;
+      campaignReminders.ticked.add(2);
+
+      const outstanding = await lookupCustomer(deps(), "50");
+      const received = await lookupCustomer(deps(), "52");
+
+      expect(outstanding.campaignReminder).toEqual({
+        reminderId: 7,
+        name: "Weihnachtstüte",
+        received: false,
+      });
+      expect(received.campaignReminder).toEqual({
+        reminderId: 7,
+        name: "Weihnachtstüte",
+        received: true,
+      });
+    });
+
+    it("the counter shows no reminder for a number nobody holds", async () => {
+      campaignReminders.active = WEIHNACHTSTUETE;
+
+      const result = await lookupCustomer(deps(), "77");
+
+      expect(result.verdict.kind).toBe("NOT_FOUND");
+      expect(result.campaignReminder).toBeNull();
+    });
+
+    it("the counter shows no reminder for an archived household", async () => {
+      customers = new FakeCustomerRepository(customerRecord({ status: "ARCHIVED" }));
+      campaignReminders.active = WEIHNACHTSTUETE;
+
+      const result = await lookupCustomer(deps(), "50");
+
+      expect(result.campaignReminder).toBeNull();
+    });
+
+    it("the counter shows no reminder while none is on", async () => {
+      customers = new FakeCustomerRepository(customerRecord());
+
+      const result = await lookupCustomer(deps(), "50");
+
+      expect(result.campaignReminder).toBeNull();
+    });
+
+    it("never turns a household away for not having received", async () => {
+      customers = new FakeCustomerRepository(customerRecord());
+      campaignReminders.active = WEIHNACHTSTUETE;
+
+      const result = await lookupCustomer(deps(), "50");
+
+      expect(result.campaignReminder?.received).toBe(false);
+      expect(result.verdict.kind).toBe("CLEAR_TO_SERVE");
+    });
   });
 });

@@ -49,6 +49,8 @@ import type {
   ArchiveSearchQuery,
   AuditEntry,
   AuditLog,
+  CampaignReminder,
+  CampaignReminderRepository,
   CardIssueCounts,
   CardRepository,
   Clock,
@@ -683,6 +685,39 @@ function storedCustomer(
     },
     previousCustomerId: null,
   };
+}
+
+/**
+ * The campaign reminder as the reads see it: one switched on or none, and the households ticked off
+ * under it. Every write has a suite of its own (`campaign-reminder.test.ts`).
+ */
+class FakeCampaignReminderRepository implements CampaignReminderRepository {
+  active: CampaignReminder | null = null;
+  readonly ticked = new Set<number>();
+
+  findActive(): Promise<CampaignReminder | null> {
+    return Promise.resolve(this.active);
+  }
+
+  start(): Promise<CampaignReminder> {
+    return Promise.reject(new Error("start has a suite of its own"));
+  }
+
+  rename(): Promise<void> {
+    return Promise.reject(new Error("rename has a suite of its own"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("end has a suite of its own"));
+  }
+
+  receivedCustomerIds(): Promise<ReadonlySet<number>> {
+    return Promise.resolve(new Set(this.ticked));
+  }
+
+  setReceived(): Promise<void> {
+    return Promise.reject(new Error("setReceived has a suite of its own"));
+  }
 }
 
 describe("registerCustomer", () => {
@@ -1720,6 +1755,7 @@ describe("readCustomer", () => {
   let settings: FakeSettingsRepository;
   let records: FakeDistributionRecordRepository;
   let audit: FakeAuditLog;
+  let campaignReminders: FakeCampaignReminderRepository;
 
   /**
    * Five RED afternoons a fortnight apart, newest first as the store hands them over — every one of
@@ -1740,6 +1776,7 @@ describe("readCustomer", () => {
       settings,
       records,
       sessions: new FakeDistributionSessionRepository(OWN_SESSIONS),
+      campaignReminders,
       clock: fakeClock(today),
       audit,
     };
@@ -1784,6 +1821,36 @@ describe("readCustomer", () => {
     settings = new FakeSettingsRepository(version());
     records = new FakeDistributionRecordRepository();
     audit = new FakeAuditLog();
+    campaignReminders = new FakeCampaignReminderRepository();
+  });
+
+  it("the record shows whether the household has received", async () => {
+    const outstanding = await registerCustomer(deps(), registerInput());
+    const received = await registerCustomer(deps(), registerInput());
+    campaignReminders.active = {
+      id: 7,
+      name: "Weihnachtstüte",
+      startedAt: new Date("2026-07-01T09:00:00.000Z"),
+    };
+    campaignReminders.ticked.add(received.id);
+
+    const outstandingView = await readCustomer(deps(), outstanding.id);
+    const receivedView = await readCustomer(deps(), received.id);
+
+    expect(outstandingView.campaignReminder).toEqual({
+      reminderId: 7,
+      name: "Weihnachtstüte",
+      received: false,
+    });
+    expect(receivedView.campaignReminder?.received).toBe(true);
+  });
+
+  it("the record shows no reminder while none is on", async () => {
+    const registered = await registerCustomer(deps(), registerInput());
+
+    const view = await readCustomer(deps(), registered.id);
+
+    expect(view.campaignReminder).toBeNull();
   });
 
   it("derives the card number from the slot and the card index", async () => {

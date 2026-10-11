@@ -34,6 +34,8 @@ import type {
   ArchivedCustomer,
   AuditEntry,
   AuditLog,
+  CampaignReminder,
+  CampaignReminderRepository,
   CardIssueCounts,
   CardRepository,
   Clock,
@@ -565,6 +567,33 @@ function handOut(
   };
 }
 
+/** No campaign reminder is ever on in this suite; its own is `campaign-reminder.test.ts`. */
+class NoCampaignReminder implements CampaignReminderRepository {
+  findActive(): Promise<CampaignReminder | null> {
+    return Promise.resolve(null);
+  }
+
+  start(): Promise<CampaignReminder> {
+    return Promise.reject(new Error("start has a suite of its own"));
+  }
+
+  rename(): Promise<void> {
+    return Promise.reject(new Error("rename has a suite of its own"));
+  }
+
+  end(): Promise<void> {
+    return Promise.reject(new Error("end has a suite of its own"));
+  }
+
+  receivedCustomerIds(): Promise<ReadonlySet<number>> {
+    return Promise.reject(new Error("receivedCustomerIds has a suite of its own"));
+  }
+
+  setReceived(): Promise<void> {
+    return Promise.reject(new Error("setReceived has a suite of its own"));
+  }
+}
+
 describe("changeCustomerNumber", () => {
   let customers: FakeCustomerRepository;
   let cards: FakeCardRepository;
@@ -593,6 +622,7 @@ describe("changeCustomerNumber", () => {
       settings,
       records,
       sessions: new FakeDistributionSessionRepository(),
+      campaignReminders: new NoCampaignReminder(),
       clock: fakeClock(TODAY),
     };
   }
@@ -875,6 +905,7 @@ describe("the record after a number change", () => {
       settings,
       records,
       sessions: new FakeDistributionSessionRepository(),
+      campaignReminders: new NoCampaignReminder(),
       clock: fakeClock(TODAY),
     };
   }
@@ -890,6 +921,7 @@ describe("the record after a number change", () => {
       records,
       reminders,
       sessions: new FakeDistributionSessionRepository(),
+      campaignReminders: new NoCampaignReminder(),
       clock: fakeClock(TODAY),
     };
   }
