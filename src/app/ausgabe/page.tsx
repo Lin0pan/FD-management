@@ -36,6 +36,7 @@ import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDateTime, germanTime } from "@/i18n/format";
+import { CampaignReminderField } from "../campaign-reminder-field";
 import { ArchiveControls } from "../kunden/archive-controls";
 import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
@@ -464,6 +465,17 @@ export default async function DistributionPage({
                       customer={counter.lookup.customer}
                       customerId={counter.lookup.customerId}
                     />
+                    {/* Below the household and above everything that serves them: prominent when
+                    unticked, never a step the queue has to clear (US-40, D4). */}
+                    {counter.lookup.campaignReminder === null ? null : (
+                      <CampaignReminderField
+                        key={`campaign-${counter.lookup.customerId}`}
+                        reminderId={counter.lookup.campaignReminder.reminderId}
+                        customerId={counter.lookup.customerId}
+                        name={counter.lookup.campaignReminder.name}
+                        received={counter.lookup.campaignReminder.received}
+                      />
+                    )}
                     {/* Keyed by customer so a confirmation from one lookup cannot survive into the
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate

@@ -1010,6 +1010,19 @@ export const de = {
     },
   },
   /**
+   * The campaign reminder's checkbox at the counter and in the record (US-40). The checkbox is
+   * labelled with DF's own name for it, so nothing here names the campaign.
+   */
+  campaignReminder: {
+    received: "erhalten",
+    outstanding: "noch nicht erhalten",
+    errors: {
+      notActive: "Diese Erinnerung ist nicht mehr eingeschaltet. Bitte die Seite neu laden.",
+      archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
+      unknown: "Das Häkchen konnte nicht gespeichert werden.",
+    },
+  },
+  /**
    * The waiting list at /warteliste (US-12.4).
    *
    * **The order is the feature**, so the screen states it in words and offers nothing that could
