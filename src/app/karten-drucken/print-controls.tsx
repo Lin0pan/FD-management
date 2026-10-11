@@ -6,7 +6,7 @@
  * right after is the safety net (D7).
  */
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { Printer, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { de } from "@/i18n/de";
@@ -73,4 +73,15 @@ export function UndoPrintedControl({
       ) : null}
     </form>
   );
+}
+
+/**
+ * Drops the tick's parameters from the address bar once the offer is shown, so a reload — or coming
+ * back to the page later — offers no undo (FR-6). Next.js syncs a native `replaceState` with its router.
+ */
+export function ForgetUndoOffer(): null {
+  useEffect(() => {
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+  return null;
 }

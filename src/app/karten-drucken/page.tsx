@@ -20,7 +20,7 @@ import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Confirmation } from "../notice";
 import { SHELL } from "../shell";
 import { BackToOverviews } from "../uebersichten/back-link";
-import { MarkPrintedControl, UndoPrintedControl } from "./print-controls";
+import { ForgetUndoOffer, MarkPrintedControl, UndoPrintedControl } from "./print-controls";
 import { PRINTED_CARD, PRINTED_CUSTOMER, wholeNumber } from "./print-state";
 
 export const dynamic = "force-dynamic";
@@ -120,6 +120,7 @@ export default async function CardsToPrintPage({
           testId="cards-to-print-done"
         >
           <UndoPrintedControl customerId={printed.customerId} index={printed.index} />
+          <ForgetUndoOffer />
         </Confirmation>
       )}
 

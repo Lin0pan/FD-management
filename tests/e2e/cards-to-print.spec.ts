@@ -173,7 +173,7 @@ test.describe("Karten drucken", () => {
     await expectPrintedOnCardView(page, secondId);
   });
 
-  test("ticks a card off, takes the tick back, and offers no undo once it is left", async ({
+  test("ticks a card off, takes the tick back, and offers no undo once the page is reloaded", async ({
     page,
   }) => {
     await page.goto("/karten-drucken");
@@ -189,7 +189,8 @@ test.describe("Karten drucken", () => {
     await row(page, FIRST).getByTestId("cards-to-print-submit").click();
     await expect(page.getByTestId("cards-to-print-done")).toBeVisible();
 
-    await page.goto("/karten-drucken");
+    await expect(page).toHaveURL(/\/karten-drucken$/);
+    await page.reload();
     await expect(page.getByTestId("cards-to-print-empty")).toBeVisible();
     await expect(page.getByTestId("cards-to-print-done")).toHaveCount(0);
     await expect(page.getByTestId("cards-to-print-undo")).toHaveCount(0);
