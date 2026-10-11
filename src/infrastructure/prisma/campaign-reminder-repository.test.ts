@@ -13,7 +13,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { foldName } from "@/domain/customer/nameSearch";
-import { CampaignReminderAlreadyActive } from "@/domain/errors";
+import { CampaignReminderAlreadyActive, CampaignReminderNotActive } from "@/domain/errors";
 import { PrismaCampaignReminderRepository } from "./campaign-reminder-repository";
 import { clearRegister, migrateThrowawayDatabase } from "./test-support";
 
@@ -129,7 +129,7 @@ describe("PrismaCampaignReminderRepository.end", () => {
     await repository.setReceived(ended.id, first, true);
     await repository.setReceived(ended.id, second, true);
 
-    await repository.end(ended.id, ENDED);
+    expect(await repository.end(ended.id, ENDED)).toBe(2);
 
     expect(await repository.findActive()).toBeNull();
     expect(await prisma.campaignReminder.findUnique({ where: { id: ended.id } })).toMatchObject({
@@ -148,5 +148,29 @@ describe("PrismaCampaignReminderRepository.end", () => {
 
     expect(await repository.findActive()).toEqual(next);
     expect(await repository.receivedCustomerIds(next.id)).toEqual(new Set());
+  });
+});
+
+describe("PrismaCampaignReminderRepository, once switched off", () => {
+  it("refuses a second switch-off, a rename and a tick, leaving the reminder as it ended", async () => {
+    const customerId = await insertCustomer(301);
+    const ended = await repository.start("Weihnachtstüte", STARTED);
+    await repository.end(ended.id, ENDED);
+
+    await expect(repository.end(ended.id, NEXT_YEAR)).rejects.toBeInstanceOf(
+      CampaignReminderNotActive,
+    );
+    await expect(repository.rename(ended.id, "Ostertüte")).rejects.toBeInstanceOf(
+      CampaignReminderNotActive,
+    );
+    await expect(repository.setReceived(ended.id, customerId, true)).rejects.toBeInstanceOf(
+      CampaignReminderNotActive,
+    );
+
+    expect(await prisma.campaignReminder.findUnique({ where: { id: ended.id } })).toMatchObject({
+      name: "Weihnachtstüte",
+      endedAt: ENDED,
+    });
+    expect(await prisma.campaignReminderTick.count()).toBe(0);
   });
 });

@@ -35,7 +35,7 @@ export async function startCampaignReminder(
     what: "campaignReminder.started",
     changedFields: ["name"],
     when,
-    why: name,
+    why: `name=${name}`,
   });
   return started;
 }

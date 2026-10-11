@@ -492,16 +492,26 @@ export interface CampaignReminderRepository {
    * @throws {CampaignReminderAlreadyActive} if another one was already switched on.
    */
   start(name: CampaignReminderName, at: Date): Promise<CampaignReminder>;
-  /** Rename it in place; its ticks stay. */
+  /**
+   * Rename it in place; its ticks stay.
+   *
+   * @throws {CampaignReminderNotActive} if it has been switched off.
+   */
   rename(reminderId: number, name: CampaignReminderName): Promise<void>;
   /**
    * Stamp it as switched off and delete every one of its ticks, in one transaction — the row is
-   * kept, the ticks are not (ADR-023).
+   * kept, the ticks are not (ADR-023). Returns the number of ticks deleted.
+   *
+   * @throws {CampaignReminderNotActive} if it has already been switched off.
    */
-  end(reminderId: number, at: Date): Promise<void>;
+  end(reminderId: number, at: Date): Promise<number>;
   /** The ids of the households ticked off under this reminder, archived ones included. */
   receivedCustomerIds(reminderId: number): Promise<ReadonlySet<number>>;
-  /** Tick or untick one household. Idempotent: ticking twice leaves one tick. */
+  /**
+   * Tick or untick one household. Idempotent: ticking twice leaves one tick.
+   *
+   * @throws {CampaignReminderNotActive} if it has been switched off — no tick outlives its reminder.
+   */
   setReceived(reminderId: number, customerId: number, received: boolean): Promise<void>;
 }
 

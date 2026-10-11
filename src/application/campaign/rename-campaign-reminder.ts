@@ -36,6 +36,6 @@ export async function renameCampaignReminder(
     what: "campaignReminder.renamed",
     changedFields: ["name"],
     when: deps.clock.now(),
-    why: `„${active.name}“ → „${name}“`,
+    why: `name=${active.name}→${name}`,
   });
 }

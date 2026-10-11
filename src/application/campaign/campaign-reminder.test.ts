@@ -71,10 +71,11 @@ class FakeCampaignReminderRepository implements CampaignReminderRepository {
     return Promise.resolve();
   }
 
-  end(reminderId: number, at: Date): Promise<void> {
+  end(reminderId: number, at: Date): Promise<number> {
     this.stored(reminderId).endedAt = at;
+    const deleted = this.ticks.get(reminderId)?.size ?? 0;
     this.ticks.delete(reminderId);
-    return Promise.resolve();
+    return Promise.resolve(deleted);
   }
 
   receivedCustomerIds(reminderId: number): Promise<ReadonlySet<number>> {
@@ -393,21 +394,32 @@ describe("the campaign reminder", () => {
         what: "campaignReminder.started",
         changedFields: ["name"],
         when: SWITCHED_ON,
-        why: "Weihnachtstüte",
+        why: "name=Weihnachtstüte",
       },
       {
         what: "campaignReminder.renamed",
         changedFields: ["name"],
         when: renamedAt,
-        why: "„Weihnachtstüte“ → „Ostertüte“",
+        why: "name=Weihnachtstüte→Ostertüte",
       },
       {
         what: "campaignReminder.ended",
-        changedFields: ["name"],
+        changedFields: ["endedAt"],
         when: switchedOff,
-        why: "Ostertüte · 2 Häkchen",
+        why: "name=Ostertüte, ticksDeleted=2",
       },
     ]);
+  });
+
+  it("audits every tick a switch-off deletes, an archived household's included", async () => {
+    customers.holders.push(household(4, "ARCHIVED"));
+    const { id } = await startCampaignReminder(deps(), { name: "Weihnachtstüte" });
+    await campaignReminders.setReceived(id, 1, true);
+    await campaignReminders.setReceived(id, 4, true);
+
+    await endCampaignReminder(deps(), { reminderId: id });
+
+    expect(audit.entries.at(-1)).toMatchObject({ why: "name=Weihnachtstüte, ticksDeleted=2" });
   });
 });
 

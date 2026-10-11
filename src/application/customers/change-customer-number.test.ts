@@ -581,7 +581,7 @@ class NoCampaignReminder implements CampaignReminderRepository {
     return Promise.reject(new Error("rename has a suite of its own"));
   }
 
-  end(): Promise<void> {
+  end(): Promise<number> {
     return Promise.reject(new Error("end has a suite of its own"));
   }
 

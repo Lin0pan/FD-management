@@ -1,7 +1,7 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { CampaignReminder, CampaignReminderRepository } from "@/application/ports";
 import type { CampaignReminderName } from "@/domain/campaign/campaignReminder";
-import { CampaignReminderAlreadyActive } from "@/domain/errors";
+import { CampaignReminderAlreadyActive, CampaignReminderNotActive } from "@/domain/errors";
 
 function isUniqueViolation(error: unknown): error is Prisma.PrismaClientKnownRequestError {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -44,14 +44,27 @@ export class PrismaCampaignReminderRepository implements CampaignReminderReposit
   }
 
   async rename(reminderId: number, name: CampaignReminderName): Promise<void> {
-    await this.prisma.campaignReminder.update({ where: { id: reminderId }, data: { name } });
+    const { count } = await this.prisma.campaignReminder.updateMany({
+      where: { id: reminderId, endedAt: null },
+      data: { name },
+    });
+    if (count === 0) {
+      throw new CampaignReminderNotActive(reminderId);
+    }
   }
 
-  async end(reminderId: number, at: Date): Promise<void> {
-    await this.prisma.$transaction([
-      this.prisma.campaignReminderTick.deleteMany({ where: { reminderId } }),
-      this.prisma.campaignReminder.update({ where: { id: reminderId }, data: { endedAt: at } }),
-    ]);
+  async end(reminderId: number, at: Date): Promise<number> {
+    return this.prisma.$transaction(async (tx) => {
+      const stamped = await tx.campaignReminder.updateMany({
+        where: { id: reminderId, endedAt: null },
+        data: { endedAt: at },
+      });
+      if (stamped.count === 0) {
+        throw new CampaignReminderNotActive(reminderId);
+      }
+      const deleted = await tx.campaignReminderTick.deleteMany({ where: { reminderId } });
+      return deleted.count;
+    });
   }
 
   async receivedCustomerIds(reminderId: number): Promise<ReadonlySet<number>> {
@@ -63,24 +76,31 @@ export class PrismaCampaignReminderRepository implements CampaignReminderReposit
   }
 
   /**
-   * A tick landing from a second workstation between the upsert's read and its insert is refused
-   * by the unique index — the household is ticked either way, so that refusal is success.
+   * The tick is written before the reminder is checked, so SQLite's write lock orders it against a
+   * concurrent `end`: either the switch-off deletes it, or it sees the switch-off and rolls back.
    */
   async setReceived(reminderId: number, customerId: number, received: boolean): Promise<void> {
-    if (!received) {
-      await this.prisma.campaignReminderTick.deleteMany({ where: { reminderId, customerId } });
-      return;
-    }
-    try {
-      await this.prisma.campaignReminderTick.upsert({
-        where: { reminderId_customerId: { reminderId, customerId } },
-        create: { reminderId, customerId },
-        update: {},
-      });
-    } catch (error: unknown) {
-      if (!isUniqueViolation(error)) {
-        throw error;
+    await this.prisma.$transaction(async (tx) => {
+      if (received) {
+        try {
+          await tx.campaignReminderTick.upsert({
+            where: { reminderId_customerId: { reminderId, customerId } },
+            create: { reminderId, customerId },
+            update: {},
+          });
+        } catch (error: unknown) {
+          // A second workstation's tick landed between the upsert's read and its insert.
+          if (!isUniqueViolation(error)) {
+            throw error;
+          }
+        }
+      } else {
+        await tx.campaignReminderTick.deleteMany({ where: { reminderId, customerId } });
       }
-    }
+      const active = await tx.campaignReminder.count({ where: { id: reminderId, endedAt: null } });
+      if (active === 0) {
+        throw new CampaignReminderNotActive(reminderId);
+      }
+    });
   }
 }
