@@ -88,6 +88,11 @@ describe("the committed migrations", () => {
     expect(migrationSql()).toContain('CREATE UNIQUE INDEX "one_running_session"');
   });
 
+  /** Never more than one campaign reminder switched on (US-40), on the same footing as the above. */
+  it("keep the hand-written partial unique index that allows only one active campaign reminder", () => {
+    expect(migrationSql()).toContain('CREATE UNIQUE INDEX "one_active_campaign_reminder"');
+  });
+
   /**
    * One hand-out per household per session (US-34, FR-13), enforced where a raced-past guard cannot
    * reach it. It replaced the day-key constraint, so the day key must be gone with it: a column no

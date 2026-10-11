@@ -46,6 +46,8 @@ export async function clearRegister(prisma: PrismaClient): Promise<void> {
   await prisma.distributionRecord.deleteMany();
   await prisma.reminderLog.deleteMany();
   await prisma.distributionSession.deleteMany();
+  await prisma.campaignReminderTick.deleteMany();
+  await prisma.campaignReminder.deleteMany();
   await prisma.card.deleteMany();
   await prisma.certificate.deleteMany();
   await prisma.householdMember.deleteMany();

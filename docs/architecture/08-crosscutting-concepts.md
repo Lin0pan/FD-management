@@ -313,17 +313,22 @@ once, and the answer is always the same: **the database settles it, not a read-t
 | One hand-out per household per session         | `@@unique([customerId, sessionId])`                                                       |
 | One reminder per household per session         | `@@unique([customerId, sessionId])` on `ReminderLog`                                      |
 | At most one distribution session running       | Partial unique index on an _expression_, hand-written — `one_running_session`             |
+| At most one campaign reminder switched on      | The same shape, hand-written — `one_active_campaign_reminder`                             |
+| One tick per household per campaign reminder   | `@@unique([reminderId, customerId])` on `CampaignReminderTick`                            |
 
 Each domain rule exists as well, because a use case that refuses early gives a better message. But
 the constraint is the authority, and every adapter translates Prisma's `P2002` into the matching
 typed error — `card-repository.ts` even works out _which_ of its two unique indexes fired by matching
-the column list, because the two demand different recoveries. The last row is matched differently:
-a partial index on an expression has no column to report, so `P2002` names the **index**, and
-`distribution-session-repository.ts` matches `one_running_session` by name and re-reads the row that
-won in order to name it.
+the column list, because the two demand different recoveries. The two expression indexes are matched
+differently: a partial index on an expression has no column to report, so `P2002` names the
+**index**, and `distribution-session-repository.ts` matches `one_running_session` by name and
+re-reads the row that won in order to name it (`campaign-reminder-repository.ts` does the same for
+its own). A tick colliding with its own unique index is success, not an error: the household is
+ticked either way.
 
 Writes that must not half-happen are single transactions: a whole registration, a certificate renewal
-with its reminder-count reset, a reminder entry with the incremented count.
+with its reminder-count reset, a reminder entry with the incremented count, a campaign reminder
+switched off with its ticks deleted.
 
 ## Internationalisation
 
