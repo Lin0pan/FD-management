@@ -1,0 +1,207 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-40-campaign-reminder",
+  "description": "US-40 „Aktionserinnerung\" — ONE FREELY NAMED CHECKBOX PER HOUSEHOLD, switched on and off by DF in /einstellungen (e.g. „Weihnachtstüte\" for a Christmas bag every household gets once). NEVER MORE THAN ONE AT A TIME (DB partial unique index). While ON, every ACTIVE OR BLOCKED household (archived excluded, waiting list not part) is NOT YET RECEIVED until ticked — ABSENCE OF A TICK ROW is 'not yet received', so switching on and registering write nothing per household. The checkbox, labelled with DF's name, appears AT THE COUNTER (after a lookup, below the household card, PROMINENT when unticked via a new CAMPAIGN_OUTSTANDING_ACCENT + „noch nicht erhalten\" + icon, but NEVER BLOCKS serving) and IN THE CUSTOMER RECORD; ticked/unticked AT ANY TIME, with or without a running session, saved immediately, no reason. SERVING NEITHER TICKS NOR ASKS. Settings show „x von y erhalten\" and the switch-on date; no list, no „Zu erledigen\" row, no Übersichten tile. RENAMING keeps ticks. SWITCHING OFF is manual only, confirmed with the tick count („Erinnerung ‚Weihnachtstüte' ausschalten? 38 Häkchen werden gelöscht.\"), and DELETES EVERY TICK (the FOURTH no-delete exception, ADR-023); the CampaignReminder row is kept with endedAt. AUDIT: switching on, renaming, switching off — NEVER the individual tick (second deliberate audit gap, ADR-024). No tick date, nothing on session receipts, independent of price/card/verdict. Code name CampaignReminder everywhere — NEVER bare 'Reminder' (ReminderLog is the US-06 certificate reminder). SCHEMA CHANGE: CampaignReminder + CampaignReminderTick, migrations regenerated (pre-release — re-confirm), THREE hand-written partial indexes. Requirement: local_only/reminder-field/requirement.md. PRD: tasks/prd-us-40-campaign-reminder.md.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "The campaign reminder's name and progress (domain)",
+      "description": "As a developer, I need the rules a campaign reminder's name obeys and the way its progress is counted stated once, in pure functions, so that the settings and the counter cannot disagree. Source: tasks/prd-us-40-campaign-reminder.md §US-40.1",
+      "acceptanceCriteria": [
+        "New module src/domain/campaign/campaignReminder.ts, TDD FIRST (red → green → refactor)",
+        "createCampaignReminderName(raw: string): CampaignReminderName — trims; throws the EXISTING MissingRequiredField when blank; throws CampaignReminderNameTooLong above CAMPAIGN_REMINDER_NAME_MAX_LENGTH = 40 characters. CampaignReminderName is a branded string, the shape CertificateTypeList uses for its labels",
+        "campaignProgress(households, receivedIds) — households are { id, status } pairs, receivedIds a ReadonlySet<number>; returns { received, total }: total counts households whose status is NOT 'ARCHIVED', received counts those of them whose id is in receivedIds. A tick left on a since-archived household counts in NEITHER",
+        "Named domain tests: refuses a campaign reminder without a name / trims the name DF typed / refuses a name longer than a checkbox label can carry / counts active and blocked households towards the total / leaves archived households out of the total / counts only ticked households that are still on the register as received",
+        "Typed errors in src/domain/errors.ts: CampaignReminderNameTooLong, CampaignReminderAlreadyActive (switching on while one is on), CampaignReminderNotActive (a write naming a reminder that is no longer the one switched on — a stale screen). Each added to the DomainErrorCode union, given its class, tiered in TIERS (src/app/notice-tier.ts — update its header comment's counts) and given a German message where the existing errors get theirs; errors with no caller yet are covered in src/domain/errors.test.ts",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Domain only — no schema, no port, no screen. Name the concept CampaignReminder everywhere in code; ReminderLog (US-06 certificate reminder) already exists and a bare 'Reminder' would collide. `ls src/domain/campaign` before creating files."
+    },
+    {
+      "id": "US-002",
+      "title": "Storing the reminder and its ticks (schema + port + adapter)",
+      "description": "As a developer, I need the reminder and the households that have received to be stored, with the database itself refusing a second reminder, so that the rules survive two workstations pressing the button at once. Source: tasks/prd-us-40-campaign-reminder.md §US-40.2",
+      "acceptanceCriteria": [
+        "prisma/schema.prisma: model CampaignReminder { id, name String, startedAt DateTime, endedAt DateTime? } — null endedAt = switched on; a row is NEVER deleted (switching off stamps endedAt); renaming updates name in place. Short /// comment citing ADR-023 (written in the docs story)",
+        "prisma/schema.prisma: model CampaignReminderTick { id, reminderId → CampaignReminder, customerId → Customer, @@unique([reminderId, customerId]) } — NO timestamp column. A row means received; no row means not yet received. Both relations REQUIRED, no onDelete: Cascade. Short /// comment citing ADR-023 and ADR-024",
+        "Migrations REGENERATED per CLAUDE.md 'Database migrations' (pre-release): delete prisma/migrations/, `npx prisma migrate dev --name init`, then RE-ADD BOTH EXISTING HAND-WRITTEN INDEXES verbatim with their comments (Customer_customerNumber_onRegister_key WHERE \"status\" <> 'ARCHIVED'; one_running_session) PLUS a THIRD: one_active_campaign_reminder on CampaignReminder WHERE \"endedAt\" IS NULL, built the way one_running_session is, with a one-line comment. Then npm run db:reset",
+        "New port CampaignReminderRepository in src/application/ports.ts, documented ONCE on the port: findActive(): Promise<CampaignReminder | null> ({ id, name, startedAt }); start(name, at): Promise<CampaignReminder>; rename(id, name): Promise<void>; end(id, at): Promise<void> — stamps endedAt AND deletes every tick of that reminder IN ONE TRANSACTION; receivedCustomerIds(reminderId): Promise<ReadonlySet<number>>; setReceived(reminderId, customerId, received: boolean): Promise<void> — idempotent (true inserts if missing, false deletes if present)",
+        "PrismaCampaignReminderRepository in src/infrastructure/prisma/campaign-reminder-repository.ts; a second start while one is on fails at the partial index and is translated to CampaignReminderAlreadyActive",
+        "clearRegister (src/infrastructure/prisma/test-support.ts) deletes ticks and reminders BEFORE customers",
+        "src/infrastructure/prisma/schema.test.ts still passes; if it keeps a list of deliberately deletable models, CampaignReminderTick joins it — never weaken the Cascade / SetNull checks",
+        "Infrastructure integration test (throwaway SQLite): start → findActive returns it; a second start is refused; setReceived(true) twice leaves one row, false removes it; rename keeps the ticks; end stamps endedAt, deletes exactly that reminder's ticks and findActive is null; starting again works and reads no ticks",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "The two existing hand-written indexes are dropped by every regeneration (batches 25, 26, 34, 39 all had to re-add them) — grep the new migration.sql for WHERE before committing; there must be THREE. Re-confirm the project is still pre-release (memory: confirmed 2026-08-24); if DF hold real data, APPEND a migration instead. No use case yet — the port is wired to nothing until US-003."
+    },
+    {
+      "id": "US-003",
+      "title": "Switching on, renaming, switching off (application)",
+      "description": "As DF, I want to switch a named reminder on, rename it and switch it off, each recorded in the audit log, so that a campaign has a clear beginning and end. Source: tasks/prd-us-40-campaign-reminder.md §US-40.3",
+      "acceptanceCriteria": [
+        "New folder src/application/campaign/; deps take campaignReminders, customers, clock, audit as each needs",
+        "readCampaignReminder(deps) → null when off, else { id, name, startedAt, received, total } — received/total from campaignProgress over listWithStatus('ACTIVE') + listWithStatus('BLOCKED') and receivedCustomerIds",
+        "startCampaignReminder(deps, { name }) — validates via createCampaignReminderName; throws CampaignReminderAlreadyActive if one is on; writes with clock.now(); audits { what: 'campaignReminder.started', changedFields: ['name'], when, why: <name> }",
+        "renameCampaignReminder(deps, { reminderId, name }) — CampaignReminderNotActive if reminderId is not the active one; the SAME name re-submitted writes nothing and audits nothing; otherwise audits { what: 'campaignReminder.renamed', changedFields: ['name'], why: '„<old>\" → „<new>\"' }",
+        "endCampaignReminder(deps, { reminderId }) — CampaignReminderNotActive if not the active one; ends it (adapter deletes the ticks) and audits { what: 'campaignReminder.ended', changedFields: ['name'], why: '<name> · <n> Häkchen' } where n is the received figure readCampaignReminder shows (the number the confirmation named). The why column carrying a description follows updateCertificateTypes",
+        "Every use case carries a full @throws list",
+        "TDD against a HAND-WRITTEN fake CampaignReminderRepository (no mocking library). Named tests: switches a named reminder on / refuses a second reminder while one is on / reads nobody as received when a reminder has just been switched on / counts a household registered during the campaign as not yet received / renames the reminder and keeps the ticks / renaming to the same name writes nothing / switches the reminder off and forgets every tick / starts everyone at not yet received when switched on again / refuses to rename or switch off a reminder that is no longer on / audits switching on, renaming and switching off",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "No screen yet. setReceived is exercised through the fake here only to set up state; the tick use case is US-004."
+    },
+    {
+      "id": "US-004",
+      "title": "Ticking a household off (application)",
+      "description": "As DF, I want to tick and untick a household at any time, so that the box always says whether it has had its item. Source: tasks/prd-us-40-campaign-reminder.md §US-40.4",
+      "acceptanceCriteria": [
+        "setCampaignReminderReceived(deps, { reminderId, customerId, received }) in src/application/campaign/: throws CampaignReminderNotActive if reminderId is not the active reminder (a screen left open across a switch-off must never tick into a newer campaign); throws CustomerNotFound / CustomerArchived as issueCard does; a BLOCKED household may be ticked; writes through setReceived; idempotent",
+        "It appends NO audit entry (D12, ADR-024) — a test asserts the fake audit log stays empty — and needs NO running distribution session (D3) — a test runs it with none",
+        "campaignReminderFor(deps, customerId) in the same folder → null when no reminder is on or the household is archived (or not found), else { reminderId, name, received: boolean }. The ONE read both screens will use",
+        "Full @throws list on the write",
+        "Named tests: ticks off a household at any time / unticks a household without asking why / ticks off a blocked household / refuses an archived household / refuses a tick for a reminder that has been switched off / does not audit a single tick / shows no checkbox while no reminder is on / shows no checkbox for an archived household",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "Application only. lookupCustomer / readCustomer are wired in US-005 — keep this story to the two new functions so it fits one iteration."
+    },
+    {
+      "id": "US-005",
+      "title": "The counter lookup and the record read carry the reminder (application + composition roots)",
+      "description": "As a developer, I need the counter's lookup and the customer record's read to say whether the household has received, through one shared read, so that both screens show the same answer. Source: tasks/prd-us-40-campaign-reminder.md §US-40.4",
+      "acceptanceCriteria": [
+        "lookupCustomer (src/application/customers/lookup-customer.ts): CounterLookup gains campaignReminder: { reminderId, name, received } | null — null on the NOT_FOUND branch and for an archived household — read through campaignReminderFor. Its deps gain campaignReminders; EVERY hand-written fake in the application tests follows (tsc names the files)",
+        "readCustomer (src/application/customers/read-customer.ts) gains the same field the same way",
+        "recordAttendance is NOT touched: serving neither reads nor writes the tick (D4). A named test 'serving a household does not tick it off' proves a serve leaves the household not received",
+        "Composition roots src/app/ausgabe/deps.ts, src/app/kunden/deps.ts and src/app/einstellungen/deps.ts wire PrismaCampaignReminderRepository",
+        "Named tests: the counter shows whether the household has received / the counter shows no reminder for a number nobody holds / the record shows whether the household has received",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Adding a dependency breaks every fake deps object at once — the house stub for a method a suite does not exercise is Promise.reject(new Error('… has a suite of its own')). No screen changes yet: the new field is unused until US-007/US-008."
+    },
+    {
+      "id": "US-006",
+      "title": "„Aktionserinnerung\" in the settings",
+      "description": "As DF, I want to switch the reminder on, rename it, see how far the campaign has got and switch it off, all in the settings. Source: tasks/prd-us-40-campaign-reminder.md §US-40.5",
+      "acceptanceCriteria": [
+        "New section on /einstellungen BELOW „Nachweis-Arten\", built as that section is: <section> behind a rule with its own <h2> „Aktionserinnerung\" (de.settings.campaignReminder), its own form(s), no settings version written",
+        "OFF: a text input „Name\" (test id campaign-reminder-name, maxLength 40, placeholder „z. B. Weihnachtstüte\") and a button „Einschalten\" (test id campaign-reminder-start). Nothing else — no explanation of what a campaign reminder is (CLAUDE.md 'Don't explain the screen')",
+        "ON: the name in the same input, prefilled, with „Umbenennen\" (test id campaign-reminder-rename); the progress „38 von 214 erhalten\" (test id campaign-reminder-progress, tabular-nums) and „eingeschaltet am 11.10.2026\" (test id campaign-reminder-since)",
+        "ON: „Ausschalten\" as a CLOSED destructive disclosure (ui_styling_guide.md §6, the archive control's shape, but NO reason field): opening it shows „Erinnerung ‚Weihnachtstüte' ausschalten? 38 Häkchen werden gelöscht.\" (test id campaign-reminder-end-warning) and the confirming button (test id campaign-reminder-end). The count is the progress's received, inflected for 1 („1 Häkchen wird gelöscht\")",
+        "Server actions in src/app/einstellungen/actions.ts: Zod-validate, call ONE use case each, revalidate /einstellungen, /ausgabe and /kunden. Refusals (MissingRequiredField, CampaignReminderNameTooLong, CampaignReminderAlreadyActive, CampaignReminderNotActive) come back as a German Notice tiered by tierOf; a refused name keeps what was typed (§7: a refusal keeps everything)",
+        "All strings in src/i18n/de.ts under settings.campaignReminder",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "Comes before the counter and record stories so their browser checks can switch a reminder on through the UI. The settings page reads with readCampaignReminder only — no counting in the page."
+    },
+    {
+      "id": "US-007",
+      "title": "The checkbox at the counter",
+      "description": "As DF, I want to see at a glance at the counter whether a household has already had its campaign item, and tick it off there, so that no paper list is needed. Source: tasks/prd-us-40-campaign-reminder.md §US-40.6",
+      "acceptanceCriteria": [
+        "Shared client component src/app/campaign-reminder-field.tsx: a NATIVE checkbox labelled with DF's NAME (e.g. „Weihnachtstüte\"), test id campaign-reminder-received. Changing it submits immediately (requestSubmit on change, no save button). Hidden fields reminderId and customerId. Disabled while pending. A refusal comes back as a Notice and the box shows the STORED state again (§7 — the defaultChecked trap; copy the ref pattern of src/app/card-printed-field.tsx)",
+        "ONE server action setCampaignReminderReceivedAction in src/app/kunden/[id]/actions.ts (the record's own action, imported unchanged by the counter as updateNotesAction is): Zod-validates, calls setCampaignReminderReceived, revalidates /ausgabe, /kunden/[id] and /einstellungen. NO redirect — the counter lookup must stay on screen",
+        "On /ausgabe after a lookup, when counter.lookup.campaignReminder is not null: the field in a block of its own DIRECTLY BELOW the household card (counter-customer) and ABOVE the certificate and serve controls, keyed by customer like its neighbours",
+        "PROMINENT when not received (D4): unticked, the block wears a NEW named accent CAMPAIGN_OUTSTANDING_ACCENT in src/app/accents.ts (never a tint in the screen), a tint no other meaning uses on the counter (not the traffic light's, not amber), plus the word „noch nicht erhalten\" (test id campaign-reminder-outstanding) and a lucide icon (proposal: Gift, aria-hidden). Ticked: plain — the checked box and the word „erhalten\", no accent",
+        "Prominent never blocks: the verdict, the serve button and its keyboard flow are unchanged whatever the box says; nothing has to be dismissed",
+        "Shown with or without a running distribution session, for active and blocked households; NOT shown for an archived household, a number nobody holds, or while no reminder is on",
+        "German strings in src/i18n/de.ts (a campaignReminder group)",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot) — the checkbox's accessible name is DF's name; the outstanding state is announced as text, not only colour",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "Styling guide §5: a new meaning gets a new export in accents.ts; §12 gets the icon in the docs story. Switch a reminder on via /einstellungen (US-006) for the review."
+    },
+    {
+      "id": "US-008",
+      "title": "The checkbox in the customer record",
+      "description": "As DF, I want the same checkbox in the customer record, so that I can correct a tick without going to the counter. Source: tasks/prd-us-40-campaign-reminder.md §US-40.7",
+      "acceptanceCriteria": [
+        "/kunden/[id] renders CampaignReminderField when readCustomer's campaignReminder is not null, in the record's TOP area near the household's state — not in the danger zone, not in a fold. Same test ids as at the counter",
+        "The SAME component as the counter, so the prominent unticked state looks the same (one meaning, one look)",
+        "An archived record shows no checkbox",
+        "npm run test:e2e passes (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot)",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "Presentation only; the action already exists from US-007."
+    },
+    {
+      "id": "US-009",
+      "title": "The whole campaign, proved end to end",
+      "description": "As a developer, I want the campaign's promises proved through the screens: switch on, tick at the counter and in the record, progress follows, rename keeps ticks, switch off forgets. Source: tasks/prd-us-40-campaign-reminder.md §US-40.8",
+      "acceptanceCriteria": [
+        "New tests/e2e/campaign-reminder.spec.ts, ISOLATED ('x von y' is a claim about the whole register): added to ISOLATED_SPECS in tests/e2e/registers.ts (ADR-012), mode: 'serial', emptying the register in its own beforeAll (clearRegister) and seeding a few households — one blocked, one archived — through Prisma with SYNTHETIC (Faker) data",
+        "With no reminder on, neither the counter nor the record shows campaign-reminder-received",
+        "Switching on „Weihnachtstüte\" in the settings: progress „0 von N erhalten\" (N excludes the archived household) and today's date",
+        "At the counter WITHOUT a running distribution session: the box labelled „Weihnachtstüte\" is unticked and campaign-reminder-outstanding visible; ticking it hides the outstanding word IN THE SAME PAGE LOAD; reloading keeps it ticked",
+        "Serving a second household (start a session first) leaves its box unticked (D4)",
+        "A blocked household shows the box and can be ticked; the archived household shows none",
+        "Unticking in the record works and the settings progress follows",
+        "Registering a new household during the campaign: it appears unticked and N grows by one",
+        "Renaming to „Ostertüte\": the counter's label changes, the ticks stay",
+        "Switching off names the tick count in the warning; afterwards no checkbox anywhere; switching on again shows „0 von N erhalten\"",
+        "No other spec's assertions change; one asserting the exact outline of the settings page is adjusted deliberately, never by deleting the assertion",
+        "Both engines pass: npm run test:e2e AND npm run test:e2e:webkit",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "Isolated specs share one register and each empties it in its own beforeAll. Never branch on browserName in src/."
+    },
+    {
+      "id": "US-010",
+      "title": "ADR-023, ADR-024, CLAUDE.md, architecture record and Betriebsanleitung",
+      "description": "As a future maintainer, I want the two exceptions this feature makes to the project's rules recorded where those rules are stated; as DF, I want the handout to explain the feature. Source: tasks/prd-us-40-campaign-reminder.md §US-40.9",
+      "acceptanceCriteria": [
+        "ADR-023 via the record-adr skill: a campaign reminder's ticks are deleted when it is switched off — the FOURTH exception to the no-delete rule, argued like ADR-019 (a tick is a note to self, not customer data; nothing points at it; keeping ended campaigns' ticks is history nobody asked for). Unticking deletes the row too; the reminder row itself is never deleted (endedAt). Alternatives weighed: keep the ticks under the ended reminder; a boolean column on Customer",
+        "ADR-024 via the record-adr skill: the individual tick is not audited — a second deliberate gap beside ADR-020's: it changes no entitlement, no money, no record DF are accountable for; ~240 entries per campaign would bury the ones that matter. Switching on, renaming and switching off ARE audited",
+        "Both rows in the chapter 9 decision log",
+        "CLAUDE.md: Don'ts → no hard-delete: 'exactly three deliberate exceptions' becomes FOUR, one sentence for the campaign reminder's ticks citing ADR-023; Don'ts → audit entry: the list gains switching a campaign reminder on, renaming it or switching it off, and the sentence naming the deliberate gap gains the individual tick (ADR-024). No history narrated",
+        "arc42 via the arc42 skill: 05 — src/domain/campaign/, src/application/campaign/, the new port and adapter; 08 if the audit-event list or the deletion exceptions live there; 12 — Aktionserinnerung in the glossary",
+        "docs/guideline/ui_styling_guide.md: §5 lists CAMPAIGN_OUTSTANDING_ACCENT in the accents.ts table; §12 registers the icon used for „noch nicht erhalten\"",
+        "docs/handout/betriebsanleitung.md (German, printable): a short section „Aktionserinnerung\" — switching on with a name, ticking at the counter or in the Kundenakte, the progress in the settings, that switching off deletes every tick, that serving does not tick it off",
+        "scripts/ralph/prds/README.md: batch 40 row (10 stories; update the total) and a short paragraph — schema change (migrations regenerated, THREE hand-written indexes), one new port, the fourth delete exception and the second audit gap, ADR-023 and ADR-024",
+        "npm run arc42:check passes",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "Documentation only. A gap is a marked > **TODO:**, never a plausible guess."
+    }
+  ]
+}
