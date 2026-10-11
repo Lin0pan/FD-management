@@ -64,7 +64,7 @@ never-updated snapshot. Each tick and each undo writes an audit entry
   direct insert that omits it — an e2e spec, a future import — produces an unprinted card that lands
   on the list, which is why every such insert names it.
 - **Go-live needs a decision for existing cards** (D10): they count as printed. Pre-release the
-  seeds write `printedAt = issuedAt`; once DF hold real data
+  demo seed issues every card as printed; once DF hold real data
   ([ADR-009](009-regenerate-migration-history-until-fd-holds-real-data.md)), any later column of
   this kind needs an appended migration that backfills it instead.
 - Revisit if DF ever need a card printed more than once to be told apart (a reprint of a damaged
