@@ -138,7 +138,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Styling guide §5: a new meaning gets a new export in accents.ts; §12 gets the icon in the docs story. Switch a reminder on via /einstellungen (US-006) for the review."
     },
     {

@@ -736,3 +736,37 @@ misread the batch.
   - US-007/US-008 can switch a reminder on in their browser checks with
     `getByTestId('campaign-reminder-name')` + `campaign-reminder-start`.
 ---
+
+## 2026-10-11 23:20 - US-007
+- `src/app/campaign-reminder-field.tsx` (shared client component): native checkbox labelled with
+  DF's name, `requestSubmit` on change, hidden `reminderId`/`customerId`, disabled while pending,
+  `aria-describedby` on the status word („noch nicht erhalten" with `Gift` / „erhalten"). Unticked,
+  the card wears the new `CAMPAIGN_OUTSTANDING_ACCENT` (violet-600, `accents.ts`). A refusal shows a
+  `Notice` (`campaign-reminder-error`) and claims the notice board; a success does not, so
+  „Ausgabe erfasst." survives a tick.
+- `setCampaignReminderReceivedAction` in `src/app/kunden/[id]/actions.ts` (box presence in FormData
+  = received), revalidating the record, `/ausgabe` and `/einstellungen`; no redirect.
+- `/ausgabe`: the field sits between `CustomerDetails` and `CertificateControls`, keyed
+  `campaign-${customerId}`. Strings in a new top-level `de.campaignReminder` group.
+- Driven with playwright-cli against `npm run start` on the demo register: accessible name
+  „Weihnachtstüte", description „noch nicht erhalten"; tick → „erhalten", accent gone, `checked`
+  attribute set, persists over reload, settings „1 von 15 erhalten"; reminder switched off in a
+  second tab → stale tick refused with the notice and the box unticked again; blocked household (7)
+  shows it; 390px no overflow; no console errors. Focus stays on `counter-input` after a lookup.
+- Gates: lint, typecheck, coverage (1503, 100%), build, e2e Chromium 251 green; WebKit 250 + the
+  known `navigation.spec.ts` flake, which passed on rerun alone.
+- Files: src/app/campaign-reminder-field.tsx, src/app/accents.ts, src/app/ausgabe/page.tsx,
+  src/app/kunden/[id]/actions.ts, src/i18n/de.ts
+- **Learnings for future iterations:**
+  - **`useOptimistic(received)` replaces the local-state + resync dance** for a save-on-change box:
+    set the optimistic value inside the form's action wrapper (`action={(fd) => { setShown(fd.has(
+    "received")); formAction(fd); }}`), and after the transition the box shows the prop again —
+    the revalidated value on success, the stored one on a refusal (nothing revalidates there). The
+    `defaultChecked` ref still matters for React's post-action form reset.
+  - The counter lookup only exists while a session runs, so „with or without a session" at the
+    counter is the use case's indifference; the record (US-008) is where „without" is seen.
+  - US-008: import `CampaignReminderField` as-is; the record has a `NoticeBoard` id space, the field
+    claims `"campaign-reminder"`. §5's accent table and §12's `Gift` row are US-010's.
+  - `playwright-cli` prints a „skill does not match the tool version" banner on every call; filter it
+    with `grep -v "║\|╔\|╚"`. `check`/`uncheck` with a testid locator works for the box.
+---
