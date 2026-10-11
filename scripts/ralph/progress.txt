@@ -591,3 +591,26 @@ Switching on, renaming and switching off are audited.
 **Serving does not touch the tick.** If a story finds itself editing `recordAttendance`, it has
 misread the batch.
 
+
+## 2026-10-11 21:10 - US-001
+- New `src/domain/campaign/campaignReminder.ts`: `createCampaignReminderName` (trims; blank →
+  `MissingRequiredField("name")`; >40 → `CampaignReminderNameTooLong`) and `campaignProgress`
+  (archived households in neither figure). Seven named tests, written red first.
+- `errors.ts`: `CampaignReminderNameTooLong` (refusal), `CampaignReminderAlreadyActive` and
+  `CampaignReminderNotActive` (both `error` in `TIERS` — each means another workstation switched the
+  reminder meanwhile). The latter two covered in `errors.test.ts` until US-003/US-004 call them.
+- German messages at `de.settings.campaignReminder.errors` (`tooLong`, `alreadyActive`,
+  `notActive`) — US-006 builds the rest of that block around them.
+- Chapter 05: „28 modules in five families", `campaign/` row.
+- Files: src/domain/campaign/*, src/domain/errors(.test).ts, src/app/notice-tier.ts, src/i18n/de.ts,
+  docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - **`CampaignReminderName` is a plain `string` alias, not a nominal brand.** The AC said „branded,
+    the shape `CertificateTypeList` uses" — but `CertificateTypeList` is a plain alias and nothing in
+    `src/domain` brands anything. The adapter can therefore return a stored name as a `string`
+    without a cast. If a reviewer insists on a brand, the cast lands in the adapter's read.
+  - **`notice-tier.ts`'s header no longer counts codes** (the „32nd code" bullet above is stale on
+    that point) — there was nothing to update. The `TIERS` record is still the build-time guard.
+  - `MissingRequiredField` from the name names the field `name` — the settings action (US-006) can
+    mark its input with that path.
+---
