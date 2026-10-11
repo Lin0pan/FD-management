@@ -81,6 +81,7 @@ export const ISOLATED: Register = register(1, "-isolated");
  * replays the block against the register the previous attempt filled.
  */
 export const ISOLATED_SPECS = [
+  "**/campaign-reminder.spec.ts",
   "**/cards-to-print.spec.ts",
   "**/no-shows.spec.ts",
   "**/number-group.spec.ts",
