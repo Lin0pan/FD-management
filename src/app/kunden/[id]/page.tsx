@@ -35,6 +35,7 @@ import type { AllowanceValues, Settings } from "@/domain/policy/settings";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
 import { GROUP_STYLES, PAYMENT_STANDING_STYLES } from "../../accents";
+import { CampaignReminderField } from "../../campaign-reminder-field";
 import { FoldChevron } from "../../disclosure";
 import { Confirmation } from "../../notice";
 import { NoticeBoard } from "../../notice-board";
@@ -512,6 +513,18 @@ function CustomerRecord({
             </AlertDescription>
           </Alert>
         ) : null}
+
+        {/* With the household's states rather than in a section: like them it is read before anything
+          is edited, and correcting a tick here spares a trip to the counter (US-40.7). An archived
+          household gets `null` from the use case. */}
+        {view.campaignReminder === null ? null : (
+          <CampaignReminderField
+            reminderId={view.campaignReminder.reminderId}
+            customerId={customer.id}
+            name={view.campaignReminder.name}
+            received={view.campaignReminder.received}
+          />
+        )}
 
         {/*
          * Ordered the way a record is *read*, not the order it is written — DF's own choice. The
