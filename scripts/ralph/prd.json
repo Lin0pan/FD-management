@@ -155,7 +155,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Presentation only; the action already exists from US-007."
     },
     {

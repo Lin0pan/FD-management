@@ -770,3 +770,19 @@ misread the batch.
   - `playwright-cli` prints a „skill does not match the tool version" banner on every call; filter it
     with `grep -v "║\|╔\|╚"`. `check`/`uncheck` with a testid locator works for the box.
 ---
+
+## 2026-10-11 23:50 - US-008
+- `/kunden/[id]` renders the shared `CampaignReminderField` right after the archived/blocked state
+  banners and before the „Haushalt" section — the record's top area, beside the household's state,
+  not in a section, fold or the danger zone. Same component and test ids as the counter; no `key`
+  (the page is per customer). Archived is already `null` from `campaignReminderFor`, so the page
+  needs no status check of its own.
+- Driven with playwright-cli against `npm run start` on the demo register: archived records 1–5 show
+  no box; active 6 and blocked 7 show `checkbox "Weihnachtstüte"` described by „noch nicht erhalten"
+  with the violet accent; tick → „erhalten", survives reload; 390px no overflow; no console errors.
+- Gates: lint, typecheck, coverage (1503, 100%), build, e2e Chromium 251 green.
+- Files: src/app/kunden/[id]/page.tsx
+- **Learnings for future iterations:**
+  - In the demo register, households 1–5 are archived; 6 is the first active record and 7 is blocked.
+  - The record has no `NoticeBoard` conflict: the field's `"campaign-reminder"` slot works there as is.
+---
