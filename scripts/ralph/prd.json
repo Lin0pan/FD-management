@@ -59,7 +59,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "No screen yet. setReceived is exercised through the fake here only to set up state; the tick use case is US-004."
     },
     {

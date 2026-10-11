@@ -639,3 +639,25 @@ misread the batch.
     only the active reminder is ever read.
   - No fake of the new port exists yet — US-003 writes the first one in its test file.
 ---
+
+## 2026-10-11 21:35 - US-003
+- `src/application/campaign/`: `readCampaignReminder` (state + `campaignProgress` over ACTIVE +
+  BLOCKED), `startCampaignReminder`, `renameCampaignReminder`, `endCampaignReminder`, and the
+  helper `requireActiveCampaignReminder(repo, reminderId)` in `active-campaign-reminder.ts`.
+  14 tests in `campaign-reminder.test.ts`, written red first, against a hand-written
+  `FakeCampaignReminderRepository` (keeps ended rows, refuses a second active one like the index).
+- Audit `why`s: started → the name; renamed → `„old“ → „new“` (German closing quote U+201C);
+  ended → `<name> · <n> Häkchen`, n read by `readCampaignReminder` before the end.
+- Chapter 05: „55 use cases behind thirteen ports", a `campaign/` row, and the
+  `CampaignReminderRepository` port row (US-002 had not added it). ADR-023 cited as plain text —
+  linking it before US-010 writes it fails `arc42:check` on a dead link.
+- Files: src/application/campaign/*, docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - **US-004's `setCampaignReminderReceived` should reuse `requireActiveCampaignReminder`** — it
+    already does the by-id check the AC asks for. `endCampaignReminder` does not use it only
+    because it needs the count anyway, so it checks the id on `readCampaignReminder`'s answer.
+  - The test file's `FakeCustomerRepository` implements `findById` for real (US-004 needs it for
+    `CustomerNotFound`/`CustomerArchived`); extend that test file rather than writing a second fake.
+  - The port's `CampaignReminder` is all-`readonly`, so a fake that renames in place needs its own
+    mutable stored type.
+---
