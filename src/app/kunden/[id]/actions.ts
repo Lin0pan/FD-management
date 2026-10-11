@@ -366,6 +366,7 @@ export async function changeCustomerNumberAction(
   revalidatePath(`/kunden/${customerId.data}/karte`);
   revalidatePath("/kunden");
   revalidatePath("/karten-neuausstellung");
+  revalidateCardsToPrint();
   return {
     status: "saved",
     from: customer.customerNumber,
