@@ -200,7 +200,7 @@
         "Lint passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Documentation only. A gap is a marked > **TODO:**, never a plausible guess."
     }
   ]

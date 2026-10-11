@@ -809,3 +809,25 @@ misread the batch.
     enabled again (`pending` cleared) before reloading or reading another screen.
   - The isolated register uses low numbers freely — every isolated spec empties it first.
 ---
+
+## 2026-10-12 01:00 - US-010
+- ADR-023 (switching off deletes every tick — the fourth no-delete exception; alternatives: keep
+  the ticks, a boolean on `Customer`) and ADR-024 (the individual tick is not audited — the second
+  gap beside ADR-020's), both Accepted and in chapter 9 („twenty-four decisions"). ADR-010 gains an
+  „Amended a third time" paragraph; ADR-006 gains one naming both audit gaps.
+- CLAUDE.md: „exactly four deliberate exceptions" + the tick sentence; the audit list gains switching
+  a campaign reminder on/renaming/off, and the gap sentence names both gaps.
+- arc42: 04 (third partial index), 05 (15 infrastructure modules, an adapter row, ADR links), 08
+  (fifteen tables, the two entities in the ER diagram, the fourth deletion bullet, audit list + gap
+  bullet), 12 (Campaign reminder / Aktionserinnerung), README + 01 („US-01 to US-40").
+- Styling guide §5 (`CAMPAIGN_OUTSTANDING_ACCENT`) and §12 (`Gift`, tone). Betriebsanleitung
+  „Aktionserinnerung" section, Stand 11. Oktober 2026; handout README purpose list. Ralph PRD index:
+  batch 40 row, 245 stories, a paragraph.
+- Gates: lint, typecheck, coverage (1503, 100%), build, arc42:check, prettier — all green.
+- **Learnings for future iterations:**
+  - The handout says „beim Kunden (selbst)" for the customer record, never „Kundenakte" — match it.
+  - ADR-006 had never been amended for ADR-020's gap; an audit exception should amend ADR-006 the
+    way a delete exception amends ADR-010.
+  - Chapter 8's ER diagram and „N tables" count are not touched by a schema story's checklist —
+    sweep them in the docs story.
+---
