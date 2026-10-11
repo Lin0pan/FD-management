@@ -191,8 +191,8 @@ die Häkchen bleiben dabei erhalten.
 
 **Abhaken.** An der **Ausgabe** (nach dem Nachschlagen) und beim Kunden selbst steht ein Kästchen
 mit dem Namen der Aktion. Solange es leer ist, steht daneben deutlich **noch nicht erhalten**. Ein
-Klick hakt ab und ist sofort gespeichert; ein zweiter Klick nimmt das Häkchen wieder weg. Das geht
-jederzeit, auch ohne laufende Ausgabe.
+Klick hakt ab und ist sofort gespeichert; ein zweiter Klick nimmt das Häkchen wieder weg. Beim
+Kunden geht das jederzeit, auch ohne laufende Ausgabe.
 
 > **Das Erfassen der Ausgabe hakt nichts ab.** Geben Sie die Tüte mit, setzen Sie das Häkchen
 > selbst. Umgekehrt hält ein leeres Kästchen niemanden auf.
