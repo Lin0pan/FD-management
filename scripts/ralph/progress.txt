@@ -707,3 +707,32 @@ misread the batch.
   - Passing an extra dep to a use case in a test needs a variable, not an inline spread literal —
     the inline literal trips TS's excess-property check.
 ---
+
+## 2026-10-11 22:40 - US-006
+- „Aktionserinnerung" section on `/einstellungen` below the Nachweis-Arten: `campaign-reminder-panel.tsx`
+  (client; `Inactive` with name + „Einschalten", `Active` keyed on the reminder id with progress,
+  „eingeschaltet am", rename and the closed „Ausschalten" disclosure). State type in
+  `campaign-reminder-state.ts`. Three server actions in `actions.ts` (start/rename/end), each one use
+  case on `campaignReminderDeps`, revalidating `/einstellungen`, `/ausgabe` and `/kunden` (`"layout"`,
+  so every record page).
+- Strings under `de.settings.campaignReminder` (warning inflects for 1 tick; the confirming button is
+  „Erinnerung ausschalten" so it does not share an accessible name with the „Ausschalten" summary).
+- Chapters 03 and 05 name the reminder among `/einstellungen`'s contents.
+- Driven with playwright-cli against `npm run start` on the demo register: blank refusal (field
+  marked, focus moved), switch on („0 von 15 erhalten"), rename („Umbenannt."), one tick written by a
+  throwaway tsx script → „1 von 15 erhalten" / „1 Häkchen wird gelöscht", switch off → back to the
+  empty form. 390px screenshot fine, no console errors. Existing e2e suite green (251); the campaign
+  spec itself is US-009's.
+- Files: src/app/einstellungen/{actions.ts,page.tsx,campaign-reminder-panel.tsx,campaign-reminder-state.ts},
+  src/i18n/de.ts, docs/architecture/03-*.md, 05-*.md
+- **Learnings for future iterations:**
+  - **`startedAt` is an instant**, so the settings print it with `germanDayOf` (Berlin), not `germanDate`.
+  - The rename field resyncs on the stored name during render (`storedName` state) rather than being
+    keyed on it, so „Umbenannt." survives the revalidation (§6's value-keyed resync).
+  - Run `playwright-cli` **from the repo root** — from `/tmp` it misses the project config and looks
+    for Chrome at `/opt/google/chrome`.
+  - `npm run format:check` already warns on `tasks/prd-us-39-*.md` and `tasks/prd-us-40-*.md` on
+    HEAD; not this story's, and the pre-commit hook only formats staged files.
+  - US-007/US-008 can switch a reminder on in their browser checks with
+    `getByTestId('campaign-reminder-name')` + `campaign-reminder-start`.
+---

@@ -116,7 +116,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Comes before the counter and record stories so their browser checks can switch a reminder on through the UI. The settings page reads with readCampaignReminder only — no counting in the page."
     },
     {
