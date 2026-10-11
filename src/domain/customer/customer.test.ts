@@ -490,6 +490,7 @@ describe("NewCustomer", () => {
         issuedAt: TODAY,
         reason: "FIRST_ISSUE",
         countsAtIssue: { grownUps: 1, children: 0 },
+        printedAt: null,
       },
       previousCustomerId: null,
     };

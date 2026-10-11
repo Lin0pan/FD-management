@@ -16,6 +16,7 @@ import { unblockCustomer } from "@/application/customers/unblock-customer";
 import { IllegalStatusTransition, MissingAuditReason } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { blockSaved, type BlockState } from "./block-state";
+import { revalidateCardsToPrint } from "../karten-drucken/revalidate";
 import { tierOf } from "../notice-tier";
 import { customerDeps } from "./deps";
 
@@ -63,6 +64,7 @@ export async function blockCustomerAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath("/ausgabe");
+  revalidateCardsToPrint();
   return blockSaved;
 }
 
@@ -94,5 +96,6 @@ export async function unblockCustomerAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath("/ausgabe");
+  revalidateCardsToPrint();
   return blockSaved;
 }

@@ -182,6 +182,7 @@ async function seedHousehold(): Promise<number> {
           customerNumber: CUSTOMER_NUMBER,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
+          printedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           // True when it was printed, and the reference every assertion about the cards-due list is
           // made against: the counts go out of date on the household edit below.
@@ -244,6 +245,7 @@ async function seedHouseholdWithHistory(customerNumber: number, handOuts: number
           customerNumber,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
+          printedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,

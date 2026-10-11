@@ -33,7 +33,9 @@ import {
   MissingRequiredField,
 } from "@/domain/errors";
 import { customerFieldLabel, de } from "@/i18n/de";
+import { cardPrinted, cardPrintedValue } from "../../card-printed";
 import { certificateTypeMark, resolveCertificateType } from "../../certificate-type-resolver";
+import { revalidateCardsToPrint } from "../../karten-drucken/revalidate";
 import { tierOf } from "../../notice-tier";
 import { customerDeps } from "../deps";
 import {
@@ -140,13 +142,18 @@ export async function reissueCardAction(
   formData: FormData,
 ): Promise<ReissueState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
-  if (!customerId.success) {
+  const printed = cardPrinted.safeParse(cardPrintedValue(formData));
+  if (!customerId.success || !printed.success) {
     return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
   }
 
   let cardNumber: string;
   try {
-    const card = await reissueCard(customerDeps, { customerId: customerId.data, reason: "LOST" });
+    const card = await reissueCard(customerDeps, {
+      customerId: customerId.data,
+      reason: "LOST",
+      printed: printed.data,
+    });
     // Both halves off the card the store handed back: the slot it was printed under is on the row
     // itself (ADR-016), so the receipt names what was written rather than what agrees with it.
     cardNumber = formatCardNumber(card.customerNumber, card.index);
@@ -169,6 +176,7 @@ export async function reissueCardAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath(`/kunden/${customerId.data}/karte`);
+  revalidateCardsToPrint();
   return { status: "saved", cardNumber };
 }
 
@@ -358,6 +366,7 @@ export async function changeCustomerNumberAction(
   revalidatePath(`/kunden/${customerId.data}/karte`);
   revalidatePath("/kunden");
   revalidatePath("/karten-neuausstellung");
+  revalidateCardsToPrint();
   return {
     status: "saved",
     from: customer.customerNumber,

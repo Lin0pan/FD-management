@@ -126,6 +126,7 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
             customerNumber: CUSTOMER_NUMBER,
             index: 1,
             issuedAt: new Date("2026-01-02T00:00:00.000Z"),
+            printedAt: new Date("2026-01-02T00:00:00.000Z"),
             reason: "FIRST_ISSUE",
             // What the printed card says about the household — matching the seeded one, so no
             // spec here trips the cards-due-for-reissue list (US-13).

@@ -21,7 +21,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Only the compile-forced set: type, column, adapter, fakes. Seeds and e2e inserts are US-002. The two hand-written indexes are dropped by every regeneration (batches 25, 26, 34 all had to re-add them) — grep the new migration.sql for WHERE before committing. Re-confirm the project is still pre-release (memory: confirmed 2026-08-24); if DF hold real data, append a migration that adds the column and sets printedAt = issuedAt instead of regenerating."
     },
     {
@@ -38,8 +38,8 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Mechanical, but the reason matters: printedAt is nullable, so an insert that omits it produces an UNPRINTED card and any spec asserting an empty „Zu erledigen\" breaks once US-007 lands. Do not change any assertion here."
+      "passes": true,
+      "notes": "Mechanical, but the reason matters: printedAt is nullable, so an insert that omits it produces an UNPRINTED card and any spec asserting an empty „Zu erledigen\" breaks once US-007 lands. Do not change any assertion here. DONE: prisma/seed.ts writes no cards (settings only), and prisma/demo-seed.ts writes NO row with Prisma — every card goes through registerCustomer / reissueCard / changeCustomerNumber, by its own header's rule. Its printedAt = issuedAt is therefore carried by US-003 and US-004 (see their notes), not by an UPDATE here."
     },
     {
       "id": "US-003",
@@ -58,8 +58,8 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "CARRIED FROM US-002 (D10): prisma/demo-seed.ts must pass cardPrinted: true to registerCustomer and printed: true to reissueCard, so its demo cards are printed at their issue instant. Then `npm run db:demo -- --reset` and check the unprinted count is only the moved household's card (closed in US-004). DONE: demo seed passes cardPrinted/printed: true; after `npm run db:demo -- --reset` exactly one card is unprinted — 3k2, CUSTOMER_NUMBER_CHANGED — the one US-004 closes."
     },
     {
       "id": "US-004",
@@ -80,8 +80,8 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": "A card is identified by (customerId, index) — @@unique([customerId, index]) already guarantees it. Passing the index from the row DF saw is what lets the tick notice a replaced card instead of ticking off one DF never looked at."
+      "passes": true,
+      "notes": "A card is identified by (customerId, index) — @@unique([customerId, index]) already guarantees it. Passing the index from the row DF saw is what lets the tick notice a replaced card instead of ticking off one DF never looked at. CARRIED FROM US-002 (D10): the demo household whose number changes (weekChangedDaysAgo in prisma/demo-seed.ts) gets an unprinted card from changeCustomerNumber; call markCardPrinted right after it in the SAME event (same wound clock instant, so printedAt = issuedAt). Then `npm run db:demo -- --reset` must leave zero cards with printedAt NULL. DONE: demo seed calls markCardPrinted right after the move; `npm run db:demo -- --reset` leaves 22 cards, 0 unprinted, every printedAt = issuedAt."
     },
     {
       "id": "US-005",
@@ -107,8 +107,8 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": "Build it like /karten-neuausstellung (D12): same shell, row layout, redirect-with-notice. Does NOT touch readOverviews/listToDos yet — that is US-007, so LISTS never points at a route that 404s. Nothing reaches this list on screen yet except via number change or direct DB edits; seed a row by hand for the playwright-cli review."
+      "passes": true,
+      "notes": "Build it like /karten-neuausstellung (D12): same shell, row layout, redirect-with-notice. Does NOT touch readOverviews/listToDos yet — that is US-007, so LISTS never points at a route that 404s. Nothing reaches this list on screen yet except via number change or direct DB edits; seed a row by hand for the playwright-cli review. FROM US-004: the use cases take { customerId, index } and share deps CardPrintDeps (customers, cards, clock, audit) — markCardPrinted in mark-card-printed.ts, undoCardPrinted in undo-card-printed.ts. All three new codes (CardAlreadyPrinted, CardNotPrinted, CardSuperseded) are already tiered 'error'; their German messages in de.ts are this story's. DONE: the page also calls justPrintedCard (cards-to-print.ts) — the undo offer's rule (current card, printed, not archived) lives in the application layer, not the page. de.cardsToPrint has no countedName yet; US-007 adds it with the LISTS entry."
     },
     {
       "id": "US-006",
@@ -126,8 +126,8 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "Existing e2e specs that issue cards through the screens leave the box unticked; that is correct behaviour (opt-in) and they do not assert anything about printing."
+      "passes": true,
+      "notes": "Existing e2e specs that issue cards through the screens leave the box unticked; that is correct behaviour (opt-in) and they do not assert anything about printing. FROM US-003: the waiting-list promotion (src/app/warteliste/[entryId]/registrieren/) renders the SAME RegistrationForm and calls registerFromWaitingList, whose input extends RegisterCustomerInput — so the checkbox appears there too, and its action (currently `cardPrinted: false`) must read it like kunden/neu does. That is a fourth action beside the three named above."
     },
     {
       "id": "US-007",
@@ -148,8 +148,8 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "FROM US-005: de.cardsToPrint exists (heading, count(n) for the list header) but has no countedName — add it here, inflected like de.cardsDue.countedName. DONE: ListToDosDeps and ReadOverviewsDeps now include CardsToPrintDeps (customers only, already in overviewDeps). The overviews.test.ts household() fixture takes `printed = true`; a new fixture defaulting to printed keeps unrelated cards off the print count."
     },
     {
       "id": "US-008",
@@ -167,7 +167,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "card.spec.ts / reissue.spec.ts may assert the exact superseded-entry text — update them deliberately to the new wording."
     },
     {
@@ -191,8 +191,8 @@
         "Lint passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": "Reuse startSession/endSession helpers from tests/e2e/session.ts for the counter check, and endSessionInHook in afterAll."
+      "passes": true,
+      "notes": "Reuse startSession/endSession helpers from tests/e2e/session.ts for the counter check, and endSessionInHook in afterAll. DONE: tests/e2e/cards-to-print.spec.ts (isolated, real clock, slots 1/3 → 5). A move lands on 5k2, not 5k1: nextCardIndexOnMove never reprints an index the household held. overviews/home/reissue/registration/number-change/navigation needed no change."
     },
     {
       "id": "US-010",
@@ -210,8 +210,8 @@
         "Lint passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "DONE: ADR-022 Accepted (Ralph-batch precedent, decisions refined with DF 01.10.2026). arc42 05/06/08/12, handout section „Karten drucken\", CLAUDE.md, prds/README batch 39 row (235 total). Icons were already registered by US-005."
     }
   ]
 }

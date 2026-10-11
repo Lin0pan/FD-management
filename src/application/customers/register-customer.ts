@@ -25,6 +25,7 @@ import type {
   SettingsRepository,
 } from "../ports";
 import { readCurrentSettings } from "../settings/read-current-settings";
+import { PRINTED_FIELD } from "./issue-card";
 
 /** The audit event name every registration is recorded under. */
 const CUSTOMER_REGISTERED = "customer.registered";
@@ -113,6 +114,8 @@ export interface RegisterCustomerInput extends CustomerDetailsInput {
    * printed a second copy of the card in their kitchen drawer (US-25).
    */
   readonly previousCustomerId?: number;
+  /** Whether the first card was printed on the spot — as `issueCard`'s `printed` (US-39). */
+  readonly cardPrinted: boolean;
 }
 
 /**
@@ -146,10 +149,11 @@ export async function registerCustomer(
   // Absent is stored as null rather than left off, so the record always states whether these people
   // are known to DF.
   const previousCustomerId = input.previousCustomerId ?? null;
-  const changedFields =
-    previousCustomerId === null
-      ? [...REGISTERED_FIELDS]
-      : [...REGISTERED_FIELDS, RE_REGISTERED_FIELD];
+  const changedFields = [
+    ...REGISTERED_FIELDS,
+    ...(input.cardPrinted ? [PRINTED_FIELD] : []),
+    ...(previousCustomerId === null ? [] : [RE_REGISTERED_FIELD]),
+  ];
 
   // One code path either way: chosen and allocated differ only in where the number comes from and in
   // how many attempts they are worth.
@@ -191,6 +195,7 @@ export async function registerCustomer(
           issuedAt: now,
           reason: "FIRST_ISSUE",
           countsAtIssue,
+          printedAt: input.cardPrinted ? now : null,
         },
         previousCustomerId,
       });

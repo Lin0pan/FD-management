@@ -163,6 +163,7 @@ async function seedHousehold(
           customerNumber,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
+          printedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: grownUps,
           childrenAtIssue: children,

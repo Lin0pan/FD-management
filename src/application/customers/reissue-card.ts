@@ -31,6 +31,8 @@ export type ReissueCardDeps = IssueCardDeps;
 export interface ReissueCardInput {
   readonly customerId: number;
   readonly reason: ReissueReason;
+  /** Passed through to {@link issueCard} unchanged. */
+  readonly printed: boolean;
 }
 
 /**
@@ -46,7 +48,7 @@ export interface ReissueCardInput {
  */
 export function reissueCard(
   deps: ReissueCardDeps,
-  { customerId, reason }: ReissueCardInput,
+  { customerId, reason, printed }: ReissueCardInput,
 ): Promise<IssuedCard> {
-  return issueCard(deps, { customerId, reason });
+  return issueCard(deps, { customerId, reason, printed });
 }

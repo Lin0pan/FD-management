@@ -17,6 +17,7 @@ import { IllegalStatusTransition, MissingAuditReason } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { type ArchiveState } from "./archive-state";
 import { ARCHIVED } from "./archived-flag";
+import { revalidateCardsToPrint } from "../karten-drucken/revalidate";
 import { tierOf } from "../notice-tier";
 import { customerDeps } from "./deps";
 
@@ -77,6 +78,7 @@ export async function archiveCustomerAction(
 
   revalidatePath(`/kunden/${customerId.data}`);
   revalidatePath("/ausgabe");
+  revalidateCardsToPrint();
   // `redirect` throws its own control-flow error, so it goes after the `try`: inside, the catch
   // would file the navigation as a failed archive.
   const back = returnTo.success ? returnTo.data : `/kunden/${customerId.data}`;

@@ -167,6 +167,7 @@ async function seedHousehold(customerNumber: number, name?: Person): Promise<Hou
             customerNumber,
             index: 1,
             issuedAt: NOW,
+            printedAt: NOW,
             reason: "FIRST_ISSUE",
             // Matching the seeded household, so nobody here is due a reissue (US-13).
             grownUpsAtIssue: 1,

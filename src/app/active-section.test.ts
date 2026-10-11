@@ -69,6 +69,10 @@ describe("activeSection", () => {
     expect(activeSection("/karten-neuausstellung")).toBe("overviews");
   });
 
+  it("marks Übersichten on the cards-to-print list, which it owns", () => {
+    expect(activeSection("/karten-drucken")).toBe("overviews");
+  });
+
   it("marks nothing on a path no section owns", () => {
     expect(activeSection("/impressum")).toBeNull();
   });

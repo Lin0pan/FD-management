@@ -23,7 +23,7 @@ export interface ReadCardDeps {
   readonly clock: Clock;
 }
 
-/** A card the current one replaced: its number and why it was handed out. */
+/** A card the current one replaced: its number, why it was handed out and when it was printed. */
 export interface SupersededCard {
   /** The number as it was printed, e.g. `50k1`. */
   readonly number: string;

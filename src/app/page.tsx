@@ -74,6 +74,7 @@ function RunningSessionPanel({ session }: { session: DistributionSession }): Rea
  */
 const TO_DO_LISTS: Record<ToDoKind, { readonly list: keyof Overviews; readonly testId: string }> = {
   CARDS_DUE: { list: "cardsDue", testId: "to-do-cards-due" },
+  CARDS_TO_PRINT: { list: "cardsToPrint", testId: "to-do-cards-to-print" },
 };
 
 /**

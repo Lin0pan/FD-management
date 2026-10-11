@@ -14,6 +14,7 @@ import { registerFromWaitingList } from "@/application/waiting-list/register-fro
 import { WaitingListEntryNotFound } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { resolveCertificateType } from "@/app/certificate-type-resolver";
+import { revalidateCardsToPrint } from "@/app/karten-drucken/revalidate";
 import { freshPoolAfterRace } from "@/app/kunden/neu/fresh-pool";
 import type { RegisterCustomerState } from "@/app/kunden/neu/register-customer-state";
 import {
@@ -75,6 +76,7 @@ export async function submitPromotedRegistration(
       notes: form.notes,
       customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
+      cardPrinted: form.cardPrinted,
     });
     id = customer.id;
   } catch (error: unknown) {
@@ -92,6 +94,7 @@ export async function submitPromotedRegistration(
   // queue, and the register has a household, a shifted group balance and one number fewer to give.
   revalidatePath("/warteliste");
   revalidatePath("/kunden");
+  revalidateCardsToPrint();
 
   // Outside the try: `redirect` throws, and catching it would turn a successful registration into
   // "could not be saved". The same `?aufgenommen=1` the registration screen sends — promoting an

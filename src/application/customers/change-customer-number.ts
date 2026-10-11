@@ -118,6 +118,8 @@ export async function changeCustomerNumber(
     // Today's household, as `issueCard` derives it — the card states the household as it stands now,
     // not as the card it replaces did. Its week needs no field: it is the new slot (ADR-017).
     countsAtIssue: composition(customer.details.householdMembers, now),
+    // No checkbox is offered on a move: the card always waits on „Karten drucken“ (US-39).
+    printedAt: null,
   });
 
   // Two entries, because two things happened and each is read on its own. The numbers ride in `why`

@@ -325,6 +325,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
         // What is printed on the card, not what the household is today — the two part company on a
         // 13th birthday, which is the point of storing it (US-13.3).
         countsAtIssue: { grownUps: card.grownUpsAtIssue, children: card.childrenAtIssue },
+        printedAt: card.printedAt,
       },
       registeredOn: firstCard.issuedAt,
       previousCustomerId: row.previousCustomerId,
@@ -405,6 +406,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
               reason: customer.card.reason,
               grownUpsAtIssue: customer.card.countsAtIssue.grownUps,
               childrenAtIssue: customer.card.countsAtIssue.children,
+              printedAt: customer.card.printedAt,
             },
           },
         },
@@ -553,6 +555,7 @@ export class PrismaCustomerRepository implements CustomerRepository {
             reason: card.reason,
             grownUpsAtIssue: card.countsAtIssue.grownUps,
             childrenAtIssue: card.countsAtIssue.children,
+            printedAt: card.printedAt,
           },
         });
       });

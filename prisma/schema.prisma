@@ -359,6 +359,11 @@ model Card {
   /// superseded card that its index cannot say — why the household needed another one.
   reason String
 
+  /// When DF ticked this card off as printed; `null` while only a temporary card is out (US-39). A
+  /// recorded **event**, not a derived value — and the one column of a card row that changes after
+  /// the insert (ticked, or taken back). The snapshot columns above still never do (ADR-022).
+  printedAt DateTime?
+
   /// The rule behind "exactly one valid card" (US-02, FR-3): validity is *being* the highest index,
   /// so two cards sharing one would leave no current card at all. This constraint, not the
   /// application, is the final authority on whether an index was still free when the write landed.

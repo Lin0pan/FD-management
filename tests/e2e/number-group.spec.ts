@@ -433,6 +433,7 @@ test.describe("Die Nummer entscheidet die Gruppe", () => {
       de.customers.cardView.supersededEntry(
         card(NUMBERS.mover, 1),
         "08.01.2026",
+        null,
         de.customers.cardReasons.FIRST_ISSUE,
       ),
     ]);

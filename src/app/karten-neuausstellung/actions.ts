@@ -18,6 +18,8 @@ import { reissueCard } from "@/application/customers/reissue-card";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import { CustomerArchived } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { cardPrinted, cardPrintedValue } from "../card-printed";
+import { revalidateCardsToPrint } from "../karten-drucken/revalidate";
 import { tierOf } from "../notice-tier";
 import { customerDeps } from "../kunden/deps";
 import { customerErrorMessage } from "../kunden/neu/registration-input";
@@ -43,7 +45,8 @@ export async function reissueStaleCardAction(
   formData: FormData,
 ): Promise<StaleReissueState> {
   const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
-  if (!customerId.success) {
+  const printed = cardPrinted.safeParse(cardPrintedValue(formData));
+  if (!customerId.success || !printed.success) {
     return { status: "error", message: de.customers.reissue.errors.unknown, tier: "error" };
   }
 
@@ -52,6 +55,7 @@ export async function reissueStaleCardAction(
     const card = await reissueCard(customerDeps, {
       customerId: customerId.data,
       reason: "STALE_COUNTS",
+      printed: printed.data,
     });
     // Both halves off the card the store handed back: the slot it was printed under is on the row
     // itself (ADR-016), so nothing has to read the household again.
@@ -78,5 +82,6 @@ export async function reissueStaleCardAction(
   revalidatePath(`/kunden/${customerId.data}/karte`);
   // The hub, which counts this list in a badge of its own (US-17.2).
   revalidatePath("/kunden");
+  revalidateCardsToPrint();
   redirect(`/karten-neuausstellung?${ISSUED_CARD}=${encodeURIComponent(cardNumber)}`);
 }

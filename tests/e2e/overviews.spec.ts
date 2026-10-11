@@ -71,6 +71,7 @@ async function seedHouseholdWithStaleCard(): Promise<void> {
             customerNumber: CUSTOMER_NUMBER,
             index: 1,
             issuedAt: NOW,
+            printedAt: NOW,
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 2,
             childrenAtIssue: 0,
@@ -155,6 +156,8 @@ test.describe("Übersichten und Zu erledigen", () => {
     const row = page.getByTestId("cards-due-row");
     await expect(row).toHaveCount(1);
     await row.getByTestId("stale-reissue-open").click();
+    // Printed on the spot, or the new card would put a to-do of its own on Start (US-39).
+    await row.getByTestId("stale-reissue-printed").check();
     await row.getByTestId("stale-reissue-submit").click();
     await expect(row).toHaveCount(0);
 

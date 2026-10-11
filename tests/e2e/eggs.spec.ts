@@ -221,6 +221,7 @@ async function seedHousehold(household: Household): Promise<number> {
           customerNumber: household.customerNumber,
           index: 1,
           issuedAt: utcMidnight(CARD_ISSUED_AT),
+          printedAt: utcMidnight(CARD_ISSUED_AT),
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: household.grownUps,
           childrenAtIssue: household.children,

@@ -587,12 +587,20 @@ export const de = {
       heading: "Kundenkarte",
       issuedAt: "Ausgestellt am",
       issuedBecause: "Grund der Ausstellung",
+      printedAt: "Gedruckt am",
+      printed: "Gedruckt",
+      notYetPrinted: "noch nicht",
       supersededHeading: "Ersetzte Kartennummern",
       supersededNone: "Diese Karte ist die erste des Haushalts und ersetzt keine frühere.",
       // The reason belongs to the card named here — why *it* was handed over, not why it was
       // replaced — so it reads as a note on that line.
-      supersededEntry: (number: string, date: string, reason: string): string =>
-        `${number} — ausgestellt am ${date}, Grund: ${reason}`,
+      supersededEntry: (
+        number: string,
+        date: string,
+        printedDate: string | null,
+        reason: string,
+      ): string =>
+        `${number} — ausgestellt am ${date}, ${printedDate === null ? "nicht gedruckt" : `gedruckt am ${printedDate}`}, Grund: ${reason}`,
       issuedHeading: "Ausgestellte Karten",
       issuedCount: "Karten insgesamt",
       lossCount: "davon nach Verlust",
@@ -971,6 +979,35 @@ export const de = {
      * „Kundenübersicht“, so that is what every link to it says.
      */
     customerLink: "Zur Kundenübersicht",
+  },
+  /** The cards still to be printed at /karten-drucken (US-39.4). */
+  cardsToPrint: {
+    heading: "Karten drucken",
+    /** The heading after a count, wherever the list is offered with its size (US-38). */
+    countedName: (count: number): string =>
+      count === 1 ? "Karte drucken" : de.cardsToPrint.heading,
+    listTitle: "Karten",
+    count: (count: number): string => (count === 1 ? "1 Karte" : `${count} Karten`),
+    empty: "Keine Karten zu drucken.",
+    issuedAt: "Ausgestellt am",
+    submit: "Gedruckt",
+    submitting: "Wird abgehakt …",
+    /** Read after „Gedruckt“ by a screen reader only, so the button says which card it ticks off. */
+    submitCard: (cardNumber: string): string => ` (Karte ${cardNumber})`,
+    done: (cardNumber: string, name: string): string =>
+      `Karte ${cardNumber} von ${name} ist als gedruckt abgehakt.`,
+    undo: "Rückgängig",
+    undoing: "Wird zurückgenommen …",
+    /** The opt-in on every card issued by hand (D2); unticked, the card lands on the list. */
+    alreadyPrinted: "Karte ist bereits gedruckt",
+    errors: {
+      superseded:
+        "Diese Karte ist inzwischen durch eine neue ersetzt worden. Bitte die Seite neu laden.",
+      alreadyPrinted: "Diese Karte ist bereits als gedruckt abgehakt. Bitte die Seite neu laden.",
+      notPrinted: "Diese Karte ist nicht als gedruckt abgehakt. Bitte die Seite neu laden.",
+      archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
+      unknown: "Die Änderung konnte nicht gespeichert werden.",
+    },
   },
   /**
    * The waiting list at /warteliste (US-12.4).

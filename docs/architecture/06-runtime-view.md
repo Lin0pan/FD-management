@@ -217,7 +217,9 @@ stay ([ADR-014](adr/014-store-the-egg-allowance-as-versioned-threshold-rows.md))
 The printed card is the one thing that _cannot_ update itself, which is exactly why
 `grownUpsAtIssue` and `childrenAtIssue` are stored: without a snapshot of what the physical card
 says, there is nothing to compare today's household against, and the reissue list could not exist.
-Those columns are never updated in place — **the reissue is how the change is recorded.** The card's
+Those columns are never updated in place — **the reissue is how the change is recorded.** The new
+card lands on `/karten-drucken` unless DF tick „Karte ist bereits gedruckt" while issuing it
+([ADR-022](adr/022-record-when-a-card-was-printed-on-the-card-row.md)). The card's
 **group** needs no third column: it is the parity of the slot the card was printed under
 ([ADR-017](adr/017-the-customer-number-decides-the-group.md)), and a card therefore never falls stale
 for its group.

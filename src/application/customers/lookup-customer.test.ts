@@ -481,6 +481,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
       issuedAt: new Date(TODAY),
       reason: "FIRST_ISSUE",
       countsAtIssue: composition(details.householdMembers, new Date(TODAY)),
+      printedAt: null,
     },
     // Registered today unless a test says otherwise, so no distribution lies behind the household
     // and the no-show count of an unrelated case is zero rather than incidental.

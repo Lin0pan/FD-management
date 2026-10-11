@@ -160,6 +160,7 @@ async function seedHousehold(customerNumber: number, status: "ACTIVE" | "ARCHIVE
           customerNumber,
           index: 1,
           issuedAt: new Date(SEEDED_ISSUED_AT),
+          printedAt: new Date(SEEDED_ISSUED_AT),
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,
@@ -547,6 +548,9 @@ test.describe("Kundenaufnahme", () => {
     // One field broken, and deliberately the *second* day field: the sentence has to tell it apart
     // from the birthdate above it, which is exactly what „Datum fehlt.“ on its own could not.
     await page.locator("#certificateValidUntil").fill("");
+    const printed = page.getByTestId("registration-card-printed");
+    await expect(printed).not.toBeChecked();
+    await printed.check();
 
     const typed = await typedValues(page);
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
@@ -575,6 +579,9 @@ test.describe("Kundenaufnahme", () => {
     // The household kept its mirrored row, with the applicant's own name and day still in it.
     await expect(page.locator("#memberFirstName-0")).toHaveValue(applicant.firstName);
     await expect(page.locator("#memberBirthDate-0")).toHaveValue(typed.birthDate);
+    // The box too — and its attribute, which is what React's post-action reset restores from.
+    await expect(printed).toBeChecked();
+    expect(await printed.evaluate((box) => box.hasAttribute("checked"))).toBe(true);
 
     // Correcting only the refused field saves the eight edits that rode with it — the point of
     // keeping them. This is the one spec here that completes a registration after a refusal, so it
@@ -585,7 +592,14 @@ test.describe("Kundenaufnahme", () => {
 
     const saved = await prisma.customer.findFirstOrThrow({
       where: { lastName: applicant.lastName, status: { not: "ARCHIVED" } },
-      select: { street: true, houseNumber: true, zip: true, city: true, notes: true },
+      select: {
+        street: true,
+        houseNumber: true,
+        zip: true,
+        city: true,
+        notes: true,
+        cards: { select: { printedAt: true } },
+      },
     });
     expect(saved).toEqual({
       street: typed.street,
@@ -593,6 +607,7 @@ test.describe("Kundenaufnahme", () => {
       zip: typed.zip,
       city: typed.city,
       notes: typed.notes,
+      cards: [{ printedAt: expect.any(Date) }],
     });
   });
 

@@ -642,6 +642,8 @@ The registry, so a second use cannot quietly contradict the first — the same d
 | `UserPlus`                 | take a household on                        | afford.  |
 | `Users`                    | the waiting list                           | afford.  |
 | `IdCard` / `CreditCard`    | the cards due list / reissue this card     | afford.  |
+| `Printer`                  | tick this card off as printed              | afford.  |
+| `Undo2`                    | take back what was just done               | afford.  |
 | `Ban`                      | block — a refusal, not a locked record     | afford.  |
 | `Archive`                  | archive the household                      | afford.  |
 | `SquarePen`                | edit what is already written               | afford.  |

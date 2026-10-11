@@ -7,15 +7,19 @@ import {
   countCardsDueForReissue,
   type CardsDueForReissueDeps,
 } from "../customers/cards-due-for-reissue";
+import { countCardsToPrint, type CardsToPrintDeps } from "../customers/cards-to-print";
 import {
   countDistributionSessions,
   type ListDistributionSessionsDeps,
 } from "../distribution/list-distribution-sessions";
 
-export type ReadOverviewsDeps = CardsDueForReissueDeps & ListDistributionSessionsDeps;
+export type ReadOverviewsDeps = CardsDueForReissueDeps &
+  CardsToPrintDeps &
+  ListDistributionSessionsDeps;
 
 export interface Overviews {
   readonly cardsDue: number;
+  readonly cardsToPrint: number;
   readonly pastSessions: number;
 }
 
@@ -26,9 +30,10 @@ export interface Overviews {
  * @throws {BirthDateInFuture} if a stored birthdate lies after today.
  */
 export async function readOverviews(deps: ReadOverviewsDeps): Promise<Overviews> {
-  const [cardsDue, pastSessions] = await Promise.all([
+  const [cardsDue, cardsToPrint, pastSessions] = await Promise.all([
     countCardsDueForReissue(deps),
+    countCardsToPrint(deps),
     countDistributionSessions(deps),
   ]);
-  return { cardsDue, pastSessions };
+  return { cardsDue, cardsToPrint, pastSessions };
 }

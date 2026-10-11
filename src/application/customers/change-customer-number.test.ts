@@ -247,6 +247,7 @@ class FakeCustomerRepository implements CustomerRepository {
           issuedAt: new Date(TODAY),
           reason: "FIRST_ISSUE",
           countsAtIssue: { grownUps: 1, children: 1 },
+          printedAt: null,
         },
       });
     }
@@ -441,6 +442,10 @@ class FakeCardRepository implements CardRepository {
     return Promise.reject(new Error("a number change writes its card with the number"));
   }
 
+  setPrintedAt(): Promise<void> {
+    return Promise.reject(new Error("ticking a card off has a suite of its own"));
+  }
+
   private cardsOf(customerId: number): ReadonlyArray<IssuedCard> {
     return this.register.cards
       .filter((held) => held.customerId === customerId)
@@ -534,6 +539,7 @@ function household({
       issuedAt: new Date("2026-01-15T09:00:00.000Z"),
       reason: "FIRST_ISSUE",
       countsAtIssue: countsAtIssue ?? composition(details.householdMembers, new Date(TODAY)),
+      printedAt: null,
     },
     registeredOn: new Date("2026-01-15T09:00:00.000Z"),
     previousCustomerId: null,
@@ -731,6 +737,14 @@ describe("changeCustomerNumber", () => {
     expect(card.countsAtIssue).toEqual({ grownUps: 2, children: 0 });
     expect(groupOf(card.customerNumber)).toBe("BLUE");
     expect(card.issuedAt).toEqual(new Date(TODAY));
+  });
+
+  it("prints a moved household's card as not yet printed", async () => {
+    // No checkbox is offered on a move: the card waits on „Karten drucken" (US-39).
+    const card = await changeCustomerNumber(deps(), { customerId: 1, customerNumber: 23 });
+
+    expect(card.printedAt).toBeNull();
+    await expect(cards.currentCard(1)).resolves.toMatchObject({ printedAt: null });
   });
 
   it("records the reason as a number change", async () => {

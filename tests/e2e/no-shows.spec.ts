@@ -110,6 +110,7 @@ async function seedHousehold(customerNumber: number): Promise<number> {
           customerNumber,
           index: 1,
           issuedAt: registered,
+          printedAt: registered,
           reason: "FIRST_ISSUE",
           grownUpsAtIssue: 1,
           childrenAtIssue: 0,

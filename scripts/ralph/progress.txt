@@ -87,6 +87,14 @@ bullets that sat under „Where batch 38 starts" are not carried over — they a
   - A regeneration **renames a directory that documents cite by name**. `grep -rn "<old-timestamp>_init"
     docs/ src/ tests/` afterwards; prefer the `prisma/migrations/*_init/migration.sql` glob, which
     survives the next one.
+- **`prisma/demo-seed.ts` writes nothing with Prisma** — every row comes from a use case under a
+  wound clock (its header says so and why). A story asking the seeds for a column value is answered
+  by the use case's input (`cardPrinted: true`), never by an `UPDATE` after the fact; if the input
+  does not exist yet, carry the seed's half to the story that adds it. `prisma/seed.ts` writes
+  settings only, no customers and no cards.
+- **`customer-record.spec.ts`'s „refused renewal" test can flake in a full run** on its
+  certificate-type select (it read the configured types while another spec changed them). Rerun it
+  alone before chasing it; it passed alone and in the next full run in batch 39.
 - **Never `pkill -f "next dev"`, and never `pkill -f "node.*next-server"`** — both patterns match the
   Bash tool's own wrapper command line and kill the shell (exit 144, no output). **And `ss` is not
   installed in this sandbox**, so `ss -ltnp | grep :3000 || echo free` reports "free" for every port,
@@ -581,3 +589,203 @@ finds itself in `src/app/ausgabe/` or `attendance`, it has misread the batch.
 
 **The card row gains its first mutable column.** Only `printedAt` changes after the insert
 (`setPrintedAt`); every snapshot column beside it still never does.
+
+## 2026-10-01 - US-001
+- `IssuedCard.printedAt: Date | null` (and so `NewCard`, which is an `Omit` of it — no default);
+  `Card.printedAt DateTime?` with a `///` citing ADR-022; migrations regenerated
+  (`20261001193257_init`), both hand-written partial indexes appended back by slicing the old
+  file's tail — `diff` against the old SQL shows exactly one added line. `db:reset` run and both
+  indexes confirmed in `sqlite_master`.
+- `toIssuedCard`, `PrismaCardRepository.issue`, `PrismaCustomerRepository` (`register`'s nested
+  card, `changeCustomerNumber`, and the read model's current card) all carry the column.
+- `issueCard`, `registerCustomer`, `changeCustomerNumber` pass `printedAt: null` for now.
+- New integration test „reads a printed and a not-yet-printed card back exactly as they were
+  written" in `card-repository.test.ts`.
+- Files: prisma/schema.prisma, prisma/migrations/, src/domain/card/card.ts, the two Prisma
+  adapters, the three use cases, ~20 test files (fixtures only).
+- **Learnings for future iterations:**
+  - The fixture break (~70 errors) was fixed by one script: for each `tsc` error line, scan forward
+    to the next `countsAtIssue` property, find the line ending its statement, insert
+    `printedAt: null,` after it. Then the suite finds the two whole-record `toEqual`s `tsc` cannot.
+  - Pre-release was not re-confirmed with the user this iteration; the last regeneration was
+    2026-09-20 and D10 („existing cards count as printed") presupposes no go-live yet.
+  - `tasks/prd-us-39-cards-to-print.md` fails `prettier --check` on `main` already; CI does not
+    run `format:check`, and lint-staged only formats staged files, so it bites nobody until the
+    file is touched.
+---
+
+## 2026-10-01 - US-002
+- Every e2e spec that inserts a card through Prisma (20 inserts in 19 specs) now states
+  `printedAt`, equal to the `issuedAt` it already used. No assertion changed.
+- `prisma/seed.ts` writes no cards; `db:reset` leaves 0 cards, 0 unprinted (checked, not committed).
+- `prisma/demo-seed.ts` is NOT changed here: it writes only through the use cases, and they cannot
+  yet be told a card is printed. Its half of D10 is carried into the notes of US-003
+  (`cardPrinted`/`printed: true`) and US-004 (`markCardPrinted` right after the number change).
+- Gates: typecheck, lint, `test:e2e` (242 passed; one flake in customer-record.spec.ts on the first
+  run, green alone and on the rerun), `test:e2e:webkit` (242 passed).
+- Files: tests/e2e/*.spec.ts (19), scripts/ralph/prd.json, scripts/ralph/progress.txt.
+- **Learnings for future iterations:**
+  - The inserts were found with `grep -n "cards: {" tests/e2e/*.ts` and patched by a script that
+    copies each `issuedAt: X,` line inside such a block to `printedAt: X,`. `number-change.spec.ts`
+    maps an array through one insert, so its 10 cards are one line.
+  - `tests/e2e/seeding.ts` only deletes cards; no shared insert helper exists.
+---
+
+## 2026-10-01 - US-003
+- `issueCard` takes a required `printed: boolean`; true writes `printedAt = now` (the issue's own
+  instant), false writes null. Audit `changedFields` is `["card", "printedAt"]` only when printed
+  (`PRINTED_FIELD` exported from `issue-card.ts`). `reissueCard` passes it through.
+- `registerCustomer` takes a required `cardPrinted: boolean`; `REGISTERED_FIELDS` gains `printedAt`
+  only when ticked (placed before `previousCustomerId`). `changeCustomerNumber` unchanged in
+  behaviour (always null) — a test now proves it.
+- The four actions that issue a card pass `false` for now: kunden/neu, reissueCardAction,
+  karten-neuausstellung **and the waiting-list promotion** (warteliste/[entryId]/registrieren),
+  which the PRD did not name but which goes through `registerCustomer` with the same form.
+- `prisma/demo-seed.ts` passes `cardPrinted: true` / `printed: true` (D10). After
+  `npm run db:demo -- --reset`: 22 cards, 1 unprinted (3k2, the number change) — US-004 closes it.
+- Files: issue-card.ts, reissue-card.ts, register-customer.ts, change-customer-number.ts (comment),
+  4 server actions, demo-seed.ts, customers.test.ts, change-customer-number.test.ts,
+  waiting-list.test.ts.
+- **Learnings for future iterations:**
+  - `RegisterFromWaitingListInput extends RegisterCustomerInput`, and the promotion screen renders
+    `RegistrationForm` — any field added to the registration reaches the waiting list too. Noted on
+    US-006.
+  - The ~40 `issueCard`/`reissueCard` test calls were fixed by one regex appending
+    `, printed: false` after `reason: "X"`; `registerInput()` defaults `cardPrinted: false`.
+---
+
+## 2026-10-01 - US-004
+- Domain (strict TDD): `markPrinted(card, at)` / `unmarkPrinted(card)` in `src/domain/card/card.ts`;
+  `CardAlreadyPrinted`, `CardNotPrinted` (both carry customerNumber + index, message `12k2`) and
+  `CardSuperseded` (customerId + index) in `errors.ts`, covered in `errors.test.ts`, all three tiered
+  `error` in `notice-tier.ts`.
+- Port: `CardRepository.setPrintedAt(customerId, index, printedAt)`, documented on the port; the
+  adapter is a single `update` on the `customerId_index` unique key. Stubs (reject) in three fakes;
+  a real one in `customers.test.ts`'s `FakeCardRepository`.
+- Use cases: `markCardPrinted` (mark-card-printed.ts, also exports the shared guard `heldCard` and
+  `CardPrintDeps`/`CardPrintInput`) and `undoCardPrinted` (undo-card-printed.ts). Audit
+  `customer.card.printed` / `customer.card.printUndone`, `changedFields: ["printedAt"]`, `why: ""`.
+- Tests: 11 named application tests in a new describe in customers.test.ts; integration test
+  „sets and clears the printed date of exactly one card row" in card-repository.test.ts.
+- `prisma/demo-seed.ts` ticks the moved household's card off right after `changeCustomerNumber`
+  (same wound instant). `db:demo -- --reset`: 22 cards, 0 unprinted, all printedAt = issuedAt.
+- Two commits: domain (with the tiers, which the build needs), then port/adapter/use cases/seed.
+- **Learnings for future iterations:**
+  - `prisma.card.update({ where: { customerId_index: {…} } })` is how the compound unique key is
+    addressed; it throws P2025 for a missing row, which the use case's guard makes unreachable.
+  - The integration test compares the whole table before/after (`findMany` ordered by id) — the
+    cheapest way to prove an update touched exactly one column of one row.
+---
+
+## 2026-10-01 - US-005
+- `src/application/customers/cards-to-print.ts`: `listCardsToPrint` (ACTIVE + BLOCKED, current card
+  `printedAt === null`, oldest `issuedAt` first, ties by customer number), `countCardsToPrint`
+  (measured from the list), and `justPrintedCard(deps, { customerId, index })` — the undo offer's
+  rule: current card, printed, household not archived, else `null`. 14 named tests, own fake.
+- `/karten-drucken`: page.tsx (list + undo Confirmation), print-controls.tsx (client „Gedruckt" with
+  `Printer` and an sr-only „(Karte 12k2)" so the accessible name says which card; „Rückgängig" with
+  `Undo2`), actions.ts (Zod, mark/undo, revalidate 5 paths, redirect), print-state.ts (state + the
+  `kunde`/`karte` param names). Strings under `de.cardsToPrint`.
+- Route added to Übersichten in active-section.ts (+ test) and navigation.spec.ts; Printer and Undo2
+  registered in ui_styling_guide.md §12.
+- Gates: lint, typecheck, test:coverage (100%), build, test:e2e (244 passed; a first run had two
+  hydration-race flakes in registration/reminders, both green alone and on the full rerun).
+- Driven with playwright-cli against `npm run start` on the demo register (3 cards un-printed by a
+  local_only script): tick → row gone + done notice + undo; undo → row back, no params; bogus or
+  unprinted params → no notice; tick of an already-printed card → error Notice beside the row;
+  audit entries customer.card.printed / printUndone written. 1280 and 390 screenshots fine.
+- **Learnings for future iterations:**
+  - „The page calls X and nothing else" collides with a notice that needs a rule of its own: put
+    the rule in a second application function rather than in the page.
+  - `db:demo -- --reset` does not reset autoincrement ids here: the demo customers were 41–60, not
+    1–20. Query ids before scripting against them.
+---
+
+## 2026-10-01 - US-006
+- „Karte ist bereits gedruckt“ (`de.cardsToPrint.alreadyPrinted`) as a native checkbox in one
+  shared client component, `src/app/card-printed-field.tsx`; the wire half (field name, Zod reader
+  `cardPrinted` — `on` → true, absent → false, anything else refused) in `src/app/card-printed.ts`
+  with 3 unit tests. Placed above „Aufnehmen“ (registration-card-printed), in the loss reissue's
+  confirmation (reissue-printed) and the stale-card row's (stale-reissue-printed).
+- Four actions read it: kunden/neu and the waiting-list promotion through `registrationForm`
+  (new `cardPrinted` field), reissueCardAction and reissueStaleCardAction via `safeParse`. All four
+  also revalidate `/karten-drucken`, `/` and `/uebersichten`. Number change untouched.
+- e2e: registration refusal test ticks the box, asserts it survives the refusal (checked + the
+  `checked` attribute) and that the saved card has a printedAt; reissue asserts the box is unticked
+  and the card unprinted; age-13 stale reissue ticks it and asserts printedAt set.
+- Gates: lint, typecheck, test:coverage, build, test:e2e (244), test:e2e:webkit (244).
+- playwright-cli on the demo register: checkbox has the label as its accessible name; a ticked loss
+  reissue wrote printedAt = issuedAt; afterwards the control shows an unticked box for the next card.
+- **Learnings for future iterations:**
+  - A controlled checkbox needs the same `ref` → `defaultChecked` line as the group radios, or React's
+    post-action `form.reset()` unticks it. Where a *successful* save should start fresh again, `key`
+    the field on what it is about (here `nextCardNumber`), rather than adding reset logic.
+  - `PLAYWRIGHT_CLI_NO_SKILL_CHECK` does not silence the skill-version banner; filter it with
+    `grep -v "║\|╔\|╚"` or use `--raw`.
+---
+
+## 2026-10-01 - US-007
+- `readOverviews` returns `cardsToPrint` and `listToDos` adds `CARDS_TO_PRINT` after `CARDS_DUE`,
+  both from `countCardsToPrint`. 3 new named tests + the zero-overview test extended.
+- `de.cardsToPrint.countedName`, `LISTS.cardsToPrint` → `/karten-drucken`, a second ListLink under
+  Kunden on Übersichten (overview-cards-to-print[-link]), `TO_DO_LISTS.CARDS_TO_PRINT`
+  (to-do-cards-to-print[-count]) on Start. No Kunden hub link.
+- overviews.spec.ts: its stale reissue ticks `stale-reissue-printed` (else `to-dos` stays visible).
+- Gates: lint, typecheck, test:coverage (100%), build, test:e2e (244 passed).
+- playwright-cli on the demo register: 0 → tile „0 Karten drucken“, no Start row; after an
+  unticked stale reissue → Start „1 Karte drucken“ (the cards-due row gone), tile 1, link opens
+  /karten-drucken with Übersichten marked.
+- **Learnings for future iterations:**
+  - A to-do test fixture whose card defaults to *unprinted* puts every household on the print count;
+    default fixtures to `printedAt` set and opt into null, or every older to-do test breaks.
+---
+
+## 2026-10-01 - US-008
+- Card view (`/kunden/[id]/karte`): a third `dl` entry `card-printed-at` — „Gedruckt am: <date>“ or
+  „Gedruckt: noch nicht“ (`de.customers.cardView.printedAt` / `printed` / `notYetPrinted`).
+  `supersededEntry(number, date, printedDate | null, reason)` now reads „…, gedruckt am X, Grund: …“
+  or „…, nicht gedruckt, Grund: …“. `readCard` needed no code change — `printedAt` rides on
+  `IssuedCard`; one named test proves it for the current and superseded cards.
+- e2e: number-change/number-group/reissue pass the new printed argument (seeded cards printed,
+  UI-registered ones not); reissue asserts „Gedruckt: noch nicht“, age-13 asserts „Gedruckt am“.
+  /ausgabe untouched.
+- Gates: lint, typecheck, test:coverage (1456, 100%), build, test:e2e (244 passed).
+- playwright-cli on the demo register: both states read as term/definition pairs; superseded list
+  item names the printed date.
+- **Learnings for future iterations:**
+  - Changing a `de.ts` sentence function's arity is caught by `tsc` in every e2e spec that asserts
+    it — `grep -rn "<key>(" tests/e2e` first to see what the seeded rows' printedAt is.
+---
+
+## 2026-10-01 - US-009
+- New isolated `tests/e2e/cards-to-print.spec.ts` (added to `ISOLATED_SPECS`): empty register → no
+  Start row, tile 0, empty list; unticked registration → listed, Start 1, tile 1, counter
+  CLEAR_TO_SERVE on `1k1`; ticked registration → off the list, card view „Gedruckt am <today>“;
+  tick → row gone + done + undo; undo → back; tick again, `goto /karten-drucken` → no undo, Start
+  row gone; loss reissue → exactly `1k2`; number change 3 → 5 → `5k2` listed; block keeps the row
+  (blocked word); archive drops it. Every count step checks Start and Übersichten together.
+- Other specs named in the story (overviews, home, reissue, registration, number-change,
+  navigation) needed no change — US-007 had already ticked `stale-reissue-printed` in overviews.
+- Gates: lint, typecheck, test:coverage (1456), build, test:e2e (251), test:e2e:webkit (251).
+- **Learnings for future iterations:**
+  - A number change prints `max(next on slot, next of the household)` (`nextCardIndexOnMove`), so a
+    household holding `3k1` moved to an empty slot 5 gets `5k2`, not `5k1`.
+  - The card view's printed date is asserted against `germanDate(row.printedAt)` read through Prisma
+    rather than a date computed in the spec — exact, and immune to the midnight edge.
+---
+
+## 2026-10-01 - US-010
+- ADR-022 „Record when a card was printed on the card row" (Accepted), row in chapter 9 (count
+  „twenty-two"). arc42: 05 (51 use cases, customers/ row, `setPrintedAt` on CardRepository,
+  `/karten-drucken` route, fourteen routes, Übersichten owns it), 06 scenario 4 (the reissued card
+  lands on the print list), 08 (ER `printedAt`, audit list), 12 (Card, To-do, new „Printed").
+- Betriebsanleitung: new section „Karten drucken"; Übersichten now lists three, „Zu erledigen" two.
+- CLAUDE.md: printedAt as an event beside the Card snapshots; audit list gains tick/undo.
+- scripts/ralph/prds/README.md: batch 39 row, 235 stories, short paragraph.
+- ui_styling_guide §12 already had `Printer` / `Undo2` from US-005.
+- Gates: arc42:check, lint, typecheck, test:coverage (1456), build.
+- **Learnings for future iterations:**
+  - `arc42.py new-adr` stamps a wrong date (2026-08-07 here) in the ADR file while the index row
+    gets today's — fix the file's **Date** by hand, and pad the new index row with prettier.
+  - Chapter 9's intro counts the ADRs in words („twenty-two decisions"); bump it with each ADR.
+---

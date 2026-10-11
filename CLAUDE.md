@@ -73,6 +73,8 @@ deliberately and say why in the commit; do not add an inline disable.
     updated: a reissue is how a change is recorded. A `groupAtIssue` stood here until US-31 and does
     not any more: a card's group is the parity of the slot it was printed under, which the row
     already carries.
+    Beside these snapshots, `Card.printedAt` is no exception at all: a recorded **event**, DF's
+    statement that the card is on paper, and the one card column written after the insert (ADR-022).
   - `Customer.firstNameFolded` / `lastNameFolded` — a **search key**, not a fact (US-11). SQLite can
     fold neither umlauts nor Unicode case in a `WHERE` clause, so `foldName`'s output is stored and
     indexed. Never displayed and never read as the name; written from the names in the same
@@ -222,11 +224,12 @@ settings screen reporting that nothing is configured.
   ending — and a receipt left standing would make the database refuse the hand-out removal a
   reopening exists to allow. Nothing else in the schema may be deleted.
 - ❌ Don't skip the audit entry on a state change (archive, block, number change, card reissue,
-  policy edit, a change to the Nachweis-Arten, ending or reopening a distribution session). With no
-  login, the log is the only accountability the system has — and it records _what, when and why_,
-  never _who_. The _why_ is required where it is the record (archive, block, a reopening) and
-  optional where the changed fields already say it (a policy edit). Starting a session writes
-  nothing and a discarded one writes nothing either, which is the one deliberate gap (ADR-020).
+  policy edit, a change to the Nachweis-Arten, ending or reopening a distribution session, ticking a
+  card off as printed or taking that back). With no login, the log is the only accountability the
+  system has — and it records _what, when and why_, never _who_. The _why_ is required where it is
+  the record (archive, block, a reopening) and optional where the changed fields already say it (a
+  policy edit). Starting a session writes nothing and a discarded one writes nothing either, which
+  is the one deliberate gap (ADR-020).
 - ❌ Don't add a dependency to avoid ~50 lines of code, and don't reach for a heavier pattern
   (events, CQRS, aggregates) than the problem needs.
 - ❌ Don't bump the Next.js major casually — it is pinned on purpose.

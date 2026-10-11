@@ -270,6 +270,7 @@ async function seedHousehold(seed: Seed): Promise<void> {
           customerNumber: seed.customerNumber,
           index: index + 1,
           issuedAt: new Date("2025-01-02T00:00:00.000Z"),
+          printedAt: new Date("2025-01-02T00:00:00.000Z"),
           reason: index === 0 ? "FIRST_ISSUE" : "LOST",
           grownUpsAtIssue: 1,
           childrenAtIssue: 1,

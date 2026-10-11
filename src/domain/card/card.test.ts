@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { groupOf } from "../customer/group";
-import { DomainError, InvalidCustomerRecord } from "../errors";
+import { CardAlreadyPrinted, CardNotPrinted, DomainError, InvalidCustomerRecord } from "../errors";
 import type { IssuedCard } from "./card";
-import { parseCardIssueReason } from "./card";
+import { markPrinted, parseCardIssueReason, unmarkPrinted } from "./card";
 import { formatCardNumber } from "./cardNumber";
 
 describe("parseCardIssueReason", () => {
@@ -51,6 +51,7 @@ describe("IssuedCard", () => {
       issuedAt: new Date("2026-08-31T09:00:00Z"),
       reason: "CUSTOMER_NUMBER_CHANGED",
       countsAtIssue: { grownUps: 2, children: 1 },
+      printedAt: null,
     };
 
     expect(formatCardNumber(card.customerNumber, card.index)).toBe("5k4");
@@ -66,9 +67,47 @@ describe("IssuedCard", () => {
       issuedAt: new Date("2026-08-31T09:00:00Z"),
       reason: "CUSTOMER_NUMBER_CHANGED",
       countsAtIssue: { grownUps: 2, children: 1 },
+      printedAt: null,
     };
 
     expect(Object.keys(card)).not.toContain("groupAtIssue");
     expect(groupOf(card.customerNumber)).toBe("RED");
+  });
+});
+
+describe("ticking a card off as printed", () => {
+  const issued: IssuedCard = {
+    customerNumber: 12,
+    index: 2,
+    issuedAt: new Date("2026-09-03T09:00:00Z"),
+    reason: "LOST",
+    countsAtIssue: { grownUps: 2, children: 1 },
+    printedAt: null,
+  };
+  const printedOn = new Date("2026-09-05T14:30:00Z");
+
+  it("records the day a card was printed", () => {
+    const printed = markPrinted(issued, printedOn);
+
+    expect(printed).toEqual({ ...issued, printedAt: printedOn });
+  });
+
+  it("refuses to tick off a card twice", () => {
+    const printed = markPrinted(issued, printedOn);
+
+    // The second tick must not move the first date.
+    expect(() => markPrinted(printed, new Date("2026-09-06T10:00:00Z"))).toThrow(
+      CardAlreadyPrinted,
+    );
+  });
+
+  it("takes a tick back", () => {
+    const printed = markPrinted(issued, printedOn);
+
+    expect(unmarkPrinted(printed)).toEqual(issued);
+  });
+
+  it("refuses to take back a tick that was never made", () => {
+    expect(() => unmarkPrinted(issued)).toThrow(CardNotPrinted);
   });
 });

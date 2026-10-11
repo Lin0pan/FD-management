@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   AlreadyServedInSession,
+  CardAlreadyPrinted,
+  CardNotPrinted,
   CardNumberTaken,
+  CardSuperseded,
   DistributionSessionAlreadyRunning,
   DistributionSessionNotEmpty,
   DistributionSessionNotFound,
@@ -42,6 +45,39 @@ describe("CardNumberTaken", () => {
     expect(error.customerNumber).toBe(66);
     expect(error.index).toBe(1);
     expect(error.message).toContain("66k1");
+  });
+});
+
+/** The three refusals of „Karten drucken" (US-39), each naming the card as staff know it. */
+describe("the printed-card errors", () => {
+  it("names the card that was already ticked off", () => {
+    const error = new CardAlreadyPrinted(12, 2);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("CardAlreadyPrinted");
+    expect(error.customerNumber).toBe(12);
+    expect(error.index).toBe(2);
+    expect(error.message).toContain("12k2");
+  });
+
+  it("names the card whose tick was never made", () => {
+    const error = new CardNotPrinted(12, 2);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("CardNotPrinted");
+    expect(error.customerNumber).toBe(12);
+    expect(error.index).toBe(2);
+    expect(error.message).toContain("12k2");
+  });
+
+  it("names the household and the card that is no longer the one they hold", () => {
+    const error = new CardSuperseded(7, 2);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("CardSuperseded");
+    expect(error.customerId).toBe(7);
+    expect(error.index).toBe(2);
+    expect(error.message).toContain("7");
   });
 });
 

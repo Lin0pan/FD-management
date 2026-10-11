@@ -48,6 +48,7 @@ import { GROUPS, inGroup, type Group } from "@/domain/customer/group";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
 import { GROUP_STYLES } from "../../accents";
+import { CardPrintedField } from "../../card-printed-field";
 import { CertificateTypeField } from "../../certificate-type-field";
 import { guardEnter } from "../../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
@@ -686,6 +687,8 @@ export function RegistrationForm({
                 testId="registration-error"
               />
             ) : null}
+
+            <CardPrintedField id="registration-card-printed" testId="registration-card-printed" />
 
             <Button type="submit" size="lg" disabled={pending || full}>
               {pending ? de.customers.new.submitting : de.customers.new.submit}

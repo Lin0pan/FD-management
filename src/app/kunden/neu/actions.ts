@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { registerCustomer } from "@/application/customers/register-customer";
 import { resolveCertificateType } from "../../certificate-type-resolver";
+import { revalidateCardsToPrint } from "../../karten-drucken/revalidate";
 import { customerDeps } from "../deps";
 import { freshPoolAfterRace } from "./fresh-pool";
 import type { RegisterCustomerState } from "./register-customer-state";
@@ -58,6 +59,7 @@ export async function submitRegistration(
       notes: form.notes,
       customerNumber: form.customerNumber,
       previousCustomerId: form.previousCustomerId,
+      cardPrinted: form.cardPrinted,
     });
     id = customer.id;
   } catch (error: unknown) {
@@ -71,6 +73,7 @@ export async function submitRegistration(
   // The hub, which a registration moves three ways at once: a new row, a shifted group balance, and
   // one fewer free number for the badge to read. A `redirect` is a navigation, not a revalidation.
   revalidatePath("/kunden");
+  revalidateCardsToPrint();
 
   // Outside the try: `redirect` throws, and catching it would turn a successful registration into
   // "could not be saved". `?aufgenommen=1` is how the good news survives it — this action never

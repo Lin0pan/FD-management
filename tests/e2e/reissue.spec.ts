@@ -137,6 +137,7 @@ async function seedHousehold(): Promise<number> {
             customerNumber: CUSTOMER_NUMBER,
             index: 1,
             issuedAt: new Date(SEEDED_CARD_ISSUED_AT),
+            printedAt: new Date(SEEDED_CARD_ISSUED_AT),
             reason: "FIRST_ISSUE",
             grownUpsAtIssue: 1,
             childrenAtIssue: 1,
@@ -186,6 +187,8 @@ async function reissue(page: Page, path: string, current: string, next: string):
   await expect(page.getByTestId("reissue-confirm")).toHaveText(
     de.customers.reissue.confirm(current, next),
   );
+  // Opt-in (US-39.5, D2): left alone, the new card lands on „Karten drucken“.
+  await expect(page.getByTestId("reissue-printed")).not.toBeChecked();
 
   await page.getByTestId("reissue-submit").click();
   // Two things, and they are not the same thing. The number moving is the *write*, read off whichever
@@ -234,6 +237,8 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     page,
   }) => {
     await reissue(page, `/kunden/${id}`, card(1), card(2));
+    const issued = await prisma.card.findFirstOrThrow({ where: { customerId: id, index: 2 } });
+    expect(issued.printedAt).toBeNull();
 
     // The card view is what staff read while they write the new card, so the replacement has to be
     // complete there: the new number, the old one listed as replaced, and the sentence that says so.
@@ -241,11 +246,16 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await page.waitForURL(/\/kunden\/\d+\/karte$/);
 
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
+    // Not ticked on the reissue, so the card in hand is the temporary one until DF tick it off.
+    await expect(page.getByTestId("card-printed-at")).toHaveText(
+      `${de.customers.cardView.printed}: ${de.customers.cardView.notYetPrinted}`,
+    );
     // The replaced number stays on record with the day and the reason *it* was handed over — a
     // superseded card is invalid, not deleted.
     await expect(page.getByTestId("superseded-card")).toHaveText(
       de.customers.cardView.supersededEntry(
         card(1),
+        SEEDED_CARD_DATE,
         SEEDED_CARD_DATE,
         de.customers.cardReasons.FIRST_ISSUE,
       ),

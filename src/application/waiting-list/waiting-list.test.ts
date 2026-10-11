@@ -241,6 +241,10 @@ class FakeCardRepository implements CardRepository {
   issue(): Promise<never> {
     return Promise.reject(new Error("A waiting-list use case never issues a card of its own"));
   }
+
+  setPrintedAt(): Promise<never> {
+    return Promise.reject(new Error("A waiting-list use case never ticks a card off"));
+  }
 }
 
 function settingsInput(quotaN: number): SettingsInput {
@@ -280,6 +284,7 @@ function storedCustomer(customerNumber: number, id: number): RegisteredCustomer 
       issuedAt: at("2026-01-05"),
       reason: "FIRST_ISSUE",
       countsAtIssue: { grownUps: 1, children: 0 },
+      printedAt: null,
     },
     previousCustomerId: null,
     blockReason: null,
@@ -549,6 +554,7 @@ describe("registerFromWaitingList", () => {
     const applicant = application();
     return {
       entryId: 4,
+      cardPrinted: false,
       firstName: applicant.firstName,
       lastName: applicant.lastName,
       birthDate: applicant.birthDate,

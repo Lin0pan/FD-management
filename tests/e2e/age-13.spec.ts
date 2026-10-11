@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { germanDate } from "@/i18n/format";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -159,6 +160,7 @@ async function seedHousehold(): Promise<number> {
           customerNumber: CUSTOMER_NUMBER,
           index: 1,
           issuedAt: utcMidnight("2026-01-02"),
+          printedAt: utcMidnight("2026-01-02"),
           reason: "FIRST_ISSUE",
           // Printed before the birthday, and true when it was printed. Everything this spec asserts
           // about the cards-due list follows from this pair going out of date on its own.
@@ -349,6 +351,8 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     await expect(row.getByTestId("stale-reissue-confirm")).toHaveText(
       de.customers.reissue.confirm(card(1), card(2)),
     );
+    // Printed on the spot, so it never reaches „Karten drucken“ (US-39.5).
+    await row.getByTestId("stale-reissue-printed").check();
     await row.getByTestId("stale-reissue-submit").click();
 
     // The row is gone because the new card prints what the household is, not because anything was
@@ -356,6 +360,15 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
     await expect(dueRow(page)).toHaveCount(0);
     await expect(page.getByTestId("stale-reissue-error")).toHaveCount(0);
     expect(await badgeCount(page)).toBe(dueBefore);
+
+    const issued = await prisma.card.findFirstOrThrow({ where: { customerId: id, index: 2 } });
+    if (issued.printedAt === null) {
+      throw new Error("the ticked reissue should have stored a printed date");
+    }
+    await page.goto(`/kunden/${id}/karte`);
+    await expect(page.getByTestId("card-printed-at")).toHaveText(
+      `${de.customers.cardView.printedAt}: ${germanDate(issued.printedAt)}`,
+    );
 
     await page.goto(`/kunden/${id}`);
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
