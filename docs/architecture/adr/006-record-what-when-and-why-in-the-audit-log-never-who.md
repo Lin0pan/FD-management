@@ -35,6 +35,12 @@ customer number, card reissue, note edit, policy edit. The _why_ is **required**
 blocking and archiving a household — and optional where the changed fields already say it, as on a
 settings edit.
 
+**Amended, not superseded,** by two deliberate gaps, each argued in its own record: starting a
+distribution session and discarding an empty one write nothing
+([ADR-020](020-the-distribution-session-not-the-calendar-is-what-a-hand-out-belongs-to.md)), and
+neither does ticking a household off a campaign reminder or taking the tick back
+([ADR-024](024-do-not-audit-the-individual-campaign-reminder-tick.md)).
+
 ## Consequences
 
 - The log makes an honest claim. It answers what happened, when and on what grounds, and never

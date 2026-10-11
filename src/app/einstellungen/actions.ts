@@ -8,9 +8,15 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { endCampaignReminder } from "@/application/campaign/end-campaign-reminder";
+import { renameCampaignReminder } from "@/application/campaign/rename-campaign-reminder";
+import { startCampaignReminder } from "@/application/campaign/start-campaign-reminder";
 import { updateCertificateTypes } from "@/application/settings/update-certificate-types";
 import { updateSettings } from "@/application/settings/update-settings";
 import {
+  CampaignReminderAlreadyActive,
+  CampaignReminderNameTooLong,
+  CampaignReminderNotActive,
   CertificateTypeTooLong,
   DomainError,
   DuplicateCertificateType,
@@ -25,7 +31,8 @@ import { parseEuros } from "@/domain/money";
 import { de, settingsFormFieldLabel } from "@/i18n/de";
 import { summarise, type FormRefusal } from "../field-refusal";
 import { tierOf } from "../notice-tier";
-import { settingsDeps } from "./deps";
+import type { CampaignReminderActionState } from "./campaign-reminder-state";
+import { campaignReminderDeps, settingsDeps } from "./deps";
 import type { SaveCertificateTypesState } from "./save-certificate-types-state";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
 
@@ -373,4 +380,103 @@ export async function saveCertificateTypes(
 
   revalidatePath("/einstellungen");
   return { status: "saved", message: de.settings.certificateTypes.saved };
+}
+
+/** The reminder a rename or a switch-off names — the one the screen was rendered with. */
+const reminderId = z.coerce.number().int().positive();
+
+/**
+ * Turn a typed domain error from the campaign reminder's use cases into the section's words. Only a
+ * blank name marks the field: a name too long cannot be typed past `maxLength`, and the other two
+ * are another workstation's doing rather than anything in the box.
+ */
+function campaignReminderRefusal(
+  error: unknown,
+): Pick<CampaignReminderActionState, "message" | "tier" | "fields"> {
+  const tier = tierOf(error);
+  const words = de.settings.campaignReminder;
+  if (error instanceof MissingRequiredField) {
+    return {
+      message: de.customers.errors.missingField(words.name),
+      tier,
+      fields: [{ path: "name", problem: de.customers.errors.fieldRequired }],
+    };
+  }
+  if (error instanceof CampaignReminderNameTooLong) {
+    return { message: words.errors.tooLong(error.length, error.maxLength), tier };
+  }
+  if (error instanceof CampaignReminderAlreadyActive) {
+    return { message: words.errors.alreadyActive, tier };
+  }
+  if (error instanceof CampaignReminderNotActive) {
+    return { message: words.errors.notActive, tier };
+  }
+  return { message: words.errors.unknown, tier };
+}
+
+/** The reminder reaches the counter and every record, so a change to it is stale on all three. */
+function revalidateCampaignReminder(): void {
+  revalidatePath("/einstellungen");
+  revalidatePath("/ausgabe");
+  revalidatePath("/kunden", "layout");
+}
+
+/** Switch a named reminder on. A refusal leaves the typed name in the box (§7). */
+export async function startCampaignReminderAction(
+  _previous: CampaignReminderActionState,
+  formData: FormData,
+): Promise<CampaignReminderActionState> {
+  try {
+    await startCampaignReminder(campaignReminderDeps, {
+      name: String(formData.get("name") ?? ""),
+    });
+  } catch (error: unknown) {
+    return { status: "error", ...campaignReminderRefusal(error) };
+  }
+
+  revalidateCampaignReminder();
+  return { status: "saved" };
+}
+
+/** Rename the reminder switched on; its ticks stay. */
+export async function renameCampaignReminderAction(
+  _previous: CampaignReminderActionState,
+  formData: FormData,
+): Promise<CampaignReminderActionState> {
+  const id = reminderId.safeParse(formData.get("reminderId"));
+  if (!id.success) {
+    return { status: "error", message: de.settings.campaignReminder.errors.unknown, tier: "error" };
+  }
+
+  try {
+    await renameCampaignReminder(campaignReminderDeps, {
+      reminderId: id.data,
+      name: String(formData.get("name") ?? ""),
+    });
+  } catch (error: unknown) {
+    return { status: "error", ...campaignReminderRefusal(error) };
+  }
+
+  revalidateCampaignReminder();
+  return { status: "saved", message: de.settings.campaignReminder.renamed };
+}
+
+/** Switch the reminder off, deleting every tick (ADR-023). No reason: the audit entry needs none. */
+export async function endCampaignReminderAction(
+  _previous: CampaignReminderActionState,
+  formData: FormData,
+): Promise<CampaignReminderActionState> {
+  const id = reminderId.safeParse(formData.get("reminderId"));
+  if (!id.success) {
+    return { status: "error", message: de.settings.campaignReminder.errors.unknown, tier: "error" };
+  }
+
+  try {
+    await endCampaignReminder(campaignReminderDeps, { reminderId: id.data });
+  } catch (error: unknown) {
+    return { status: "error", ...campaignReminderRefusal(error) };
+  }
+
+  revalidateCampaignReminder();
+  return { status: "saved" };
 }

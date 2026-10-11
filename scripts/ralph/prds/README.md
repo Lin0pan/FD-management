@@ -118,8 +118,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 37  | `37-us-37-session-overview-and-detail.json`     | 6       | `ralph/us-37-session-overview-and-detail`     |
 | 38  | `38-us-38-overviews-and-to-dos.json`            | 6       | `ralph/us-38-overviews-and-to-dos`            |
 | 39  | `39-us-39-cards-to-print.json`                  | 10      | `ralph/us-39-cards-to-print`                  |
+| 40  | `40-us-40-campaign-reminder.json`               | 10      | `ralph/us-40-campaign-reminder`               |
 
-235 stories total — the rows sum to it. Every story cites its source PRD section in its
+245 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not
@@ -397,6 +398,16 @@ migration history regenerated and **both hand-written partial indexes re-added**
 method (`CardRepository.setPrintedAt`, the only write to a card row after its insert), two domain
 functions (`markPrinted`, `unmarkPrinted`), three typed errors (`CardAlreadyPrinted`,
 `CardNotPrinted`, `CardSuperseded`) and ADR-022. Its e2e is the sixth isolated spec.
+
+**40 (US-40)** is the **„Aktionserinnerung"**: one checkbox per household, named by DF and switched
+on and off in the settings, ticked at the counter or in the customer record, never by serving. A
+**schema change** — `CampaignReminder` and `CampaignReminderTick`, with the migration history
+regenerated and now **three hand-written partial indexes** (`one_active_campaign_reminder` beside
+the two before it) — and **one new port**, `CampaignReminderRepository`. It makes two exceptions to
+the project's rules, each with an ADR: switching off **deletes every tick**, the fourth exception to
+the no-delete rule (ADR-023), and **the individual tick is not audited**, the second gap in the
+audit rule beside ADR-020's (ADR-024). Code says `CampaignReminder` throughout and never bare
+`Reminder`, which is the US-06 certificate reminder's. Its e2e is the seventh isolated spec.
 
 ## Regenerating
 

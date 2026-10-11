@@ -55,6 +55,12 @@ window open: a reopened session may have a hand-out removed, and a receipt still
 would make the database refuse that removal. Nothing that holds customer data outside a frozen
 session is touched by this.
 
+**Amended a third time by
+[ADR-023](023-delete-a-campaign-reminder-s-ticks-when-it-is-switched-off.md):** a
+`CampaignReminderTick` is **deleted** when its household is unticked, and every tick of a campaign
+reminder is deleted when DF switch it off, because a tick is a note to self and not customer data,
+and nothing points at it. The `CampaignReminder` row itself is stamped `endedAt`, never deleted.
+
 ## Consequences
 
 - A refused delete is a loud error instead of silent data loss.

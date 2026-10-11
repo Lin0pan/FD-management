@@ -1,14 +1,20 @@
 import type {
   AuditLog,
+  CampaignReminderRepository,
   CertificateTypeRepository,
   Clock,
   CustomerCounter,
+  CustomerRepository,
   SettingsRepository,
 } from "@/application/ports";
 import { systemClock } from "@/infrastructure/clock";
-import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
-import { PrismaCustomerCounter } from "@/infrastructure/prisma/customer-repository";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
+import { PrismaCampaignReminderRepository } from "@/infrastructure/prisma/campaign-reminder-repository";
+import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
+import {
+  PrismaCustomerCounter,
+  PrismaCustomerRepository,
+} from "@/infrastructure/prisma/customer-repository";
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repository";
 
@@ -30,4 +36,20 @@ export const settingsDeps: {
   customers: new PrismaCustomerCounter(prisma),
   audit: new PrismaAuditLog(prisma),
   certificateTypes: new PrismaCertificateTypeRepository(prisma),
+};
+
+/**
+ * The campaign reminder's section of the same screen (US-40). An object of its own because its
+ * progress reads the register itself, where the policy's `customers` above only counts it.
+ */
+export const campaignReminderDeps: {
+  readonly campaignReminders: CampaignReminderRepository;
+  readonly customers: CustomerRepository;
+  readonly audit: AuditLog;
+  readonly clock: Clock;
+} = {
+  campaignReminders: new PrismaCampaignReminderRepository(prisma),
+  customers: new PrismaCustomerRepository(prisma),
+  audit: new PrismaAuditLog(prisma),
+  clock: systemClock,
 };

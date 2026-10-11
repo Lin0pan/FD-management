@@ -18,7 +18,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Domain only — no schema, no port, no screen. Name the concept CampaignReminder everywhere in code; ReminderLog (US-06 certificate reminder) already exists and a bare 'Reminder' would collide. `ls src/domain/campaign` before creating files."
     },
     {
@@ -39,7 +39,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "The two existing hand-written indexes are dropped by every regeneration (batches 25, 26, 34, 39 all had to re-add them) — grep the new migration.sql for WHERE before committing; there must be THREE. Re-confirm the project is still pre-release (memory: confirmed 2026-08-24); if DF hold real data, APPEND a migration instead. No use case yet — the port is wired to nothing until US-003."
     },
     {
@@ -59,7 +59,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "No screen yet. setReceived is exercised through the fake here only to set up state; the tick use case is US-004."
     },
     {
@@ -77,7 +77,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Application only. lookupCustomer / readCustomer are wired in US-005 — keep this story to the two new functions so it fits one iteration."
     },
     {
@@ -95,7 +95,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Adding a dependency breaks every fake deps object at once — the house stub for a method a suite does not exercise is Promise.reject(new Error('… has a suite of its own')). No screen changes yet: the new field is unused until US-007/US-008."
     },
     {
@@ -116,7 +116,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Comes before the counter and record stories so their browser checks can switch a reminder on through the UI. The settings page reads with readCampaignReminder only — no counting in the page."
     },
     {
@@ -129,7 +129,7 @@
         "On /ausgabe after a lookup, when counter.lookup.campaignReminder is not null: the field in a block of its own DIRECTLY BELOW the household card (counter-customer) and ABOVE the certificate and serve controls, keyed by customer like its neighbours",
         "PROMINENT when not received (D4): unticked, the block wears a NEW named accent CAMPAIGN_OUTSTANDING_ACCENT in src/app/accents.ts (never a tint in the screen), a tint no other meaning uses on the counter (not the traffic light's, not amber), plus the word „noch nicht erhalten\" (test id campaign-reminder-outstanding) and a lucide icon (proposal: Gift, aria-hidden). Ticked: plain — the checked box and the word „erhalten\", no accent",
         "Prominent never blocks: the verdict, the serve button and its keyboard flow are unchanged whatever the box says; nothing has to be dismissed",
-        "Shown with or without a running distribution session, for active and blocked households; NOT shown for an archived household, a number nobody holds, or while no reminder is on",
+        "Shown for active and blocked households whenever the counter can look one up (during a session — the counter is closed between afternoons, US-34; between afternoons the box is reached in the record); NOT shown for an archived household, a number nobody holds, or while no reminder is on",
         "German strings in src/i18n/de.ts (a campaignReminder group)",
         "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
         "npm run test:e2e passes (stop any leftover next dev / next start first)",
@@ -138,7 +138,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Styling guide §5: a new meaning gets a new export in accents.ts; §12 gets the icon in the docs story. Switch a reminder on via /einstellungen (US-006) for the review."
     },
     {
@@ -155,7 +155,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Presentation only; the action already exists from US-007."
     },
     {
@@ -166,7 +166,7 @@
         "New tests/e2e/campaign-reminder.spec.ts, ISOLATED ('x von y' is a claim about the whole register): added to ISOLATED_SPECS in tests/e2e/registers.ts (ADR-012), mode: 'serial', emptying the register in its own beforeAll (clearRegister) and seeding a few households — one blocked, one archived — through Prisma with SYNTHETIC (Faker) data",
         "With no reminder on, neither the counter nor the record shows campaign-reminder-received",
         "Switching on „Weihnachtstüte\" in the settings: progress „0 von N erhalten\" (N excludes the archived household) and today's date",
-        "At the counter WITHOUT a running distribution session: the box labelled „Weihnachtstüte\" is unticked and campaign-reminder-outstanding visible; ticking it hides the outstanding word IN THE SAME PAGE LOAD; reloading keeps it ticked",
+        "In the customer record WITHOUT a running distribution session (the counter looks nobody up between afternoons, US-34): the box labelled „Weihnachtstüte\" is unticked and campaign-reminder-outstanding visible; ticking it hides the outstanding word IN THE SAME PAGE LOAD; reloading keeps it ticked",
         "Serving a second household (start a session first) leaves its box unticked (D4)",
         "A blocked household shows the box and can be ticked; the archived household shows none",
         "Unticking in the record works and the settings progress follows",
@@ -179,7 +179,7 @@
         "Lint passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Isolated specs share one register and each empties it in its own beforeAll. Never branch on browserName in src/."
     },
     {
@@ -200,7 +200,7 @@
         "Lint passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Documentation only. A gap is a marked > **TODO:**, never a plausible guess."
     }
   ]

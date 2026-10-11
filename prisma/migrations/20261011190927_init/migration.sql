@@ -147,6 +147,23 @@ CREATE TABLE "ReminderLog" (
 );
 
 -- CreateTable
+CREATE TABLE "CampaignReminder" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "name" TEXT NOT NULL,
+    "startedAt" DATETIME NOT NULL,
+    "endedAt" DATETIME
+);
+
+-- CreateTable
+CREATE TABLE "CampaignReminderTick" (
+    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "reminderId" INTEGER NOT NULL,
+    "customerId" INTEGER NOT NULL,
+    CONSTRAINT "CampaignReminderTick_reminderId_fkey" FOREIGN KEY ("reminderId") REFERENCES "CampaignReminder" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "CampaignReminderTick_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "AuditEntry" (
     "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
     "what" TEXT NOT NULL,
@@ -216,6 +233,9 @@ CREATE INDEX "WaitingListEntry_addedOn_idx" ON "WaitingListEntry"("addedOn");
 CREATE UNIQUE INDEX "ReminderLog_customerId_sessionId_key" ON "ReminderLog"("customerId", "sessionId");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "CampaignReminderTick_reminderId_customerId_key" ON "CampaignReminderTick"("reminderId", "customerId");
+
+-- CreateIndex
 CREATE INDEX "AuditEntry_when_idx" ON "AuditEntry"("when");
 
 -- CreateIndex (hand-written: Prisma has no syntax for a partial/filtered unique index)
@@ -246,3 +266,10 @@ CREATE UNIQUE INDEX "Customer_customerNumber_onRegister_key"
 CREATE UNIQUE INDEX "one_running_session"
     ON "DistributionSession"("startedAt" IS NOT NULL)
     WHERE "endedAt" IS NULL AND "discardedAt" IS NULL;
+
+-- CreateIndex (hand-written: the shape of `one_running_session`)
+--
+-- At most one campaign reminder is switched on at a time (US-40).
+CREATE UNIQUE INDEX "one_active_campaign_reminder"
+    ON "CampaignReminder"("startedAt" IS NOT NULL)
+    WHERE "endedAt" IS NULL;

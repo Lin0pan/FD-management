@@ -591,3 +591,243 @@ Switching on, renaming and switching off are audited.
 **Serving does not touch the tick.** If a story finds itself editing `recordAttendance`, it has
 misread the batch.
 
+
+## 2026-10-11 21:10 - US-001
+- New `src/domain/campaign/campaignReminder.ts`: `createCampaignReminderName` (trims; blank →
+  `MissingRequiredField("name")`; >40 → `CampaignReminderNameTooLong`) and `campaignProgress`
+  (archived households in neither figure). Seven named tests, written red first.
+- `errors.ts`: `CampaignReminderNameTooLong` (refusal), `CampaignReminderAlreadyActive` and
+  `CampaignReminderNotActive` (both `error` in `TIERS` — each means another workstation switched the
+  reminder meanwhile). The latter two covered in `errors.test.ts` until US-003/US-004 call them.
+- German messages at `de.settings.campaignReminder.errors` (`tooLong`, `alreadyActive`,
+  `notActive`) — US-006 builds the rest of that block around them.
+- Chapter 05: „28 modules in five families", `campaign/` row.
+- Files: src/domain/campaign/*, src/domain/errors(.test).ts, src/app/notice-tier.ts, src/i18n/de.ts,
+  docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - **`CampaignReminderName` is a plain `string` alias, not a nominal brand.** The AC said „branded,
+    the shape `CertificateTypeList` uses" — but `CertificateTypeList` is a plain alias and nothing in
+    `src/domain` brands anything. The adapter can therefore return a stored name as a `string`
+    without a cast. If a reviewer insists on a brand, the cast lands in the adapter's read.
+  - **`notice-tier.ts`'s header no longer counts codes** (the „32nd code" bullet above is stale on
+    that point) — there was nothing to update. The `TIERS` record is still the build-time guard.
+  - `MissingRequiredField` from the name names the field `name` — the settings action (US-006) can
+    mark its input with that path.
+---
+
+## 2026-10-11 21:20 - US-002
+- `CampaignReminder` + `CampaignReminderTick` in `schema.prisma` (both relations `onDelete: Restrict`
+  out loud, `@@unique([reminderId, customerId])`, no timestamp); `Customer.campaignTicks` back-relation.
+- Migrations regenerated (`20261011190927_init`); the two old hand-written indexes sliced off the old
+  file and re-appended byte-identical, plus `one_active_campaign_reminder` (shape of
+  `one_running_session`, predicate `"endedAt" IS NULL`). Three `WHERE`s. `db:reset` run.
+- Port `CampaignReminderRepository` + `CampaignReminder` read type in `ports.ts`;
+  `PrismaCampaignReminderRepository` with 7 integration tests; `clearRegister` deletes ticks, then
+  reminders, before cards/customers; `schema.test.ts` greps for the third index.
+- Docs: chapter 02 („Three are hand-written…"), chapter 08 concurrency table + transactions line.
+- Files: prisma/schema.prisma, prisma/migrations/*, src/application/ports.ts,
+  src/infrastructure/prisma/campaign-reminder-repository(.test).ts, schema.test.ts, test-support.ts,
+  docs/architecture/02-*.md, 08-*.md
+- **Learnings for future iterations:**
+  - `schema.test.ts` keeps **no** list of deletable models — nothing to add there for the ticks.
+  - `setReceived(true)` is an `upsert` that also swallows `P2002`: SQLite upserts are read-then-
+    insert in Prisma, so two workstations ticking the same household can collide, and the tick is
+    there either way. `false` is `deleteMany` (no throw when absent).
+  - `end` is `$transaction([tick.deleteMany, reminder.update])` — the batch form is enough; no
+    interactive transaction needed.
+  - The port's `CampaignReminder` type deliberately omits `endedAt`, like `SessionRow.discardedAt`:
+    only the active reminder is ever read.
+  - No fake of the new port exists yet — US-003 writes the first one in its test file.
+---
+
+## 2026-10-11 21:35 - US-003
+- `src/application/campaign/`: `readCampaignReminder` (state + `campaignProgress` over ACTIVE +
+  BLOCKED), `startCampaignReminder`, `renameCampaignReminder`, `endCampaignReminder`, and the
+  helper `requireActiveCampaignReminder(repo, reminderId)` in `active-campaign-reminder.ts`.
+  14 tests in `campaign-reminder.test.ts`, written red first, against a hand-written
+  `FakeCampaignReminderRepository` (keeps ended rows, refuses a second active one like the index).
+- Audit `why`s: started → the name; renamed → `„old“ → „new“` (German closing quote U+201C);
+  ended → `<name> · <n> Häkchen`, n read by `readCampaignReminder` before the end.
+- Chapter 05: „55 use cases behind thirteen ports", a `campaign/` row, and the
+  `CampaignReminderRepository` port row (US-002 had not added it). ADR-023 cited as plain text —
+  linking it before US-010 writes it fails `arc42:check` on a dead link.
+- Files: src/application/campaign/*, docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - **US-004's `setCampaignReminderReceived` should reuse `requireActiveCampaignReminder`** — it
+    already does the by-id check the AC asks for. `endCampaignReminder` does not use it only
+    because it needs the count anyway, so it checks the id on `readCampaignReminder`'s answer.
+  - The test file's `FakeCustomerRepository` implements `findById` for real (US-004 needs it for
+    `CustomerNotFound`/`CustomerArchived`); extend that test file rather than writing a second fake.
+  - The port's `CampaignReminder` is all-`readonly`, so a fake that renames in place needs its own
+    mutable stored type.
+---
+
+## 2026-10-11 21:50 - US-004
+- `setCampaignReminderReceived` (reminder by id via `requireActiveCampaignReminder`, then
+  `CustomerNotFound` / `CustomerArchived`, then `setReceived`; no audit, no session) and
+  `campaignReminderFor(deps, customerId)` → `{ reminderId, name, received } | null` (null when off,
+  archived or unknown) in `src/application/campaign/`. 8 named tests in a second `describe` of
+  `campaign-reminder.test.ts`, written red first; the deps carry no session repository at all.
+- Chapter 05: „57 use cases", the `campaign/` row names the tick and the per-household read.
+- Files: src/application/campaign/set-campaign-reminder-received.ts, campaign-reminder-for.ts,
+  campaign-reminder.test.ts, docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - `campaignReminderFor` reads the whole `receivedCustomerIds` set and asks `.has(id)` — no new port
+    method; at ~240 rows it is not worth one. Its deps are `{ campaignReminders, customers }` only,
+    so US-005's `lookupCustomer` / `readCustomer` need just `campaignReminders` added (they already
+    have `customers`).
+  - The check order in the write is reminder first, customer second: a stale screen's answer is
+    „the reminder is off", which is the more useful notice.
+  - ADR-024 is cited as plain text in the use case's doc comment — it is written in US-010.
+---
+
+## 2026-10-11 22:05 - US-005
+- `lookupCustomer` and `readCustomer` gain `campaignReminder: CampaignReminderCheckbox | null`, read
+  through `campaignReminderFor` inside each use case's existing `Promise.all`; deps gain
+  `campaignReminders`. `null` on NOT_FOUND, archived and while none is on.
+- Named tests: the counter shows whether the household has received / … no reminder for a number
+  nobody holds / … for an archived household / … while none is on / never turns a household away
+  for not having received (lookup-customer.test.ts); the record shows whether the household has
+  received / … while none is on (customers.test.ts); serving a household does not tick it off
+  (record-attendance.test.ts — the serve is handed the store via a spread variable and still blind).
+- Composition roots: `distributionDeps` and `counterActionDeps` (the tick write for US-007),
+  `customerDeps`, and a new `campaignReminderDeps` in `src/app/einstellungen/deps.ts`.
+- Chapter 05 composition-roots paragraph names the second settings object.
+- Files: src/application/customers/{lookup,read}-customer.ts + 4 test files,
+  src/application/distribution/record-attendance.test.ts, src/app/{ausgabe,kunden,einstellungen}/deps.ts,
+  docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - **`settingsDeps.customers` is a `CustomerCounter`, not a `CustomerRepository`**, and the campaign
+    use cases need `listWithStatus`/`findById`. Hence `campaignReminderDeps` (`campaignReminders`,
+    `customers`, `audit`, `clock`) — US-006's page and actions should use that object, not
+    `settingsDeps`.
+  - Suites that never switch a reminder on use a `NoCampaignReminder` stub (`findActive` → null,
+    everything else rejects); `lookup-customer.test.ts` and `customers.test.ts` have a
+    `FakeCampaignReminderRepository` with settable `active` and a `ticked` set.
+  - Passing an extra dep to a use case in a test needs a variable, not an inline spread literal —
+    the inline literal trips TS's excess-property check.
+---
+
+## 2026-10-11 22:40 - US-006
+- „Aktionserinnerung" section on `/einstellungen` below the Nachweis-Arten: `campaign-reminder-panel.tsx`
+  (client; `Inactive` with name + „Einschalten", `Active` keyed on the reminder id with progress,
+  „eingeschaltet am", rename and the closed „Ausschalten" disclosure). State type in
+  `campaign-reminder-state.ts`. Three server actions in `actions.ts` (start/rename/end), each one use
+  case on `campaignReminderDeps`, revalidating `/einstellungen`, `/ausgabe` and `/kunden` (`"layout"`,
+  so every record page).
+- Strings under `de.settings.campaignReminder` (warning inflects for 1 tick; the confirming button is
+  „Erinnerung ausschalten" so it does not share an accessible name with the „Ausschalten" summary).
+- Chapters 03 and 05 name the reminder among `/einstellungen`'s contents.
+- Driven with playwright-cli against `npm run start` on the demo register: blank refusal (field
+  marked, focus moved), switch on („0 von 15 erhalten"), rename („Umbenannt."), one tick written by a
+  throwaway tsx script → „1 von 15 erhalten" / „1 Häkchen wird gelöscht", switch off → back to the
+  empty form. 390px screenshot fine, no console errors. Existing e2e suite green (251); the campaign
+  spec itself is US-009's.
+- Files: src/app/einstellungen/{actions.ts,page.tsx,campaign-reminder-panel.tsx,campaign-reminder-state.ts},
+  src/i18n/de.ts, docs/architecture/03-*.md, 05-*.md
+- **Learnings for future iterations:**
+  - **`startedAt` is an instant**, so the settings print it with `germanDayOf` (Berlin), not `germanDate`.
+  - The rename field resyncs on the stored name during render (`storedName` state) rather than being
+    keyed on it, so „Umbenannt." survives the revalidation (§6's value-keyed resync).
+  - Run `playwright-cli` **from the repo root** — from `/tmp` it misses the project config and looks
+    for Chrome at `/opt/google/chrome`.
+  - `npm run format:check` already warns on `tasks/prd-us-39-*.md` and `tasks/prd-us-40-*.md` on
+    HEAD; not this story's, and the pre-commit hook only formats staged files.
+  - US-007/US-008 can switch a reminder on in their browser checks with
+    `getByTestId('campaign-reminder-name')` + `campaign-reminder-start`.
+---
+
+## 2026-10-11 23:20 - US-007
+- `src/app/campaign-reminder-field.tsx` (shared client component): native checkbox labelled with
+  DF's name, `requestSubmit` on change, hidden `reminderId`/`customerId`, disabled while pending,
+  `aria-describedby` on the status word („noch nicht erhalten" with `Gift` / „erhalten"). Unticked,
+  the card wears the new `CAMPAIGN_OUTSTANDING_ACCENT` (violet-600, `accents.ts`). A refusal shows a
+  `Notice` (`campaign-reminder-error`) and claims the notice board; a success does not, so
+  „Ausgabe erfasst." survives a tick.
+- `setCampaignReminderReceivedAction` in `src/app/kunden/[id]/actions.ts` (box presence in FormData
+  = received), revalidating the record, `/ausgabe` and `/einstellungen`; no redirect.
+- `/ausgabe`: the field sits between `CustomerDetails` and `CertificateControls`, keyed
+  `campaign-${customerId}`. Strings in a new top-level `de.campaignReminder` group.
+- Driven with playwright-cli against `npm run start` on the demo register: accessible name
+  „Weihnachtstüte", description „noch nicht erhalten"; tick → „erhalten", accent gone, `checked`
+  attribute set, persists over reload, settings „1 von 15 erhalten"; reminder switched off in a
+  second tab → stale tick refused with the notice and the box unticked again; blocked household (7)
+  shows it; 390px no overflow; no console errors. Focus stays on `counter-input` after a lookup.
+- Gates: lint, typecheck, coverage (1503, 100%), build, e2e Chromium 251 green; WebKit 250 + the
+  known `navigation.spec.ts` flake, which passed on rerun alone.
+- Files: src/app/campaign-reminder-field.tsx, src/app/accents.ts, src/app/ausgabe/page.tsx,
+  src/app/kunden/[id]/actions.ts, src/i18n/de.ts
+- **Learnings for future iterations:**
+  - **`useOptimistic(received)` replaces the local-state + resync dance** for a save-on-change box:
+    set the optimistic value inside the form's action wrapper (`action={(fd) => { setShown(fd.has(
+    "received")); formAction(fd); }}`), and after the transition the box shows the prop again —
+    the revalidated value on success, the stored one on a refusal (nothing revalidates there). The
+    `defaultChecked` ref still matters for React's post-action form reset.
+  - The counter lookup only exists while a session runs, so „with or without a session" at the
+    counter is the use case's indifference; the record (US-008) is where „without" is seen.
+  - US-008: import `CampaignReminderField` as-is; the record has a `NoticeBoard` id space, the field
+    claims `"campaign-reminder"`. §5's accent table and §12's `Gift` row are US-010's.
+  - `playwright-cli` prints a „skill does not match the tool version" banner on every call; filter it
+    with `grep -v "║\|╔\|╚"`. `check`/`uncheck` with a testid locator works for the box.
+---
+
+## 2026-10-11 23:50 - US-008
+- `/kunden/[id]` renders the shared `CampaignReminderField` right after the archived/blocked state
+  banners and before the „Haushalt" section — the record's top area, beside the household's state,
+  not in a section, fold or the danger zone. Same component and test ids as the counter; no `key`
+  (the page is per customer). Archived is already `null` from `campaignReminderFor`, so the page
+  needs no status check of its own.
+- Driven with playwright-cli against `npm run start` on the demo register: archived records 1–5 show
+  no box; active 6 and blocked 7 show `checkbox "Weihnachtstüte"` described by „noch nicht erhalten"
+  with the violet accent; tick → „erhalten", survives reload; 390px no overflow; no console errors.
+- Gates: lint, typecheck, coverage (1503, 100%), build, e2e Chromium 251 green.
+- Files: src/app/kunden/[id]/page.tsx
+- **Learnings for future iterations:**
+  - In the demo register, households 1–5 are archived; 6 is the first active record and 7 is blocked.
+  - The record has no `NoticeBoard` conflict: the field's `"campaign-reminder"` slot works there as is.
+---
+
+## 2026-10-12 00:30 - US-009
+- `tests/e2e/campaign-reminder.spec.ts`, isolated (added to `ISOLATED_SPECS`), serial, `clearRegister`
+  in `beforeAll` and four households seeded through Prisma (1, 3 active, 5 blocked, 7 archived — all
+  odd, so RED); 9 registered through the intake mid-campaign. Nine tests: no box while off; switch on
+  „0 von 3" + today; tick in the record with no afternoon running (same page load, survives reload);
+  counter shows the tick, serving 3 leaves it unticked; blocked ticked at the counter, archived shows
+  no box at counter or record; untick in the record; registration → „1 von 4"; rename to „Ostertüte"
+  keeps the tick and relabels the counter's box; switch off names „1 Häkchen", no box anywhere,
+  switching on again reads „0 von 4".
+- **Deviation from the PRD's wording:** „at the counter, without a running session" cannot be driven —
+  `/ausgabe` builds no lookup between afternoons. The without-a-session tick is proved in the record
+  (the same component and action); the counter is exercised during an afternoon.
+- Gates: lint, typecheck, coverage (1503, 100%), build; e2e Chromium 260 green (one run had the known
+  `reminders.spec.ts` refused-renewal flake, passed alone and in the next full run); WebKit 260 green
+  on rerun (first run: one `number-change.spec.ts` failure, and once the campaign spec's last test in a
+  combined run — not reproduced in 3 combined, 4 solo and 2 whole-isolated-project runs at retries 0).
+- Files: tests/e2e/campaign-reminder.spec.ts, tests/e2e/registers.ts
+- **Learnings for future iterations:**
+  - A save-on-change box with `useOptimistic` flips before the save lands; wait for the box to be
+    enabled again (`pending` cleared) before reloading or reading another screen.
+  - The isolated register uses low numbers freely — every isolated spec empties it first.
+---
+
+## 2026-10-12 01:00 - US-010
+- ADR-023 (switching off deletes every tick — the fourth no-delete exception; alternatives: keep
+  the ticks, a boolean on `Customer`) and ADR-024 (the individual tick is not audited — the second
+  gap beside ADR-020's), both Accepted and in chapter 9 („twenty-four decisions"). ADR-010 gains an
+  „Amended a third time" paragraph; ADR-006 gains one naming both audit gaps.
+- CLAUDE.md: „exactly four deliberate exceptions" + the tick sentence; the audit list gains switching
+  a campaign reminder on/renaming/off, and the gap sentence names both gaps.
+- arc42: 04 (third partial index), 05 (15 infrastructure modules, an adapter row, ADR links), 08
+  (fifteen tables, the two entities in the ER diagram, the fourth deletion bullet, audit list + gap
+  bullet), 12 (Campaign reminder / Aktionserinnerung), README + 01 („US-01 to US-40").
+- Styling guide §5 (`CAMPAIGN_OUTSTANDING_ACCENT`) and §12 (`Gift`, tone). Betriebsanleitung
+  „Aktionserinnerung" section, Stand 11. Oktober 2026; handout README purpose list. Ralph PRD index:
+  batch 40 row, 245 stories, a paragraph.
+- Gates: lint, typecheck, coverage (1503, 100%), build, arc42:check, prettier — all green.
+- **Learnings for future iterations:**
+  - The handout says „beim Kunden (selbst)" for the customer record, never „Kundenakte" — match it.
+  - ADR-006 had never been amended for ADR-020's gap; an audit exception should amend ADR-006 the
+    way a delete exception amends ADR-010.
+  - Chapter 8's ER diagram and „N tables" count are not touched by a schema story's checklist —
+    sweep them in the docs story.
+---

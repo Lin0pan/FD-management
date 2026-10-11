@@ -158,7 +158,7 @@ recorded in the audit log, so that a campaign has a clear beginning and end.
 - [ ] `renameCampaignReminder(deps, { reminderId, name })` — `CampaignReminderNotActive` if
       `reminderId` is not the active one; the same name re-submitted writes nothing and audits
       nothing; otherwise audits `{ what: "campaignReminder.renamed", changedFields: ["name"], why:
-  "„<old>" → „<new>"" }`.
+"„<old>" → „<new>"" }`.
 - [ ] `endCampaignReminder(deps, { reminderId })` — `CampaignReminderNotActive` if it is not the
       active one; ends it (ticks deleted by the adapter) and audits
       `{ what: "campaignReminder.ended", changedFields: ["name"], why: "<name> · <n> Häkchen" }`
@@ -273,8 +273,10 @@ its campaign item, and tick it off there, so that no paper list is needed.
       Ticked, the block is plain: the checked box and the word „erhalten", no accent.
 - [ ] Prominent never means blocking: the verdict, the serve button and its keyboard flow are
       unchanged whatever the box says; nothing has to be dismissed.
-- [ ] Shown with or without a running distribution session, for active and blocked households; not
-      shown for an archived household, a number nobody holds, or while no reminder is on.
+- [ ] Shown for active and blocked households whenever the counter can look one up — during a
+      distribution session, since the counter is closed between afternoons (US-34); not shown for an
+      archived household, a number nobody holds, or while no reminder is on. Between afternoons the
+      box is reached in the customer record (US-40.7).
 - [ ] Typecheck, lint, `npm run test:coverage` and `npm run test:e2e` pass.
 - [ ] Driven and reviewed with the `playwright-cli` skill (accessibility snapshot: the checkbox's
       accessible name is DF's name; the outstanding state is announced as text, not only colour).
@@ -309,9 +311,10 @@ on, tick at the counter and in the record, progress follows, rename keeps ticks,
   - with no reminder on, neither the counter nor the record shows `campaign-reminder-received`;
   - switching on „Weihnachtstüte" in the settings: progress „0 von N erhalten" (N excludes the
     archived household) and today's date;
-  - at the counter, **without a running distribution session**, the household shows the box
-    labelled „Weihnachtstüte", unticked and `campaign-reminder-outstanding` visible; ticking it
-    hides the outstanding word **in the same page load**; reloading keeps it ticked;
+  - in the customer record, **without a running distribution session**, the household shows the
+    box labelled „Weihnachtstüte", unticked and `campaign-reminder-outstanding` visible; ticking it
+    hides the outstanding word **in the same page load**; reloading keeps it ticked (the counter
+    looks nobody up between afternoons, US-34);
   - serving a second household leaves its box unticked (D4);
   - a blocked household shows the box and can be ticked; the archived household shows none;
   - unticking in the record works and the settings progress follows;
@@ -370,7 +373,8 @@ rules recorded where those rules are stated; as DF, I want the handout to explai
   and the waiting list are not part of it.
 - **FR-3:** At the counter (after a lookup) and in the customer record, an active or blocked
   household shows one checkbox labelled with the reminder's name. Changing it saves immediately,
-  without a reason, with or without a running distribution session.
+  without a reason, with or without a running distribution session — between afternoons in the
+  record, since the counter looks nobody up then (US-34).
 - **FR-4:** At the counter, an unticked box is shown prominently (colour, icon and the words „noch
   nicht erhalten") and never blocks or delays serving.
 - **FR-5:** Serving a household does not change its tick.

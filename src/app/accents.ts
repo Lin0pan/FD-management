@@ -52,6 +52,13 @@ export const CONFIRMATION_ACCENT = "border-green-600/40 bg-green-600/10";
 export const REFUSAL_ACCENT = "border-amber-500/40 bg-amber-500/10";
 
 /**
+ * A household has not yet had the campaign's item while a campaign reminder is on (US-40, D4).
+ * Violet because every tint the counter already wears means something else, and this must not read
+ * as a verdict: it never stops a hand-out.
+ */
+export const CAMPAIGN_OUTSTANDING_ACCENT = "border-violet-600/40 bg-violet-600/10";
+
+/**
  * How a hand-out's payment stood against what was asked that day (US-29.8) — **standing state on a
  * row**, as true a year later as on the day, which is why it lives here rather than among `Notice`'s
  * tones.

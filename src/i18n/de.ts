@@ -1010,6 +1010,19 @@ export const de = {
     },
   },
   /**
+   * The campaign reminder's checkbox at the counter and in the record (US-40). The checkbox is
+   * labelled with DF's own name for it, so nothing here names the campaign.
+   */
+  campaignReminder: {
+    received: "erhalten",
+    outstanding: "noch nicht erhalten",
+    errors: {
+      notActive: "Diese Erinnerung ist nicht mehr eingeschaltet. Bitte die Seite neu laden.",
+      archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
+      unknown: "Das Häkchen konnte nicht gespeichert werden.",
+    },
+  },
+  /**
    * The waiting list at /warteliste (US-12.4).
    *
    * **The order is the feature**, so the screen states it in words and offers nothing that could
@@ -1644,6 +1657,33 @@ export const de = {
           `Die Art ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
           `möglich. Es wurde nichts gespeichert.`,
         unknown: "Die Änderung konnte nicht gespeichert werden.",
+      },
+    },
+    campaignReminder: {
+      heading: "Aktionserinnerung",
+      name: "Name",
+      namePlaceholder: "z. B. Weihnachtstüte",
+      start: "Einschalten",
+      starting: "Wird eingeschaltet …",
+      rename: "Umbenennen",
+      renaming: "Wird umbenannt …",
+      renamed: "Umbenannt.",
+      progress: (received: number, total: number): string => `${received} von ${total} erhalten`,
+      since: (day: string): string => `eingeschaltet am ${day}`,
+      end: "Ausschalten",
+      /** The tick count is the progress's own `received`, so the two cannot disagree. */
+      endWarning: (name: string, ticks: number): string =>
+        `Erinnerung ‚${name}‘ ausschalten? ` +
+        (ticks === 1 ? "1 Häkchen wird gelöscht." : `${ticks} Häkchen werden gelöscht.`),
+      endConfirm: "Erinnerung ausschalten",
+      ending: "Wird ausgeschaltet …",
+      errors: {
+        tooLong: (length: number, maxLength: number): string =>
+          `Der Name ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
+          `möglich.`,
+        alreadyActive: "Es ist bereits eine Erinnerung eingeschaltet. Bitte die Seite neu laden.",
+        notActive: "Diese Erinnerung ist nicht mehr eingeschaltet. Bitte die Seite neu laden.",
+        unknown: "Die Erinnerung konnte nicht geändert werden.",
       },
     },
     reason: "Grund der Änderung (optional)",

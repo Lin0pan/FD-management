@@ -1,5 +1,6 @@
 import type {
   AuditLog,
+  CampaignReminderRepository,
   CardRepository,
   CertificateRepository,
   CertificateTypeRepository,
@@ -11,6 +12,7 @@ import type {
 } from "@/application/ports";
 import { systemClock } from "@/infrastructure/clock";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
+import { PrismaCampaignReminderRepository } from "@/infrastructure/prisma/campaign-reminder-repository";
 import { PrismaCardRepository } from "@/infrastructure/prisma/card-repository";
 import { PrismaCertificateRepository } from "@/infrastructure/prisma/certificate-repository";
 import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
@@ -34,6 +36,7 @@ export const customerDeps: {
   readonly settings: SettingsRepository;
   readonly records: DistributionRecordRepository;
   readonly sessions: DistributionSessionRepository;
+  readonly campaignReminders: CampaignReminderRepository;
   readonly clock: Clock;
   readonly audit: AuditLog;
 } = {
@@ -53,6 +56,8 @@ export const customerDeps: {
   // The afternoons those hand-outs were kept at: a miss is a session with no record, so the record
   // screen needs both halves (US-36.2).
   sessions: new PrismaDistributionSessionRepository(prisma),
+  // The record carries the campaign reminder's checkbox and ticks it (US-40).
+  campaignReminders: new PrismaCampaignReminderRepository(prisma),
   clock: systemClock,
   audit: new PrismaAuditLog(prisma),
 };

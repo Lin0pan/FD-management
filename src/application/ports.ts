@@ -6,6 +6,7 @@
  * adapters, the tests supply fakes. Type-only, so the file carries no untested runtime code.
  */
 
+import type { CampaignReminderName } from "@/domain/campaign/campaignReminder";
 import type { IssuedCard, NewCard } from "@/domain/card/card";
 import type { ValidUntilRange } from "@/domain/customer/certificate";
 import type {
@@ -466,6 +467,52 @@ export interface DistributionSessionRepository {
   discard(sessionId: number, at: Date): Promise<void>;
   /** Clear `endedAt` again, so the afternoon can be corrected (US-34, FR-16). */
   reopen(sessionId: number): Promise<void>;
+}
+
+/** The campaign reminder switched on (US-40); `endedAt` never leaves the adapter. */
+export interface CampaignReminder {
+  readonly id: number;
+  readonly name: CampaignReminderName;
+  readonly startedAt: Date;
+}
+
+/**
+ * The campaign reminder and the households ticked off under it (US-40). A household with no tick
+ * has not yet received, so nothing is written per household until someone ticks one.
+ *
+ * `start` is guarded by the hand-written `one_active_campaign_reminder` index, the way
+ * {@link DistributionSessionRepository.start} is by `one_running_session`.
+ */
+export interface CampaignReminderRepository {
+  /** The reminder switched on now, or `null`. */
+  findActive(): Promise<CampaignReminder | null>;
+  /**
+   * Switch one on and hand it back as stored.
+   *
+   * @throws {CampaignReminderAlreadyActive} if another one was already switched on.
+   */
+  start(name: CampaignReminderName, at: Date): Promise<CampaignReminder>;
+  /**
+   * Rename it in place; its ticks stay.
+   *
+   * @throws {CampaignReminderNotActive} if it has been switched off.
+   */
+  rename(reminderId: number, name: CampaignReminderName): Promise<void>;
+  /**
+   * Stamp it as switched off and delete every one of its ticks, in one transaction — the row is
+   * kept, the ticks are not (ADR-023). Returns the number of ticks deleted.
+   *
+   * @throws {CampaignReminderNotActive} if it has already been switched off.
+   */
+  end(reminderId: number, at: Date): Promise<number>;
+  /** The ids of the households ticked off under this reminder, archived ones included. */
+  receivedCustomerIds(reminderId: number): Promise<ReadonlySet<number>>;
+  /**
+   * Tick or untick one household. Idempotent: ticking twice leaves one tick.
+   *
+   * @throws {CampaignReminderNotActive} if it has been switched off — no tick outlives its reminder.
+   */
+  setReceived(reminderId: number, customerId: number, received: boolean): Promise<void>;
 }
 
 /**

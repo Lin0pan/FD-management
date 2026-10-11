@@ -15,6 +15,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { setCampaignReminderReceived } from "@/application/campaign/set-campaign-reminder-received";
 import { changeCustomerNumber } from "@/application/customers/change-customer-number";
 import { listNumberChoices, type NumberChoice } from "@/application/customers/list-number-choices";
 import { reissueCard } from "@/application/customers/reissue-card";
@@ -26,6 +27,7 @@ import type { IssuedCard } from "@/domain/card/card";
 import { formatCardNumber } from "@/domain/card/cardNumber";
 import type { RegisteredCustomer } from "@/domain/customer/customer";
 import {
+  CampaignReminderNotActive,
   CertificateValidUntilInPast,
   CustomerArchived,
   CustomerNumberTaken,
@@ -280,6 +282,46 @@ export async function updateNotesAction(
 
   revalidateRecord(customerId.data);
   return savedAfter(previous);
+}
+
+/**
+ * Tick the campaign reminder off for a household, or take the tick back (US-40). Shared with the
+ * counter like `updateNotesAction`, and it does not redirect: the counter's lookup stays on screen.
+ * The box is the value — present in the `FormData` when ticked.
+ */
+export async function setCampaignReminderReceivedAction(
+  previous: RecordFormState,
+  formData: FormData,
+): Promise<RecordFormState> {
+  const reminderId = surrogateId.safeParse(String(formData.get("reminderId") ?? ""));
+  const customerId = surrogateId.safeParse(String(formData.get("customerId") ?? ""));
+  if (!reminderId.success || !customerId.success) {
+    return { status: "error", message: de.campaignReminder.errors.unknown, tier: "error" };
+  }
+
+  try {
+    await setCampaignReminderReceived(customerDeps, {
+      reminderId: reminderId.data,
+      customerId: customerId.data,
+      received: formData.has("received"),
+    });
+  } catch (error: unknown) {
+    return { status: "error", message: campaignReminderMessage(error), tier: tierOf(error) };
+  }
+
+  revalidateRecord(customerId.data);
+  revalidatePath("/einstellungen");
+  return savedAfter(previous);
+}
+
+function campaignReminderMessage(error: unknown): string {
+  if (error instanceof CampaignReminderNotActive) {
+    return de.campaignReminder.errors.notActive;
+  }
+  if (error instanceof CustomerArchived) {
+    return de.campaignReminder.errors.archived;
+  }
+  return de.campaignReminder.errors.unknown;
 }
 
 /**

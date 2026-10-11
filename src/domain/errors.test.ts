@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  CampaignReminderAlreadyActive,
+  CampaignReminderNotActive,
   AlreadyServedInSession,
   CardAlreadyPrinted,
   CardNotPrinted,
@@ -167,5 +169,29 @@ describe("the distribution session errors", () => {
     expect(error.code).toBe("DistributionSessionNotFound");
     expect(error.sessionId).toBe(37);
     expect(error.message).toContain("37");
+  });
+});
+
+/**
+ * The two campaign reminder codes are raised by the use cases that switch one on and write to it
+ * (US-40.3, US-40.4), which are still to be written.
+ */
+describe("CampaignReminderAlreadyActive", () => {
+  it("refuses a second campaign reminder while one is on", () => {
+    const error = new CampaignReminderAlreadyActive();
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("CampaignReminderAlreadyActive");
+  });
+});
+
+describe("CampaignReminderNotActive", () => {
+  it("names the reminder a stale screen still wrote to", () => {
+    const error = new CampaignReminderNotActive(7);
+
+    expect(error).toBeInstanceOf(DomainError);
+    expect(error.code).toBe("CampaignReminderNotActive");
+    expect(error.reminderId).toBe(7);
+    expect(error.message).toContain("7");
   });
 });

@@ -1,5 +1,6 @@
 import type {
   AuditLog,
+  CampaignReminderRepository,
   CertificateRepository,
   CertificateTypeRepository,
   Clock,
@@ -11,6 +12,7 @@ import type {
 } from "@/application/ports";
 import { systemClock } from "@/infrastructure/clock";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
+import { PrismaCampaignReminderRepository } from "@/infrastructure/prisma/campaign-reminder-repository";
 import { PrismaCertificateRepository } from "@/infrastructure/prisma/certificate-repository";
 import { PrismaCertificateTypeRepository } from "@/infrastructure/prisma/certificate-type-repository";
 import { prisma } from "@/infrastructure/prisma/client";
@@ -24,9 +26,9 @@ import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repos
  * Composition root for the distribution screen: the one place the real adapters are chosen.
  *
  * The prices come from the settings history; the counter lookup adds the customer register, the
- * running session and — to show a hand-out already recorded at it beside the serve action, and
- * whether this session's certificate reminder is already logged — the reading side of the
- * distribution and reminder stores. It holds no audit log: the page only ever reads, and every
+ * running session and — to show a hand-out already recorded at it beside the serve action,
+ * whether this session's certificate reminder is already logged, and the campaign reminder's
+ * checkbox (US-40) — the reading side of the distribution and reminder stores. It holds no audit log: the page only ever reads, and every
  * write is the separate `counterActionDeps` below, so the page cannot write even by mistake
  * (US-04.2, FR-4).
  */
@@ -37,6 +39,7 @@ export const distributionDeps: {
   readonly reminders: ReminderLogRepository;
   readonly sessions: DistributionSessionRepository;
   readonly certificateTypes: CertificateTypeRepository;
+  readonly campaignReminders: CampaignReminderRepository;
   readonly clock: Clock;
 } = {
   customers: new PrismaCustomerRepository(prisma),
@@ -45,14 +48,15 @@ export const distributionDeps: {
   reminders: new PrismaReminderLogRepository(prisma),
   sessions: new PrismaDistributionSessionRepository(prisma),
   certificateTypes: new PrismaCertificateTypeRepository(prisma),
+  campaignReminders: new PrismaCampaignReminderRepository(prisma),
   clock: systemClock,
 };
 
 /**
  * Composition root for the counter's server actions — the write path, kept apart from the page's
  * read deps above. This is the only object in the distribution screen that carries the audit log
- * and the writable stores: the distribution records (serve, correct), the reminder trail and the
- * certificate history (US-06.4).
+ * and the writable stores: the distribution records (serve, correct), the reminder trail, the
+ * certificate history (US-06.4) and the campaign reminder's ticks (US-40).
  */
 export const counterActionDeps: {
   readonly customers: CustomerRepository;
@@ -61,6 +65,7 @@ export const counterActionDeps: {
   readonly reminders: ReminderLogRepository;
   readonly sessions: DistributionSessionRepository;
   readonly certificates: CertificateRepository;
+  readonly campaignReminders: CampaignReminderRepository;
   readonly audit: AuditLog;
   readonly clock: Clock;
 } = {
@@ -70,6 +75,7 @@ export const counterActionDeps: {
   reminders: new PrismaReminderLogRepository(prisma),
   sessions: new PrismaDistributionSessionRepository(prisma),
   certificates: new PrismaCertificateRepository(prisma),
+  campaignReminders: new PrismaCampaignReminderRepository(prisma),
   audit: new PrismaAuditLog(prisma),
   clock: systemClock,
 };

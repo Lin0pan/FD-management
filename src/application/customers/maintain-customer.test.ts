@@ -32,6 +32,8 @@ import type {
   ArchivedCustomer,
   AuditEntry,
   AuditLog,
+  CampaignReminder,
+  CampaignReminderRepository,
   Clock,
   CustomerRepository,
   DistributionRecordRepository,
@@ -433,6 +435,33 @@ function household({
     registeredOn: new Date(TODAY),
     previousCustomerId: null,
   };
+}
+
+/** No campaign reminder is ever on in this suite; its own is `campaign-reminder.test.ts`. */
+class NoCampaignReminder implements CampaignReminderRepository {
+  findActive(): Promise<CampaignReminder | null> {
+    return Promise.resolve(null);
+  }
+
+  start(): Promise<CampaignReminder> {
+    return Promise.reject(new Error("start has a suite of its own"));
+  }
+
+  rename(): Promise<void> {
+    return Promise.reject(new Error("rename has a suite of its own"));
+  }
+
+  end(): Promise<number> {
+    return Promise.reject(new Error("end has a suite of its own"));
+  }
+
+  receivedCustomerIds(): Promise<ReadonlySet<number>> {
+    return Promise.reject(new Error("receivedCustomerIds has a suite of its own"));
+  }
+
+  setReceived(): Promise<void> {
+    return Promise.reject(new Error("setReceived has a suite of its own"));
+  }
 }
 
 describe("updateHousehold", () => {
@@ -887,6 +916,7 @@ describe("updateNotes", () => {
         records: new FakeDistributionRecordRepository(),
         reminders: new FakeReminderLogRepository(),
         sessions: new FakeDistributionSessionRepository(),
+        campaignReminders: new NoCampaignReminder(),
         clock: fakeClock(TODAY),
       },
       "50",

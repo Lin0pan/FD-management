@@ -234,6 +234,7 @@ model Customer {
   cards            Card[]
   distributions    DistributionRecord[]
   reminderLogs     ReminderLog[]
+  campaignTicks    CampaignReminderTick[]
 
   @@index([customerNumber])
   @@index([status])
@@ -602,6 +603,35 @@ model ReminderLog {
   resultingCount Int
 
   @@unique([customerId, sessionId])
+}
+
+/// A campaign reminder DF switched on, such as „Weihnachtstüte" (US-40). A null `endedAt` is the one
+/// switched on — at most one, by the hand-written `one_active_campaign_reminder` index. Switching off
+/// stamps `endedAt` and renaming updates `name`; the row itself is never deleted (ADR-023).
+model CampaignReminder {
+  id Int @id @default(autoincrement())
+
+  name      String
+  startedAt DateTime
+  endedAt   DateTime?
+
+  ticks CampaignReminderTick[]
+}
+
+/// A household that has received the campaign: the row is the tick, and no row is „not yet
+/// received", so switching on writes nothing per household. No timestamp, and no audit entry per
+/// tick (ADR-024). Deleted with every other tick of its reminder on switch-off — the fourth
+/// deliberate exception to the no-delete rule (ADR-023). `onDelete: Restrict` out loud on both.
+model CampaignReminderTick {
+  id Int @id @default(autoincrement())
+
+  reminderId Int
+  reminder   CampaignReminder @relation(fields: [reminderId], references: [id], onDelete: Restrict)
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@unique([reminderId, customerId])
 }
 
 /// One append-only record of a state change: *what* changed, *when* and *why* — never *who*.

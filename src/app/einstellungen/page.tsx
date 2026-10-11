@@ -4,6 +4,7 @@
  * (`tasks/prd-us-14-configure-business-rules.md` §US-14.4).
  */
 
+import { readCampaignReminder } from "@/application/campaign/read-campaign-reminder";
 import {
   listSettingsVersions,
   type SettingsVersionEntry,
@@ -18,11 +19,12 @@ import type { EggRule, EggRuleRowChange } from "@/domain/policy/eggs";
 import type { Settings } from "@/domain/policy/settings";
 import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
-import { germanDate } from "@/i18n/format";
+import { germanDate, germanDayOf } from "@/i18n/format";
 import { FoldChevron } from "../disclosure";
 import { SHELL } from "../shell";
+import { CampaignReminderPanel } from "./campaign-reminder-panel";
 import { CertificateTypeTable } from "./certificate-type-table";
-import { settingsDeps } from "./deps";
+import { campaignReminderDeps, settingsDeps } from "./deps";
 import { SettingsForm } from "./settings-form";
 
 /** Settings change through the form, so the page must never be served from a build-time cache. */
@@ -266,6 +268,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
 
   const history = await listSettingsVersions(settingsDeps);
   const certificateTypes = await readCertificateTypes(settingsDeps);
+  const campaignReminder = await readCampaignReminder(campaignReminderDeps);
 
   return (
     <main className={SHELL}>
@@ -291,6 +294,29 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
           {de.settings.certificateTypes.heading}
         </h2>
         <CertificateTypeTable types={certificateTypes} />
+      </section>
+      {/* A third chapter on the same terms: its own forms, no `SettingsVersion` (US-40). */}
+      <section
+        aria-labelledby="campaign-reminder-heading"
+        className="mt-8 flex flex-col gap-4 border-t pt-8"
+      >
+        <h2 id="campaign-reminder-heading" className="text-xl font-semibold">
+          {de.settings.campaignReminder.heading}
+        </h2>
+        <CampaignReminderPanel
+          reminder={
+            campaignReminder === null
+              ? null
+              : {
+                  id: campaignReminder.id,
+                  name: campaignReminder.name,
+                  // An instant, so its day is read in Berlin (`germanDayOf`).
+                  since: germanDayOf(campaignReminder.startedAt),
+                  received: campaignReminder.received,
+                  total: campaignReminder.total,
+                }
+          }
+        />
       </section>
     </main>
   );

@@ -1,6 +1,6 @@
 # FD-Management — Betriebsanleitung
 
-**Testversion · Stand: 29. September 2026**
+**Testversion · Stand: 11. Oktober 2026**
 
 Diese Software unterstützt die Kundenverwaltung und die Ausgabe des Delbrücker Füllhorns. Sie läuft
 auf **einem einzigen Rechner**, ohne Internet und ohne Anmeldung.
@@ -177,6 +177,32 @@ die Zeile verschwindet. Gesperrte Haushalte bleiben auf der Liste, archivierte f
 
 An der Ausgabe ändert sich nichts: Eine noch nicht gedruckte Karte gilt genauso wie eine gedruckte.
 Wann eine Karte gedruckt wurde, steht in der Kartenansicht des Kunden bei jeder Karte.
+
+## Aktionserinnerung
+
+Für eine Aktion, bei der jeder Haushalt einmal etwas bekommt — etwa eine Weihnachtstüte —, merkt
+sich die Software, wer es schon hat.
+
+**Einschalten.** Unter **Einstellungen**, Abschnitt **Aktionserinnerung**, geben Sie der Aktion
+einen Namen (z. B. „Weihnachtstüte") und klicken **Einschalten**. Ab dann hat jeder aktive und jeder
+gesperrte Haushalt sie **noch nicht erhalten** — auch wer während der Aktion neu aufgenommen wird.
+Es kann immer nur eine Erinnerung eingeschaltet sein. Den Namen können Sie dort jederzeit ändern;
+die Häkchen bleiben dabei erhalten.
+
+**Abhaken.** An der **Ausgabe** (nach dem Nachschlagen) und beim Kunden selbst steht ein Kästchen
+mit dem Namen der Aktion. Solange es leer ist, steht daneben deutlich **noch nicht erhalten**. Ein
+Klick hakt ab und ist sofort gespeichert; ein zweiter Klick nimmt das Häkchen wieder weg. Beim
+Kunden geht das jederzeit, auch ohne laufende Ausgabe.
+
+> **Das Erfassen der Ausgabe hakt nichts ab.** Geben Sie die Tüte mit, setzen Sie das Häkchen
+> selbst. Umgekehrt hält ein leeres Kästchen niemanden auf.
+
+**Fortschritt.** In den Einstellungen steht, wie viele Haushalte die Aktion schon erhalten haben
+(„38 von 240 erhalten") und seit wann die Erinnerung eingeschaltet ist.
+
+> **Ausschalten löscht alle Häkchen.** Die Software fragt vorher nach und nennt die Zahl. Danach
+> verschwindet das Kästchen überall; schalten Sie wieder ein, beginnt jeder Haushalt bei **noch
+> nicht erhalten**. Die Erinnerung schaltet sich nie von selbst aus.
 
 ## Frühere Ausgaben nachschlagen
 
