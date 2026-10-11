@@ -1647,12 +1647,30 @@ export const de = {
       },
     },
     campaignReminder: {
+      heading: "Aktionserinnerung",
+      name: "Name",
+      namePlaceholder: "z. B. Weihnachtstüte",
+      start: "Einschalten",
+      starting: "Wird eingeschaltet …",
+      rename: "Umbenennen",
+      renaming: "Wird umbenannt …",
+      renamed: "Umbenannt.",
+      progress: (received: number, total: number): string => `${received} von ${total} erhalten`,
+      since: (day: string): string => `eingeschaltet am ${day}`,
+      end: "Ausschalten",
+      /** The tick count is the progress's own `received`, so the two cannot disagree. */
+      endWarning: (name: string, ticks: number): string =>
+        `Erinnerung ‚${name}‘ ausschalten? ` +
+        (ticks === 1 ? "1 Häkchen wird gelöscht." : `${ticks} Häkchen werden gelöscht.`),
+      endConfirm: "Erinnerung ausschalten",
+      ending: "Wird ausgeschaltet …",
       errors: {
         tooLong: (length: number, maxLength: number): string =>
           `Der Name ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
           `möglich.`,
         alreadyActive: "Es ist bereits eine Erinnerung eingeschaltet. Bitte die Seite neu laden.",
         notActive: "Diese Erinnerung ist nicht mehr eingeschaltet. Bitte die Seite neu laden.",
+        unknown: "Die Erinnerung konnte nicht geändert werden.",
       },
     },
     reason: "Grund der Änderung (optional)",
