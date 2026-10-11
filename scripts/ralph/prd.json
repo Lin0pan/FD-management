@@ -179,7 +179,7 @@
         "Lint passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Isolated specs share one register and each empties it in its own beforeAll. Never branch on browserName in src/."
     },
     {

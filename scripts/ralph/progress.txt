@@ -786,3 +786,26 @@ misread the batch.
   - In the demo register, households 1–5 are archived; 6 is the first active record and 7 is blocked.
   - The record has no `NoticeBoard` conflict: the field's `"campaign-reminder"` slot works there as is.
 ---
+
+## 2026-10-12 00:30 - US-009
+- `tests/e2e/campaign-reminder.spec.ts`, isolated (added to `ISOLATED_SPECS`), serial, `clearRegister`
+  in `beforeAll` and four households seeded through Prisma (1, 3 active, 5 blocked, 7 archived — all
+  odd, so RED); 9 registered through the intake mid-campaign. Nine tests: no box while off; switch on
+  „0 von 3" + today; tick in the record with no afternoon running (same page load, survives reload);
+  counter shows the tick, serving 3 leaves it unticked; blocked ticked at the counter, archived shows
+  no box at counter or record; untick in the record; registration → „1 von 4"; rename to „Ostertüte"
+  keeps the tick and relabels the counter's box; switch off names „1 Häkchen", no box anywhere,
+  switching on again reads „0 von 4".
+- **Deviation from the PRD's wording:** „at the counter, without a running session" cannot be driven —
+  `/ausgabe` builds no lookup between afternoons. The without-a-session tick is proved in the record
+  (the same component and action); the counter is exercised during an afternoon.
+- Gates: lint, typecheck, coverage (1503, 100%), build; e2e Chromium 260 green (one run had the known
+  `reminders.spec.ts` refused-renewal flake, passed alone and in the next full run); WebKit 260 green
+  on rerun (first run: one `number-change.spec.ts` failure, and once the campaign spec's last test in a
+  combined run — not reproduced in 3 combined, 4 solo and 2 whole-isolated-project runs at retries 0).
+- Files: tests/e2e/campaign-reminder.spec.ts, tests/e2e/registers.ts
+- **Learnings for future iterations:**
+  - A save-on-change box with `useOptimistic` flips before the save lands; wait for the box to be
+    enabled again (`pending` cleared) before reloading or reading another screen.
+  - The isolated register uses low numbers freely — every isolated spec empties it first.
+---
