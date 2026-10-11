@@ -77,7 +77,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Application only. lookupCustomer / readCustomer are wired in US-005 — keep this story to the two new functions so it fits one iteration."
     },
     {

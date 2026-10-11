@@ -661,3 +661,22 @@ misread the batch.
   - The port's `CampaignReminder` is all-`readonly`, so a fake that renames in place needs its own
     mutable stored type.
 ---
+
+## 2026-10-11 21:50 - US-004
+- `setCampaignReminderReceived` (reminder by id via `requireActiveCampaignReminder`, then
+  `CustomerNotFound` / `CustomerArchived`, then `setReceived`; no audit, no session) and
+  `campaignReminderFor(deps, customerId)` → `{ reminderId, name, received } | null` (null when off,
+  archived or unknown) in `src/application/campaign/`. 8 named tests in a second `describe` of
+  `campaign-reminder.test.ts`, written red first; the deps carry no session repository at all.
+- Chapter 05: „57 use cases", the `campaign/` row names the tick and the per-household read.
+- Files: src/application/campaign/set-campaign-reminder-received.ts, campaign-reminder-for.ts,
+  campaign-reminder.test.ts, docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - `campaignReminderFor` reads the whole `receivedCustomerIds` set and asks `.has(id)` — no new port
+    method; at ~240 rows it is not worth one. Its deps are `{ campaignReminders, customers }` only,
+    so US-005's `lookupCustomer` / `readCustomer` need just `campaignReminders` added (they already
+    have `customers`).
+  - The check order in the write is reminder first, customer second: a stale screen's answer is
+    „the reminder is off", which is the more useful notice.
+  - ADR-024 is cited as plain text in the use case's doc comment — it is written in US-010.
+---
