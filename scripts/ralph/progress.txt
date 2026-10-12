@@ -606,3 +606,17 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - `npm run format:check` already fails on `main` over `tasks/prd-us-39-cards-to-print.md`. The
     pre-commit hook only checks staged files, so it does not block; US-012 (docs) can fix it.
 ---
+
+## 2026-10-12 - US-002
+- `CounterCustomerView` gains `certificateType`, `certificateState` (same `today` as the verdict)
+  and `lastHandoutAt` (off `recordsForCustomer`, the records already loaded for the balance — no
+  new query). Four named tests in `lookup-customer.test.ts`; `customerRecord` gained a
+  `certificateType` override.
+- Files: src/application/customers/lookup-customer.ts, lookup-customer.test.ts
+- **Learnings for future iterations:**
+  - `certificateState` takes the whole `NeedsCertificate`, not the `validUntil` date the PRD's
+    wording suggests — pass `customer.details.certificate`.
+  - Nothing outside `lookup-customer.ts` constructs a `CounterCustomerView`, so adding fields to it
+    is not a wide break; `counter-lookup.tsx` only reads it.
+  - No architecture chapter lists the view's fields, so a field addition needs no doc change.
+---
