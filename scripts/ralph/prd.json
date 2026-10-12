@@ -73,7 +73,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins. Runs before the header and the mask on purpose: the list replaces the fold first, so no iteration leaves group-progress.spec with nothing to assert."
     },
     {

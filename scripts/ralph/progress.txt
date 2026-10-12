@@ -643,3 +643,31 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - Chapter 5's heading „57 use cases" is already stale (`grep -cE "^export (async )?function "`
     sums to 63 with this story's two exports) — left for US-012 to recount.
 ---
+
+## 2026-10-12 - US-004
+- `src/app/kunden/customer-cells.tsx`: `CustomerHeads` and `CustomerCells({ row, link })`, the
+  Kundenliste's nine heads and cells (plus `CERTIFICATE_CHROME`), extracted from `/kunden` in a
+  separate refactor commit. Each page owns its `<tr>`; only the name link's href and testid differ.
+- `src/app/ausgabe/session-households.tsx`: `SessionTally` (the plain `group-progress` line, silent
+  for an empty session) and `SessionHouseholds` (card `session-households`, h2 via
+  `progress.heading`, `progress.count`, table `session-households-table`, rows `session-household`
+  with `data-customer-number`, „Heute" badge with `Check` + `CONFIRMATION_ACCENT`, `served-{n}` on the
+  word). The card stands last on `/ausgabe`.
+- Removed `group-progress-card.tsx`, `read-group-roster.ts` and its test; `progress.open/close` gone
+  from de.ts; `progress.heading/count/today` added.
+- e2e: `group-progress.spec.ts` migrated (no fold: `blocked-{n}` → the row's `customer-row-status`;
+  „closed again" → verdict's top above the list's top; „opened and closed records nothing" → „looked
+  up from the list records nothing"); `counter.spec.ts` no longer clicks the fold open. Both engines
+  260 passed.
+- Driven with playwright-cli at 1440 × 800 (Chromium: `open --browser=chromium` — the default `chrome`
+  channel is not installed). The canvas could NOT be read: the Claude Docs `read` tool answers
+  „deny/access" for SKRE5hmzii8WrkrNxrvsbP and no Artifact tool exists in this session, so the look
+  follows the PRD; compare against the canvas by hand.
+- **Learnings for future iterations:**
+  - **The canvas is not reachable from a Ralph run** (see above). Don't spend a turn on it; build
+    from the PRD and say so in the progress note.
+  - Testids inside `CustomerCells` (`customer-row-status` etc.) now appear on `/ausgabe` too. Scope
+    them to a row: `[data-testid="session-household"][data-customer-number="N"]`.
+  - The tally line `group-progress` is a plain `<p>` above the lookup card; US-005 moves it into the
+    header line — `session.spec.ts`'s `tallyFigures` reads its text.
+---
