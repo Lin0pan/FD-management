@@ -298,10 +298,14 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   which is §8's rule paying rent for a missing 16px glyph; the chevron says it and both keys went.
   **A `<details>` that forgets `group` is a silent no-op**, so check a fold open as well as closed.
 
-- **One exception: the counter's header line.** „Ausgabe beenden" and „Ausgabe verwerfen" are
-  outline `<button aria-expanded>` toggles (`session-controls.tsx`), because a `<details>` draws its
-  content inside its own box and those confirmations have to open below the whole row (US-41.3).
-  Same look, same chevron, still nothing to dismiss. Reach for it only where that is the problem.
+- **One exception: a confirmation that opens below a whole row.** The counter's header line
+  („Ausgabe beenden", „Ausgabe verwerfen", US-41.3) and the mask's footer („Eintrag entfernen",
+  „Sperren", „Archivieren", US-41.7) are `<button aria-expanded>` toggles — `ControlToggle` in
+  `disclosure.tsx` — because a `<details>` draws its content inside its own box. The footer's are a
+  `FoldRow` (`fold-row.tsx`): one open at a time, the panel right-aligned under the row. Same chevron,
+  still nothing to dismiss, and the testid a spec clicks is on the toggle. Reach for it only where
+  that is the problem; `BlockControls` and `ArchiveControls` stay `<details>` on the record and take
+  `compact` for the footer.
 - A `<details>` keeps `open` through any re-render, including a soft navigation to the same route.
   Put a `key` on the card so it remounts closed.
 - **A control that resets a form navigates the document** — a plain `<a href>` inside the ghost

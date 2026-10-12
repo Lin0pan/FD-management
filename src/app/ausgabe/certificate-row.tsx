@@ -6,8 +6,8 @@
  * there (`tasks/prd-us-06-certificate-reminder.md` §US-06.4). The renewal opens **in place** of the
  * certificate's two facts; nothing adds a card.
  *
- * The action states live in `CertificateProvider`, outside `ServeFormProvider`, because that one is
- * keyed on the mode and remounts; their answers go to the status slot (`useCertificateAnswer`). No
+ * The action states live in `CertificateProvider`, above the status slot their answers go to
+ * (`useCertificateAnswer`) — row 4 itself stands below it. No
  * rules here — the reminder chip repeats what the store knows through `reminderLoggedInSession`
  * rather than being the guard (FR-5).
  */

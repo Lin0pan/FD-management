@@ -13,7 +13,6 @@ import type { CampaignReminderCheckbox } from "@/application/campaign/campaign-r
 import type { CounterCustomerView } from "@/application/customers/lookup-customer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { balanceKind } from "@/domain/distribution/balance";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { de } from "@/i18n/de";
@@ -22,15 +21,17 @@ import { germanDate, germanDayOf } from "@/i18n/format";
 import { cn } from "@/lib/utils";
 import { BALANCE_STYLES, GROUP_STYLES } from "../accents";
 import { CampaignReminderField } from "../campaign-reminder-field";
+import { ArchiveControls } from "../kunden/archive-controls";
+import { BlockControls } from "../kunden/block-controls";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
 import { CertificateRow } from "./certificate-row";
-import { NotesControls } from "./notes-controls";
-import { PaidTile } from "./serve-form";
+import { CounterNotes } from "./notes-controls";
+import { PaidTile, RemoveEntry } from "./serve-form";
 
 /**
  * What the chip says over and above its colour: an icon and a headline readable from a metre away.
- * The block reason is not in it — it is the household's, and stands with the household's facts.
+ * The block reason is not in it — it is the household's, and stands in row 5 with the note.
  */
 interface Statement {
   readonly tone: Tone;
@@ -173,6 +174,8 @@ export function HouseholdRows({
   servedAt,
   reminderLoggedInSession,
   certificateTypes,
+  verdict,
+  lookedUpNumber,
 }: {
   customer: CounterCustomerView;
   /** The surrogate id the record lives under. Not on `CounterCustomerView` — it is `CounterLookup`'s. */
@@ -182,6 +185,9 @@ export function HouseholdRows({
   servedAt: string | null;
   reminderLoggedInSession: boolean;
   certificateTypes: CertificateTypeList;
+  verdict: Verdict;
+  /** The query as typed, which an archiving comes back to. */
+  lookedUpNumber: string;
 }): React.ReactElement {
   const words = de.distribution.counter.mask;
   const kind = balanceKind(customer.balanceCents);
@@ -321,47 +327,75 @@ export function HouseholdRows({
         reminderLoggedInSession={reminderLoggedInSession}
         certificateTypes={certificateTypes}
       />
+      <NoteRow
+        customer={customer}
+        customerId={customerId}
+        verdict={verdict}
+        servedToday={servedAt !== null}
+        lookedUpNumber={lookedUpNumber}
+      />
     </div>
   );
 }
 
-/** What the mask does not hold yet: the block reason and the note. Row 5 takes them over (US-41.7). */
-export function HouseholdFacts({
+/**
+ * Row 5 (US-41.7): why the household is blocked, when it is, the note, and the footer — the heavy,
+ * rare actions set apart at the bottom right, each opening its confirmation under the row.
+ */
+function NoteRow({
   customer,
   customerId,
   verdict,
+  servedToday,
+  lookedUpNumber,
 }: {
   customer: CounterCustomerView;
   customerId: number;
   verdict: Verdict;
+  servedToday: boolean;
+  lookedUpNumber: string;
 }): React.ReactElement {
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-6">
-        {/* The record of why this household was blocked (US-08), verbatim and with its paragraphs:
-            nothing else on the screen holds it. Row 5 takes it over (US-41.7). */}
-        {verdict.kind === "BLOCKED" ? (
-          <p
-            data-testid="counter-verdict-detail"
-            className="max-w-prose text-base whitespace-pre-line"
-          >
+    <div className="flex flex-col gap-2 border-t pt-3.5">
+      {/* The record of why this household was blocked (US-08), verbatim and with its paragraphs:
+          nothing else on the screen holds it. */}
+      {verdict.kind === "BLOCKED" ? (
+        <div className="flex max-w-[75ch] flex-col gap-0.5 rounded-lg border border-red-700/35 px-3 py-2">
+          <span className="text-xs font-semibold text-red-700">
+            {de.distribution.counter.mask.blockReason}
+          </span>
+          <p data-testid="counter-verdict-detail" className="whitespace-pre-line">
             {verdict.reason ?? de.distribution.counter.verdicts.blocked.noReason}
           </p>
-        ) : null}
-        {/* `whitespace-pre-line`: a note is typed into a multi-line field, and a colleague's
-            paragraphs must reach the counter. No fold for an archived household — `updateNotes`
-            refuses one. Keyed by customer: a `<details>` keeps `open` through a soft navigation,
-            which could carry one household's text onto the next (`ui_styling_guide.md` §6). */}
-        <div className="flex flex-col gap-2">
-          <span className="text-sm text-muted-foreground">{de.customers.record.notesHeading}</span>
-          <p data-testid="counter-notes" className="max-w-prose whitespace-pre-line">
-            {customer.notes === "" ? de.distribution.counter.details.noNotes : customer.notes}
-          </p>
-          {customer.status === "ARCHIVED" ? null : (
-            <NotesControls key={customerId} customerId={customerId} notes={customer.notes} />
-          )}
         </div>
-      </CardContent>
-    </Card>
+      ) : null}
+      {/* Keyed by customer, so nothing typed about one household — a note, a reason, an open fold —
+          survives into the next lookup. */}
+      <CounterNotes
+        key={customerId}
+        customerId={customerId}
+        notes={customer.notes}
+        editable={customer.status !== "ARCHIVED"}
+      >
+        {/* Nothing to set apart from an archived household nobody served today. */}
+        {servedToday || customer.status !== "ARCHIVED" ? (
+          <span aria-hidden="true" className="ml-auto h-7 border-l pl-3" />
+        ) : null}
+        <RemoveEntry />
+        <BlockControls
+          customerId={customerId}
+          status={customer.status}
+          blockReason={customer.blockReason}
+          compact
+        />
+        <ArchiveControls
+          customerId={customerId}
+          customerNumber={customer.customerNumber}
+          status={customer.status}
+          returnTo={`/ausgabe?nummer=${encodeURIComponent(lookedUpNumber)}`}
+          compact
+        />
+      </CounterNotes>
+    </div>
   );
 }

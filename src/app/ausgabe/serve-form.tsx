@@ -11,14 +11,14 @@
  * US-32.7). No rules live here: which mode applies is the page's, off the lookup.
  */
 
-import { Check } from "lucide-react";
-import { createContext, useActionState, useContext, useId } from "react";
+import { Check, Undo2 } from "lucide-react";
+import { createContext, useActionState, useContext, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatEuroAmount } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { correctServe, recordServe } from "./actions";
-import { FoldChevron } from "../disclosure";
+import { FoldPanel, FoldToggle } from "../fold-row";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
 import { guardEnter } from "../enter-guard";
@@ -90,8 +90,10 @@ function useServe(): ServeContext {
 
 /**
  * Holds the two action states and renders the form the pieces below join. **Keyed by the page on
- * the household and the mode**: a redirect out of an action leaves its state as it was, so without
- * the remount a „Eintrag aktualisiert.“ would outlive the record it was about.
+ * the household**, so no answer survives into the next lookup. Within one household an answer is
+ * the mode's: once the mode changes, the one standing is stale — a redirect out of an action leaves
+ * its state as it was — and reads as idle. Not keyed on the mode, which would remount the footer's
+ * block control in the very render its „Gesperrt.“ arrives in (US-41.7).
  */
 export function ServeFormProvider({
   mode,
@@ -100,8 +102,19 @@ export function ServeFormProvider({
   mode: ServeMode;
   children: React.ReactNode;
 }): React.ReactElement {
-  const [serveState, serve, serving] = useActionState(recordServe, initialServeState);
-  const [correctState, correct, correcting] = useActionState(correctServe, initialCorrectState);
+  const [latestServe, serve, serving] = useActionState(recordServe, initialServeState);
+  const [latestCorrect, correct, correcting] = useActionState(correctServe, initialCorrectState);
+  // Adjusting state during render, not in an effect (`ui_styling_guide.md` §6).
+  const [stale, setStale] = useState({
+    kind: mode.kind,
+    serve: latestServe,
+    correct: latestCorrect,
+  });
+  if (stale.kind !== mode.kind) {
+    setStale({ kind: mode.kind, serve: latestServe, correct: latestCorrect });
+  }
+  const serveState = latestServe === stale.serve ? initialServeState : latestServe;
+  const correctState = latestCorrect === stale.correct ? initialCorrectState : latestCorrect;
   const showingServe = useNoticeSlot("serve", serveState.status === "idle" ? null : serveState);
   const showingCorrect = useNoticeSlot(
     "correct",
@@ -372,10 +385,9 @@ function OwnAnswer({ context }: { context: ServeContext }): React.ReactElement |
 }
 
 /**
- * The removal of today's record: the summary reveals the warning and the one button that deletes,
- * so no single click can drop a record. A `<details>` rather than a dialog — nothing at the counter
- * may have to be dismissed before the next customer is served. Moves into the mask's footer with
- * US-41.7.
+ * The removal of today's record, first in the mask's footer (US-41.7): the toggle reveals the
+ * warning and the one button that deletes, so no single click can drop a record. Never a dialog —
+ * nothing at the counter may have to be dismissed before the next customer is served.
  */
 export function RemoveEntry(): React.ReactElement | null {
   const { mode, pending } = useServe();
@@ -383,18 +395,17 @@ export function RemoveEntry(): React.ReactElement | null {
     return null;
   }
   return (
-    <details className="group self-start rounded-lg border border-destructive/40">
-      {/* No test id: `serve.spec.ts` and `balance.spec.ts` reach it by its exact text, so the
-          chevron is an inline SVG, which contributes no text content. */}
-      <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-sm font-medium text-destructive [&::-webkit-details-marker]:hidden">
+    <>
+      <FoldToggle
+        fold="remove"
+        testId="correct-remove-open"
+        className="border-red-700/35 bg-red-700/5 text-red-700 hover:bg-red-700/10 hover:text-red-700 aria-expanded:bg-red-700/10 aria-expanded:text-red-700"
+      >
+        <Undo2 aria-hidden="true" data-icon="inline-start" />
         {de.distribution.serve.correct.remove}
-        <FoldChevron />
-      </summary>
-      <div className="flex flex-col gap-2 px-3 pb-3">
-        <p
-          data-testid="correct-remove-warning"
-          className="max-w-prose text-sm text-muted-foreground"
-        >
+      </FoldToggle>
+      <FoldPanel fold="remove">
+        <p data-testid="correct-remove-warning" className="text-sm">
           {de.distribution.serve.correct.removeConfirm(mode.record.balanceWithoutRecordCents)}
         </p>
         <Button
@@ -405,11 +416,10 @@ export function RemoveEntry(): React.ReactElement | null {
           variant="destructive"
           disabled={pending}
           data-testid="correct-remove"
-          className="h-9 self-start"
         >
           {de.distribution.serve.correct.removeConfirmButton}
         </Button>
-      </div>
-    </details>
+      </FoldPanel>
+    </>
   );
 }

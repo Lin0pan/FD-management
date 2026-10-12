@@ -35,10 +35,8 @@ import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDateTime, germanSessionDay, germanTime } from "@/i18n/format";
-import { ArchiveControls } from "../kunden/archive-controls";
-import { BlockControls } from "../kunden/block-controls";
 import { CertificateProvider } from "./certificate-row";
-import { HouseholdFacts, HouseholdRows, VerdictChip } from "./counter-lookup";
+import { HouseholdRows, VerdictChip } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { LookupProvider, NumberField } from "./lookup-field";
 import { RECORD_REMOVED } from "./removed-flag";
@@ -52,13 +50,7 @@ import { SessionHouseholds, SessionTally } from "./session-households";
 import { optionFor } from "./session-options";
 import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
-import {
-  ActionButton,
-  RemoveEntry,
-  ServeFormProvider,
-  StatusSlot,
-  type ServeMode,
-} from "./serve-form";
+import { ActionButton, ServeFormProvider, StatusSlot, type ServeMode } from "./serve-form";
 import { Confirmation, Notice } from "../notice";
 import { NoticeBoard } from "../notice-board";
 import { SHELL } from "../shell";
@@ -447,13 +439,11 @@ export default async function DistributionPage({
             {/* The counter, one card (US-41): every state swaps content inside it, none adds a
                 card. The lookup is a plain GET form, so Enter reloads the page with the field
                 autofocused on what was looked up. */}
-            {/* Keyed on the household and the mode, which remounts everything inside it — so only
-                the mask and the removal stand in it, never a control whose answer has to survive a
-                change of mode (an unblock turns a refusal into a hand-out). */}
-            {/* Outside it, keyed on the household alone: row 4's answers must outlive a change of
-                mode, and must not outlive the household (`certificate-row.tsx`). */}
+            {/* Both keyed on the household: no answer about one survives into the next lookup, and
+                within it every answer outlives a change of mode (an unblock turns a refusal into a
+                hand-out). */}
             <CertificateProvider key={lookup?.customerId ?? ""}>
-              <ServeFormProvider key={`${lookup?.customerId ?? ""}-${mode.kind}`} mode={mode}>
+              <ServeFormProvider key={lookup?.customerId ?? ""} mode={mode}>
                 <section
                   aria-label={de.distribution.counter.mask.label}
                   className="flex flex-col gap-[18px] rounded-xl bg-card px-6 py-5 text-card-foreground ring-1 ring-foreground/10"
@@ -506,51 +496,13 @@ export default async function DistributionPage({
                       servedAt={mode.kind === "correct" ? mode.record.time : null}
                       reminderLoggedInSession={lookup.reminderLoggedInSession}
                       certificateTypes={counterReads.certificateTypes}
+                      verdict={lookup.verdict}
+                      lookedUpNumber={lookedUpNumber}
                     />
                   )}
                 </section>
-
-                <RemoveEntry />
               </ServeFormProvider>
             </CertificateProvider>
-
-            {lookup === null || lookup.customer === null || lookup.customerId === null ? null : (
-              <>
-                <HouseholdFacts
-                  customer={lookup.customer}
-                  customerId={lookup.customerId}
-                  verdict={lookup.verdict}
-                />
-                {/* Blocking and archiving are offered here because the reasons for both show up
-                      at the counter (US-16.5). Closed disclosures, never a prompt: the queue must
-                      not have to dismiss anything to get the next customer served (PRD §6). Keyed
-                      by customer, so nothing typed about one household survives into the next
-                      lookup. The heading is the record's own, read from `customers.record`. The
-                      mask's footer takes them over (US-41.7). */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>
-                      <h2>{de.customers.record.dangerHeading}</h2>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    <BlockControls
-                      key={`block-${lookup.customerId}`}
-                      customerId={lookup.customerId}
-                      status={lookup.customer.status}
-                      blockReason={lookup.customer.blockReason}
-                    />
-                    <ArchiveControls
-                      key={lookup.customerId}
-                      customerId={lookup.customerId}
-                      customerNumber={lookup.customer.customerNumber}
-                      status={lookup.customer.status}
-                      returnTo={`/ausgabe?nummer=${encodeURIComponent(lookedUpNumber)}`}
-                    />
-                  </CardContent>
-                </Card>
-              </>
-            )}
 
             {/* Last, under everything a lookup shows: a hundred rows above the verdict would push it
                 off the screen (US-41.8). */}

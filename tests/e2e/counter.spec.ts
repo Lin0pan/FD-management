@@ -273,11 +273,8 @@ async function expectVerdict(
 }
 
 /**
- * Open the note editor the way a staff member does — a real click on the `<summary>`.
- *
- * Never `evaluate(d => d.open = true)`: a fold that silently stopped opening has to turn the suite
- * red rather than be nudged past (`docs/guideline/ui_styling_guide.md` §10). The wait is not decoration —
- * `fill()` needs visibility, and a closed `<details>` has none.
+ * Open the note editor the way a staff member does — a real click on „Bemerkung bearbeiten“, which
+ * swaps the paragraph for the field (US-41.7). The wait is not decoration: `fill()` needs the field.
  */
 async function openNoteEditor(page: Page): Promise<void> {
   await page.getByTestId("counter-notes-open").click();
@@ -623,20 +620,21 @@ test.describe("Verdikt am Tresen", () => {
   test("closes the note editor when the counter moves to another household", async ({ page }) => {
     await lookUp(page, String(NUMBERS.notes));
 
-    const fold = page.locator("details").filter({ has: page.getByTestId("counter-notes-open") });
+    const editor = page.getByTestId("counter-notes-field");
     // Closed on arrival: the note is read on every lookup and written on hardly any.
-    await expect(fold).not.toHaveAttribute("open", /.*/);
+    await expect(editor).toHaveCount(0);
 
     await openNoteEditor(page);
     await page.getByTestId("counter-notes-field").fill("Für den falschen Haushalt getippt.");
 
-    // A soft navigation, not a fresh page load — a `<details>` survives one, and so would the text
-    // above, which is how a note gets written onto the wrong household.
+    // A soft navigation, not a fresh page load — component state survives one unless it is keyed,
+    // and so would the text above, which is how a note gets written onto the wrong household.
     await page.getByTestId(`group-member-${NUMBERS.clear}`).click();
     await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.clear}`));
 
     await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.clear]);
-    await expect(fold).not.toHaveAttribute("open", /.*/);
+    await expect(editor).toHaveCount(0);
+    await expect(page.getByTestId("counter-notes")).toHaveText("Kommt immer früh.");
     await openNoteEditor(page);
     await expect(page.getByTestId("counter-notes-field")).toHaveValue("Kommt immer früh.");
   });

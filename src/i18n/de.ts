@@ -490,6 +490,8 @@ export const de = {
     archive: {
       heading: "Archivieren",
       action: "Diesen Haushalt archivieren",
+      /** The counter footer's: the household is the mask's, so „diesen Haushalt“ says nothing. */
+      compactAction: "Archivieren",
       reasonLabel: "Grund der Archivierung",
       confirm: (customerNumber: number): string =>
         `Die Kundennummer ${customerNumber} wird frei. Rückgängig machen lässt sich die ` +
@@ -1364,6 +1366,8 @@ export const de = {
         handoutToday: (time: string): string => `heute, ${time} Uhr`,
         noShows: (count: number): string =>
           `${count === 1 ? "1 Ausgabe" : `${count} Ausgaben`} in Folge verpasst`,
+        /** No date beside it: none is stored (US-41, decision 3). */
+        blockReason: "Sperrgrund",
       },
       submit: "Nachschlagen",
       /**
@@ -1394,7 +1398,6 @@ export const de = {
         certificateExpired: { headline: "Nachweis abgelaufen" },
       },
       details: {
-        heading: "Angaben zum Haushalt",
         reminderCount: "Erinnerungen an den Nachweis",
         noNotes: "Keine Bemerkung hinterlegt.",
       },
@@ -1409,6 +1412,7 @@ export const de = {
       notes: {
         add: "Bemerkung hinzufügen",
         edit: "Bemerkung bearbeiten",
+        cancel: "Abbrechen",
       },
       /**
        * The note for a card whose printed counts the household has outgrown (US-13.4).
