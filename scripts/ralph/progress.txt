@@ -702,3 +702,32 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - The demo register (`npm run db:demo`) may already hold a running session — check
     `session-header` before trying to start one in the browser.
 ---
+
+## 2026-10-12 - US-006
+- The mask: `page.tsx` renders `<section aria-label="Ausgabemaske">` (Card's ring and radius, `px-6
+  py-5 gap-[18px]`) holding the lookup form, the VerdictBanner (until US-007) and `HouseholdRows`
+  (counter-lookup.tsx): row 2 name „Nachname, Vorname" / Karte / group·status·record link, the
+  stale-card note, row 3 tiles Erwachsene·Kinder·Eier·Saldo·campaign. `counter-customer` now sits on
+  the rows' wrapper. `HouseholdFacts` (certificate table, no-shows, note) renders below the mask in a
+  plain Card until US-009/US-010. `CampaignReminderField` gained `tile` (the record keeps the card);
+  no reminder on → `campaign-reminder-none` „keine Aktionserinnerung"; archived → neither.
+- Removed: `CustomerDetails`, the Kundennummer and price tiles, `PaymentRow` (Saldo moved into the
+  mask; `counter-amount-to-pay` still renders in ServeControls until US-007), `counter.heading`.
+- de.ts: `distribution.counter.mask.{label,name,card,grownUps,children,noCampaignReminder}`. The
+  short „Erwachsene"/„Kinder" are mask-only keys — the long `derived.grownUps` wraps in a w-24 tile.
+- e2e: `sessionHousehold(page, n)` in `tests/e2e/session.ts`. `counter-price` → the row's
+  `customer-row-price` (balance, price-cap, age-13, allowance, counter, eggs — eggs' `expectTiles`
+  now takes `"record" | { counter: n }`); `counter-customer-number` → `counter-card-number` matching
+  `^Nk\d+$`; names surname-first in counter/block/archive (archive gained `counterName`). Both
+  engines 261 passed.
+- Driven with playwright-cli at 1440 × 800 (expired, blocked, campaign unticked/ticked, no reminder)
+  and 390. Mask bottom ≈ 570px with the verdict banner still in it. Canvas not read (see US-004).
+  The local demo DB now has a running Rot+Blau session and a „Weihnachtstüte" reminder on.
+- **Learnings for future iterations:**
+  - **The price has no tile in the mask any more** — the list row under it is where /ausgabe states
+    it. A spec asserting a price at the counter reads `sessionHousehold(page, n)`.
+  - `cn` is tailwind-merge, so `Stat`'s `bg-muted/50 px-4 py-3 text-3xl` are overridden by passing
+    the mask's `TILE`/`TILE_VALUE` (counter-lookup.tsx); US-007's „Gezahlt" tile should reuse them.
+  - Row 3's cols 7–12 is `justify-between` with Saldo first: US-007 inserts „Gezahlt" before it.
+  - A bordered tile beside unbordered ones needs `py-[5px]` to end on the same edge.
+---

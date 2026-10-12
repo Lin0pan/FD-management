@@ -118,7 +118,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins. The Saldo tile leaves PaymentRow in this story so it is not shown twice."
     },
     {
