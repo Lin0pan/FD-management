@@ -337,6 +337,7 @@ export function StatusSlot({
 
 /** This form's own answer, or `null` where it has none for the slot. */
 function OwnAnswer({ context }: { context: ServeContext }): React.ReactElement | null {
+  const edited = useLookupEdited();
   const state = stateOf(context);
   const correcting = context.mode.kind === "correct";
 
@@ -367,7 +368,7 @@ function OwnAnswer({ context }: { context: ServeContext }): React.ReactElement |
           name="overpaymentConfirmed"
           value="1"
           variant="outline"
-          disabled={context.pending}
+          disabled={context.pending || edited}
           data-testid={correcting ? "correct-confirm-overpayment" : "serve-confirm-overpayment"}
           className="h-12 shrink-0 text-base"
         >

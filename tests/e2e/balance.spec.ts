@@ -317,6 +317,20 @@ test.describe("Saldo", () => {
     await expect(page.getByTestId("history-price")).toHaveText(formatEuros(PRICE_CENTS));
   });
 
+  test("greys out the overpayment confirmation while the number field names someone else", async ({
+    page,
+  }) => {
+    await lookUp(page, NUMBERS.smallCredit);
+    await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(400));
+    await page.getByTestId("serve-button").click();
+    await expect(page.getByTestId("serve-confirm-overpayment")).toBeEnabled();
+
+    // Decision 1: the question still belongs to the household on screen, not the number typed.
+    await page.getByTestId("counter-input").fill(String(NUMBERS.largeCredit));
+    await expect(page.getByTestId("serve-confirm-overpayment")).toBeDisabled();
+    expect(await handOutsOf(smallCredit)).toBe(0);
+  });
+
   test("refuses an amount above the one asked for until it is confirmed", async ({ page }) => {
     await lookUp(page, NUMBERS.smallCredit);
     await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(400));
