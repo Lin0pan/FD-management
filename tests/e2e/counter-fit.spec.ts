@@ -173,7 +173,7 @@ test.describe("Ausgabemaske auf einem Bildschirm", () => {
     await prisma.$disconnect();
   });
 
-  test("fits a household with an expired certificate, a campaign box and a two-line note", async ({
+  test("fits an expired certificate, a campaign box and a two-line note, in every state opened in place", async ({
     page,
   }) => {
     await lookUp(page, NUMBERS.main);
@@ -194,6 +194,19 @@ test.describe("Ausgabemaske auf einem Bildschirm", () => {
     // „Sonstiges“ opens the free text under the select — and is where an empty list starts.
     await page.getByTestId("renewal-type").selectOption(CERTIFICATE_TYPE_OTHER);
     await expect(page.locator("#renewal-type-other")).toBeVisible();
+    await expectMaskFits(page);
+    await page.getByTestId("renewal-cancel").click();
+
+    // `Z4`: the note turns into a text area in place.
+    await page.getByTestId("counter-notes-open").click();
+    await expect(page.getByTestId("counter-notes-field")).toBeVisible();
+    await expectMaskFits(page);
+    await page.getByTestId("counter-notes-cancel").click();
+
+    // `Z5`: an unreadable amount is refused under its tile, and nothing is written.
+    await fillSticky(page.getByTestId("serve-amount"), "abc");
+    await page.getByTestId("serve-button").click();
+    await expect(page.getByTestId("serve-amount-error")).toBeVisible();
     await expectMaskFits(page);
   });
 
