@@ -4,6 +4,7 @@ import {
   formatCalendarDay,
   isBlankDay,
   isoCalendarDay,
+  isoWeek,
   parseCalendarDay,
   startOfUtcDay,
 } from "./calendarDay";
@@ -139,5 +140,38 @@ describe("startOfUtcDay", () => {
   it("leaves a day that is already midnight UTC where it is", () => {
     const day = parseCalendarDay("29.02.2028");
     expect(startOfUtcDay(day).getTime()).toBe(day.getTime());
+  });
+});
+
+/** The week the header names („KW 2"): ISO 8601, a week belonging to the year that holds its Thursday. */
+describe("isoWeek", () => {
+  it("counts the Thursday rule: 1 January 2026 is in week 1", () => {
+    expect(isoWeek(parseCalendarDay("01.01.2026"))).toEqual({ week: 1, year: 2026 });
+  });
+
+  it("puts 31 December 2026 in week 53", () => {
+    expect(isoWeek(parseCalendarDay("31.12.2026"))).toEqual({ week: 53, year: 2026 });
+  });
+
+  it("puts 1 January 2027 in week 53 of 2026", () => {
+    expect(isoWeek(parseCalendarDay("01.01.2027"))).toEqual({ week: 53, year: 2026 });
+  });
+
+  it("puts 4 January 2027 in week 1 of 2027", () => {
+    expect(isoWeek(parseCalendarDay("04.01.2027"))).toEqual({ week: 1, year: 2027 });
+  });
+
+  it("puts 29 December 2025 in week 1 of 2026", () => {
+    // The other direction across the year: a Monday whose Thursday is already in January.
+    expect(isoWeek(parseCalendarDay("29.12.2025"))).toEqual({ week: 1, year: 2026 });
+  });
+
+  it("handles 29 February 2028", () => {
+    expect(isoWeek(parseCalendarDay("29.02.2028"))).toEqual({ week: 9, year: 2028 });
+  });
+
+  it("reads a Sunday as the end of its week, not the start of the next", () => {
+    expect(isoWeek(parseCalendarDay("11.01.2026"))).toEqual({ week: 2, year: 2026 });
+    expect(isoWeek(parseCalendarDay("12.01.2026"))).toEqual({ week: 3, year: 2026 });
   });
 });

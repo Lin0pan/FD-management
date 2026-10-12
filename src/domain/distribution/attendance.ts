@@ -54,6 +54,17 @@ export function recordForSession<T extends AttendanceRecord>(
 }
 
 /**
+ * The instant of the household's latest hand-out, or `null` before their first. Derived at every
+ * read, never stored; the latest by instant, whatever order the store returned the rows in.
+ */
+export function lastHandoutAt(records: ReadonlyArray<{ readonly date: Date }>): Date | null {
+  return records.reduce<Date | null>(
+    (latest, record) => (latest === null || record.date > latest ? record.date : latest),
+    null,
+  );
+}
+
+/**
  * Whether the household may be recorded in `sessionId`, given every record they already hold.
  *
  * @returns `"OK"` when no record belongs to this session, otherwise an
