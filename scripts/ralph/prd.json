@@ -95,7 +95,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Read ui_styling_guide.md §2 and §10 first. Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins."
     },
     {

@@ -671,3 +671,34 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - The tally line `group-progress` is a plain `<p>` above the lookup card; US-005 moves it into the
     header line — `session.spec.ts`'s `tallyFigures` reads its text.
 ---
+
+## 2026-10-12 - US-005
+- The header line: `RunningSessionControls` (session-controls.tsx) now *is* the line — it takes the
+  page's lead nodes as `children` (h1, `session-day`, `session-groups` badges at `h-6 px-2.5
+  text-sm`, `SessionTally`) and owns the right-hand end: ghost „Ausgabetermine" (now
+  `pastSessions.heading`, the screen's own name), „Ausgabe beenden", „Ausgabe verwerfen" while
+  canDiscard. `data-testid="session-header"` moved onto this line, so every helper that asks „is a
+  session running" still works. `SessionHeader` card gone; `PageHeader` only between afternoons.
+- End/discard are `<button aria-expanded>` toggles (`ConfirmToggle`) with the confirmation form
+  rendered below the row — a `<details>` cannot open its content outside its own box. Noted as the
+  one exception in `ui_styling_guide.md` §6.
+- `germanSessionDay(startedAt)` in `src/i18n/format.ts` (Berlin day via `berlinDayKey`, `isoWeek`,
+  `de.distribution.session.weekdays`/`day`), three unit tests. `de.distribution.progress.tally`
+  returns figure/rest pieces (bold figure); `progress.summary(tallies)` is the same as plain text.
+  Old `summary(group, …)`/`summaries` removed.
+- e2e: session.spec asserts `session-day` instead of „Ausgabe läuft"; group-progress.spec's
+  `summaryOf` uses the new summary; counter.spec gains „names the afternoon by the day it started,
+  after the clock has passed midnight". Both engines 261 passed (1 pre-existing skip).
+- Driven with playwright-cli at 1440 × 800 and 390 (merged session, both confirmations open). The
+  canvas was not read (not reachable from a Ralph run, see US-004).
+- Files: src/app/ausgabe/{page,session-controls,session-group-badges,session-households}.tsx,
+  src/i18n/{de,format,format.test}.ts, src/domain/distribution/attendance.ts (comment),
+  tests/e2e/{counter,group-progress,session}.spec.ts, docs/guideline/ui_styling_guide.md
+- **Learnings for future iterations:**
+  - `format.ts` now imports `de` and the domain; `de.ts` must never import `format.ts` (cycle).
+  - The confirmations (`serve-recorded-confirmation`, `serve-removed-confirmation`,
+    `archive-saved`) still render as full-width notices between the header and the lookup card;
+    US-007 moves them into the status slot (decision 6).
+  - The demo register (`npm run db:demo`) may already hold a running session — check
+    `session-header` before trying to start one in the browser.
+---
