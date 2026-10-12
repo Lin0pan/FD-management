@@ -34,7 +34,8 @@ const berlinDay = new Intl.DateTimeFormat("en-CA", {
  *
  * No attendance rule reads this any more: a hand-out belongs to a session, not to a day. It
  * survives for `householdComposition.ts`, which counts an age in the zone the counter is worked in,
- * because a birthday turns over at Berlin midnight (US-13.1).
+ * because a birthday turns over at Berlin midnight (US-13.1), and for the day the counter's header
+ * names an afternoon by (US-41.3).
  */
 export function berlinDayKey(instant: Date): string {
   return berlinDay.format(instant);

@@ -298,6 +298,10 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   which is §8's rule paying rent for a missing 16px glyph; the chevron says it and both keys went.
   **A `<details>` that forgets `group` is a silent no-op**, so check a fold open as well as closed.
 
+- **One exception: the counter's header line.** „Ausgabe beenden" and „Ausgabe verwerfen" are
+  outline `<button aria-expanded>` toggles (`session-controls.tsx`), because a `<details>` draws its
+  content inside its own box and those confirmations have to open below the whole row (US-41.3).
+  Same look, same chevron, still nothing to dismiss. Reach for it only where that is the problem.
 - A `<details>` keeps `open` through any re-render, including a soft navigation to the same route.
   Put a `key` on the card so it remounts closed.
 - **A control that resets a form navigates the document** — a plain `<a href>` inside the ghost

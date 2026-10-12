@@ -1,6 +1,7 @@
 /**
- * Who the afternoon serves and who has collected (US-23, US-41.8): the tally, and below the counter
- * every household of the session's group(s) in the Kundenliste's own columns plus „Heute".
+ * Who the afternoon serves and who has collected (US-23, US-41.8): the tally in the header line,
+ * and below the counter every household of the session's group(s) in the Kundenliste's own columns
+ * plus „Heute".
  *
  * Nothing here is a second place to serve someone — a name navigates, exactly as typing the number
  * does (§FR-7). No row tint: the group badge in each row carries the colour, and chrome marks only the
@@ -8,6 +9,7 @@
  */
 
 import { Check } from "lucide-react";
+import { Fragment } from "react";
 import type { CounterRosterView } from "@/application/distribution/read-counter-roster";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,26 +26,29 @@ import { CONFIRMATION_ACCENT } from "../accents";
 import { CustomerCells, CustomerHeads } from "../kunden/customer-cells";
 
 /**
- * One fraction per group the session serves (US-34.6) — a merged afternoon states both, because the
- * sum of the two cannot show which half is falling behind. Silent for a session serving nobody: the
- * list below says so, and the sentence is not said twice.
+ * The header line's tally, one fraction per group the session serves (US-34.6, US-41.3), each
+ * figure bold. Silent for a session serving nobody: the list below says so, and the sentence is not
+ * said twice.
  */
 export function SessionTally({ roster }: { roster: CounterRosterView }): React.ReactElement | null {
   if (roster.isEmpty) {
     return null;
   }
-  const words = de.distribution.progress;
+  const parts = de.distribution.progress.tally(
+    roster.tallies.map((tally) => ({
+      colour: de.distribution.colours[tally.group],
+      served: tally.progress.served,
+      expected: tally.progress.expected,
+    })),
+  );
   return (
-    <p data-testid="group-progress" className="text-base font-medium">
-      {words.summaries(
-        roster.tallies.map((tally) =>
-          words.summary(
-            de.distribution.group(de.distribution.colours[tally.group]),
-            tally.progress.served,
-            tally.progress.expected,
-          ),
-        ),
-      )}
+    <p data-testid="group-progress" className="text-base tabular-nums">
+      {parts.map((part, index) => (
+        <Fragment key={index}>
+          <strong className="font-semibold">{part.figure}</strong>
+          {part.rest}
+        </Fragment>
+      ))}
     </p>
   );
 }

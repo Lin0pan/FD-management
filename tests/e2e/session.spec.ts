@@ -4,6 +4,7 @@ import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
+import { germanSessionDay } from "@/i18n/format";
 import { foldName } from "@/domain/customer/nameSearch";
 import { formatEuroAmount, formatEuros, parseEuros } from "@/domain/money";
 import { fillSticky } from "./day";
@@ -183,8 +184,7 @@ async function serveForAmountAsked(page: Page): Promise<number> {
 }
 
 /**
- * The two figures the tally states, read **off the panel**: „Gruppe Rot: 3 von 61 Haushalten
- * abgeholt".
+ * The two figures the tally states, read **off the header line**: „3 von 61 Haushalten abgeholt".
  *
  * Off the screen and not out of the register on purpose. That the sentence agrees with the database
  * is `group-progress.spec.ts`'s claim; what is asserted here is the coupling a suite of per-form
@@ -264,7 +264,8 @@ test.describe("Ausgabe starten und beenden", () => {
 
     await startSession(page, "RED");
 
-    await expect(page.getByTestId("session-header")).toContainText(words.running);
+    // Named by the day it started, which on this file's real clock is today (US-41.3).
+    await expect(page.getByTestId("session-day")).toHaveText(germanSessionDay(new Date()));
     await expect(page.getByTestId("session-groups")).toHaveText(de.distribution.colours.RED);
   });
 

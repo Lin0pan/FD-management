@@ -10,19 +10,23 @@
 import { Badge } from "@/components/ui/badge";
 import type { SessionGroups } from "@/domain/distribution/session";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { GROUP_STYLES } from "../accents";
 
 export function SessionGroupBadges({
   groups,
   testId,
+  className,
 }: {
   groups: SessionGroups;
   testId: string;
+  /** The counter's header sets them a size larger (US-41.3). */
+  className?: string;
 }): React.ReactElement {
   return (
     <div data-testid={testId} className="flex flex-wrap items-center gap-2">
       {groups.map((group) => (
-        <Badge key={group} variant="outline" className={GROUP_STYLES[group]}>
+        <Badge key={group} variant="outline" className={cn(GROUP_STYLES[group], className)}>
           {de.distribution.colours[group]}
         </Badge>
       ))}

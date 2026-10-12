@@ -35,7 +35,7 @@ import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
-import { germanDateTime, germanTime } from "@/i18n/format";
+import { germanDateTime, germanSessionDay, germanTime } from "@/i18n/format";
 import { CampaignReminderField } from "../campaign-reminder-field";
 import { ArchiveControls } from "../kunden/archive-controls";
 import { BlockControls } from "../kunden/block-controls";
@@ -71,34 +71,33 @@ function permitsServing(verdict: Verdict): boolean {
 export const dynamic = "force-dynamic";
 
 /**
- * The afternoon (US-34.7). Two facts and no third: that an Ausgabe is under way, and which group
- * or groups it serves — a badge each, wearing what the Kundenliste and a customer's record wear, so
- * one colour means one thing application-wide.
+ * The header line (US-41.3): the day the afternoon started and its week, the group or groups it
+ * serves — a badge each, wearing what the Kundenliste and a customer's record wear — and how far
+ * through them the counter is. No card: the afternoon's state is a line, not a panel.
  *
  * The groups cannot be changed while it runs, and nothing here says so: a control that is not on the
  * screen needs no sentence explaining its absence (`ui_styling_guide.md` §8).
  */
-function SessionHeader({ running }: { running: RunningSession }): React.ReactElement {
+function SessionHeader({
+  running,
+  roster,
+}: {
+  running: RunningSession;
+  roster: CounterRosterView;
+}): React.ReactElement {
   return (
-    <Card data-testid="session-header">
-      {/* `text-base` against the `Card`'s own 14px: this is read at a glance from standing, not from
-          a chair like the admin tables the default is tuned for. */}
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-base font-medium">{de.distribution.session.running}</p>
-          <SessionGroupBadges groups={running.session.groups} testId="session-groups" />
-          {/* A shortcut to the afternoons already held, whose home is Übersichten (US-38.3).
-              Borderless and pushed to the far edge: it navigates, and it must not read as a third
-              thing to do to the afternoon under way. */}
-          <Button variant="ghost" asChild className="ml-auto">
-            <Link href="/ausgabetermine" data-testid="session-past-link">
-              {de.distribution.pastSessions.link}
-            </Link>
-          </Button>
-        </div>
-        <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard} />
-      </CardContent>
-    </Card>
+    <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard}>
+      <h1 className="text-3xl font-semibold tracking-tight">{de.distribution.heading}</h1>
+      <p data-testid="session-day" className="text-lg text-muted-foreground tabular-nums">
+        {germanSessionDay(running.session.startedAt)}
+      </p>
+      <SessionGroupBadges
+        groups={running.session.groups}
+        testId="session-groups"
+        className="h-6 px-2.5 text-sm"
+      />
+      <SessionTally roster={roster} />
+    </RunningSessionControls>
   );
 }
 
@@ -315,7 +314,11 @@ export default async function DistributionPage({
     // before this one cannot be read as this one's (`notice-board.tsx`).
     <NoticeBoard>
       <main className={SHELL}>
-        <PageHeader />
+        {counterReads === null ? (
+          <PageHeader />
+        ) : (
+          <SessionHeader running={counterReads.running} roster={counterReads.roster} />
+        )}
 
         {/* The hand-out that just happened, stated at the top of the empty screen the write
           navigates to (US-32.7). It has to name the household, because they are no longer on the
@@ -347,8 +350,8 @@ export default async function DistributionPage({
         {/* At the top of the screen rather than beside the button that was pressed, which is the rule
           everywhere else on this page. The removal navigates — it has to, because it destroys the
           card the answer would have stood in — and a navigation lands at the top, so this is where
-          the eye already is. Above the session header: it is about what just happened, and the
-          header is about the afternoon. */}
+          the eye already is. Below the header line, which states the afternoon rather than what
+          just happened in it. */}
         {recordRemoved ? (
           <Confirmation
             text={de.distribution.serve.correct.removed}
@@ -383,12 +386,6 @@ export default async function DistributionPage({
           </>
         ) : (
           <>
-            <SessionHeader running={counterReads.running} />
-
-            {/* How far through the group the afternoon is (US-23), readable without scrolling past the
-                field staff type into. The households themselves are listed at the foot. */}
-            <SessionTally roster={counterReads.roster} />
-
             {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
           navigates, so the input comes back empty and — being autofocused — ready for the next
           customer without touching the mouse. A native `<label>` rather than the shadcn one: this

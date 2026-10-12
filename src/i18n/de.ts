@@ -38,6 +38,34 @@ function eggRow(minPersons: number, eggs: number): string {
 const EGG_THRESHOLD_COLUMN = "Ab wie vielen Personen";
 const EGG_COUNT_COLUMN = "Eier";
 
+/** One group's share of the counter's tally — what {@link tallyParts} reads per group. */
+export interface TallyFigures {
+  readonly colour: string;
+  readonly served: number;
+  readonly expected: number;
+}
+
+/**
+ * The counter's tally as figure-then-words pieces, so a screen can set each figure bold (US-41.3).
+ * One group reads „2 von 100 Haushalten abgeholt“ — the badge beside it names the group. A merged
+ * afternoon names each: „12 von 100 Rot · 8 von 98 Blau abgeholt“, never one sum, which would hide
+ * the half falling behind (US-34.6). Module-level so the plain-text sentence is the same pieces.
+ */
+function tallyParts(
+  tallies: ReadonlyArray<TallyFigures>,
+): ReadonlyArray<{ readonly figure: number; readonly rest: string }> {
+  if (tallies.length === 1) {
+    return tallies.map((tally) => ({
+      figure: tally.served,
+      rest: ` von ${tally.expected} Haushalten abgeholt`,
+    }));
+  }
+  return tallies.map((tally, index) => {
+    const after = index === tallies.length - 1 ? " abgeholt" : " · ";
+    return { figure: tally.served, rest: ` von ${tally.expected} ${tally.colour}${after}` };
+  });
+}
+
 /**
  * A sentence written as parts, some emphasised when rendered. The dictionary still owns the whole
  * sentence and only says which fragments carry the weight — a component assembling German from
@@ -1154,8 +1182,17 @@ export const de = {
      * customers.
      */
     session: {
-      /** The header while one runs. Two facts and no third: that it runs, and whom it serves. */
+      /**
+       * The Start screen's panel while one runs. Two facts and no third: that it runs, and whom it
+       * serves.
+       */
       running: "Ausgabe läuft",
+      /**
+       * The counter's header line: the day the afternoon *started* and its ISO week,
+       * „Mo 12.10.2026 · KW 42“ (US-41.3). Indexed by `getUTCDay()`, so Sunday comes first.
+       */
+      weekdays: ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
+      day: (weekday: string, day: string, week: number): string => `${weekday} ${day} · KW ${week}`,
       start: {
         heading: "Ausgabe starten",
         /**
@@ -1261,7 +1298,7 @@ export const de = {
       /** The heading after a count, wherever the list is offered with its size (US-38). */
       countedName: (count: number): string =>
         count === 1 ? "Ausgabetermin" : de.distribution.pastSessions.heading,
-      /** The counter screen's shortcut to this list, and the detail's way back to it. */
+      /** The last-session card's shortcut to this list, and the detail's way back to it. */
       link: "Alle Ausgabetermine",
       /** The afternoon under way, which is the row at the top. */
       running: "Läuft",
@@ -1374,24 +1411,16 @@ export const de = {
       },
     },
     /**
-     * How far through today's group the afternoon is (`tasks/prd-us-23-group-progress.md` §US-23.4).
-     *
-     * The summary *is* the tally, not a label hiding one: nobody should have to open the list to
-     * learn the number, and both figures stand in one sentence so a screen reader does not announce
-     * them as unrelated fragments.
-     *
-     * `open`/`close` are the fold's affordance, deliberately outside that sentence: which of the two
-     * shows depends on the fold's state, and the tally does not.
+     * How far through the afternoon's group(s) the counter is (US-23), stated in the header line
+     * (US-41.3), and the list of the session's households below the counter (US-41.8).
      */
     progress: {
-      summary: (group: string, served: number, expected: number): string =>
-        `${group}: ${served} von ${expected} Haushalten abgeholt`,
-      /**
-       * A merged afternoon's two tallies on one line, joined with the middle dot the Kundenliste's
-       * group balance uses. Never added up: a group falling behind is exactly what one fraction
-       * over both would hide (US-34.6).
-       */
-      summaries: (perGroup: ReadonlyArray<string>): string => perGroup.join(" · "),
+      tally: tallyParts,
+      /** {@link tallyParts} as one sentence — what a screen reader and a spec read. */
+      summary: (tallies: ReadonlyArray<TallyFigures>): string =>
+        tallyParts(tallies)
+          .map((part) => `${part.figure}${part.rest}`)
+          .join(""),
       /**
        * The list's heading: „Gruppe Rot", or „Gruppen Rot und Blau" — the heading names the table's
        * contents, so it counts them, where `groups` names the afternoon (US-41.8).

@@ -194,7 +194,9 @@ async function sessionGroup(): Promise<ReadonlyArray<Member>> {
 function summaryOf(members: ReadonlyArray<Member>): string {
   const served = members.filter((member) => member.servedInSession).length;
   const expected = members.filter((member) => !member.blocked || member.servedInSession).length;
-  return de.distribution.progress.summary(RED_GROUP, served, expected);
+  return de.distribution.progress.summary([
+    { colour: de.distribution.colours.RED, served, expected },
+  ]);
 }
 
 /**
@@ -223,8 +225,6 @@ function householdRow(page: Page, customerNumber: number): Locator {
     `[data-testid="session-household"][data-customer-number="${customerNumber}"]`,
   );
 }
-
-const RED_GROUP = de.distribution.group(de.distribution.colours.RED);
 
 test.describe.configure({ mode: "serial" });
 

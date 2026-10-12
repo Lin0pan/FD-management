@@ -7,6 +7,10 @@
  * settings page and the customer page.
  */
 
+import { isoWeek } from "@/domain/calendarDay";
+import { berlinDayKey } from "@/domain/distribution/attendance";
+import { de } from "./de";
+
 /**
  * A date as `TT.MM.JJJJ` — nobody at the counter should have to read an ISO timestamp.
  *
@@ -95,4 +99,15 @@ const berlinDate = new Intl.DateTimeFormat("de-DE", {
 
 export function germanDayOf(instant: Date): string {
   return berlinDate.format(instant);
+}
+
+/**
+ * The day an afternoon started on and its calendar week, „Mo 12.10.2026 · KW 42“ (US-41.3) — the
+ * counter's header. Berlin for {@link germanDayOf}'s reason: one that runs past midnight keeps the
+ * day and the week it started in.
+ */
+export function germanSessionDay(startedAt: Date): string {
+  const day = new Date(`${berlinDayKey(startedAt)}T00:00:00.000Z`);
+  const words = de.distribution.session;
+  return words.day(words.weekdays[day.getUTCDay()], germanDate(day), isoWeek(day).week);
 }

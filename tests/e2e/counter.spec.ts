@@ -416,6 +416,20 @@ test.describe("Verdikt am Tresen", () => {
     await expect(page.getByTestId("session-groups")).toHaveText(de.distribution.colours.RED);
   });
 
+  test("names the afternoon by the day it started, after the clock has passed midnight", async ({
+    page,
+  }) => {
+    // The header reads the session's own start, never the clock: an afternoon left running through
+    // the night keeps the day and the week it was held in (US-41.3).
+    writeFileSync(NOW_FILE, "2026-01-09T01:00:00.000Z", "utf8");
+    try {
+      await page.goto("/ausgabe");
+      await expect(page.getByTestId("session-day")).toHaveText("Do 08.01.2026 · KW 2");
+    } finally {
+      pinToday();
+    }
+  });
+
   test("refuses a superseded card and names the current one", async ({ page }) => {
     await lookUp(page, `${NUMBERS.outdatedCard}k1`);
 

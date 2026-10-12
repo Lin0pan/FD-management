@@ -6,12 +6,13 @@
  * `useActionState`; no rules here — which controls are on screen is decided by the state the page
  * read.
  *
- * Ending, discarding and reopening are the same two-step disclosure as the block and archive
- * controls (`docs/guideline/ui_styling_guide.md` §6): at the counter the queue is waiting and
- * nothing may have to be dismissed before the next customer is served, so none of them is a
- * `Dialog`.
+ * Ending, discarding and reopening are two-step folds like the block and archive controls
+ * (`docs/guideline/ui_styling_guide.md` §6): at the counter the queue is waiting and nothing may
+ * have to be dismissed before the next customer is served, so none of them is a `Dialog`.
  */
 
+import { ChevronDown } from "lucide-react";
+import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -103,7 +104,14 @@ export function StartSessionForm({
 }
 
 /**
- * „Ausgabe beenden" and, while the afternoon still holds nothing, „Ausgabe verwerfen".
+ * The counter's header line (US-41.3): what the page states about the afternoon — `children` — and,
+ * at the far end, „Ausgabetermine", „Ausgabe beenden" and, while the afternoon still holds nothing,
+ * „Ausgabe verwerfen".
+ *
+ * Toggle buttons rather than `<details>`, the one deliberate exception to `ui_styling_guide.md`
+ * §6: a `<details>` draws its content inside its own box, and these confirmations have to open
+ * below the whole row rather than wedge into it. Still nothing to dismiss — the same button folds
+ * it away.
  *
  * The end confirmation names what is being closed — the households served and what was taken — and
  * says nothing about who did not turn up: that is the normal case, not a warning. The discard
@@ -112,69 +120,126 @@ export function StartSessionForm({
 export function RunningSessionControls({
   summary,
   canDiscard,
+  children,
 }: {
   summary: SessionSummary;
   canDiscard: boolean;
+  children: React.ReactNode;
 }): React.ReactElement {
   const [endState, end, ending] = useActionState(endSessionAction, initialSessionState);
   const [discardState, discard, discarding] = useActionState(
     discardSessionAction,
     initialSessionState,
   );
+  const [open, setOpen] = useState<"end" | "discard" | null>(null);
+  const endId = useId();
+  const discardId = useId();
+  const toggle = (which: "end" | "discard"): void => setOpen(open === which ? null : which);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-start gap-3">
-        <form action={end}>
-          <details className="group">
-            <ControlSummary testId="session-end-open">
-              {de.distribution.session.end.open}
-            </ControlSummary>
-            <div className="mt-3 flex flex-col items-start gap-3">
-              <Alert>
-                <AlertDescription data-testid="session-end-confirm" className="max-w-prose">
-                  {de.distribution.session.end.confirm(summary.households, summary.totalPaidCents)}
-                </AlertDescription>
-              </Alert>
-              <Button type="submit" disabled={ending} data-testid="session-end-submit">
-                {ending
-                  ? de.distribution.session.end.submitting
-                  : de.distribution.session.end.submit}
-              </Button>
-            </div>
-          </details>
-        </form>
-
-        {canDiscard ? (
-          <form action={discard}>
-            <details className="group">
-              <ControlSummary testId="session-discard-open">
-                {de.distribution.session.discard.open}
-              </ControlSummary>
-              <div className="mt-3 flex flex-col items-start gap-3">
-                <Alert>
-                  <AlertDescription data-testid="session-discard-confirm" className="max-w-prose">
-                    {de.distribution.session.discard.confirm}
-                  </AlertDescription>
-                </Alert>
-                <Button
-                  type="submit"
-                  variant="destructive"
-                  disabled={discarding}
-                  data-testid="session-discard-submit"
-                >
-                  {discarding
-                    ? de.distribution.session.discard.submitting
-                    : de.distribution.session.discard.submit}
-                </Button>
-              </div>
-            </details>
-          </form>
-        ) : null}
+    <div data-testid="session-header" className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {children}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* A shortcut to the afternoons already held, whose home is Übersichten (US-38.3), named
+              as that screen names itself. Borderless: it navigates, and it must not read as a third
+              thing to do to the afternoon under way. */}
+          <Button variant="ghost" asChild>
+            <Link href="/ausgabetermine" data-testid="session-past-link">
+              {de.distribution.pastSessions.heading}
+            </Link>
+          </Button>
+          <ConfirmToggle
+            testId="session-end-open"
+            controls={endId}
+            expanded={open === "end"}
+            onToggle={() => toggle("end")}
+          >
+            {de.distribution.session.end.open}
+          </ConfirmToggle>
+          {canDiscard ? (
+            <ConfirmToggle
+              testId="session-discard-open"
+              controls={discardId}
+              expanded={open === "discard"}
+              onToggle={() => toggle("discard")}
+            >
+              {de.distribution.session.discard.open}
+            </ConfirmToggle>
+          ) : null}
+        </div>
       </div>
+
+      {open === "end" ? (
+        <form id={endId} action={end} className="flex flex-col items-end gap-3">
+          <Alert className="w-fit">
+            <AlertDescription data-testid="session-end-confirm" className="max-w-prose">
+              {de.distribution.session.end.confirm(summary.households, summary.totalPaidCents)}
+            </AlertDescription>
+          </Alert>
+          <Button type="submit" disabled={ending} data-testid="session-end-submit">
+            {ending ? de.distribution.session.end.submitting : de.distribution.session.end.submit}
+          </Button>
+        </form>
+      ) : null}
+
+      {canDiscard && open === "discard" ? (
+        <form id={discardId} action={discard} className="flex flex-col items-end gap-3">
+          <Alert className="w-fit">
+            <AlertDescription data-testid="session-discard-confirm" className="max-w-prose">
+              {de.distribution.session.discard.confirm}
+            </AlertDescription>
+          </Alert>
+          <Button
+            type="submit"
+            variant="destructive"
+            disabled={discarding}
+            data-testid="session-discard-submit"
+          >
+            {discarding
+              ? de.distribution.session.discard.submitting
+              : de.distribution.session.discard.submit}
+          </Button>
+        </form>
+      ) : null}
+
       <SessionNotice id="session-end" state={endState} />
       <SessionNotice id="session-discard" state={discardState} />
     </div>
+  );
+}
+
+/** `ControlSummary`'s look on a `<button>`: outline, because it opens a write, and a chevron. */
+function ConfirmToggle({
+  testId,
+  controls,
+  expanded,
+  onToggle,
+  children,
+}: {
+  testId: string;
+  controls: string;
+  expanded: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onToggle}
+      data-testid={testId}
+      className="group"
+    >
+      {children}
+      <ChevronDown
+        aria-hidden="true"
+        data-icon="inline-end"
+        className="size-4 shrink-0 transition-transform group-aria-expanded:rotate-180"
+      />
+    </Button>
   );
 }
 
