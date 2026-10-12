@@ -530,7 +530,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
       verdicts.clearToServe.headline,
     );
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
   });
 
   test("a move takes a household off the cards-due list and puts none on it", async ({ page }) => {
@@ -576,7 +576,7 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
       "OUTDATED_CARD",
     );
     await expect(page.getByTestId("counter-card-number")).toHaveText(card(START, 5));
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
   });
 
   test("a number taken while the screen stood open is refused, and nothing is written", async ({

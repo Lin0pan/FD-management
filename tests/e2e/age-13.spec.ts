@@ -328,7 +328,7 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
       "data-verdict",
       "CLEAR_TO_SERVE",
     );
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
 
     // The figures the hand-out goes by are today's, and the note beside them says which numbers the
     // card still carries — a remark, not a verdict.

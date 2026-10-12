@@ -290,7 +290,7 @@ test.describe("Ausgabe starten und beenden", () => {
     await expect(page.getByTestId("counter-verdict-headline")).toHaveText(
       de.distribution.counter.verdicts.wrongGroup.headline,
     );
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
   });
 
   test("serves a household of the afternoon's group and raises the tally on the same screen", async ({
@@ -321,9 +321,7 @@ test.describe("Ausgabe starten und beenden", () => {
       "data-verdict",
       "ALREADY_SERVED",
     );
-    await expect(page.getByTestId("already-served-message")).toContainText(
-      formatEuros(servedCents),
-    );
+    await expect(page.getByTestId("correct-amount")).toHaveValue(formatEuroAmount(servedCents));
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
   });
 
@@ -335,9 +333,7 @@ test.describe("Ausgabe starten und beenden", () => {
     await fillSticky(page.getByTestId("correct-amount"), formatEuroAmount(CORRECTED_CENTS));
     await page.getByTestId("correct-save").click();
     await expect(page.getByTestId("serve-confirmation")).toHaveText(serve.correct.saved);
-    await expect(page.getByTestId("already-served-message")).toContainText(
-      formatEuros(CORRECTED_CENTS),
-    );
+    await expect(page.getByTestId("correct-amount")).toHaveValue(formatEuroAmount(CORRECTED_CENTS));
 
     // The two-step guard: the closed disclosure has to be opened before the button that deletes
     // exists to be clicked.
@@ -347,7 +343,7 @@ test.describe("Ausgabe starten und beenden", () => {
 
     // And the household is unserved again at this very afternoon, which is what a removal is for:
     // the hand-out was recorded on the wrong number, so the right one is recorded afresh.
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
     servedCents = await serveForAmountAsked(page);
   });
 
@@ -387,7 +383,7 @@ test.describe("Ausgabe starten und beenden", () => {
     // `?nummer=` still in somebody's history, which is inert rather than an error.
     await page.goto(`/ausgabe?nummer=${NUMBERS.collects}`);
     await expect(page.getByTestId("counter-input")).toHaveCount(0);
-    await expect(page.getByTestId("already-served")).toHaveCount(0);
+    await expect(page.getByTestId("correct-amount")).toHaveCount(0);
     await expect(page.getByTestId("correct-save")).toHaveCount(0);
   });
 

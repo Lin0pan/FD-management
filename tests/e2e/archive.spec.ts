@@ -331,8 +331,10 @@ test.describe("Kunde archivieren", () => {
     // record, which is why the banner no longer repeats it.
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ARCHIVED);
-    // No hand-out can be recorded, and there is nothing left to archive either.
+    // No hand-out can be recorded — the one made at registration is today's record, offered for
+    // correction instead of a second — and there is nothing left to archive either.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("correct-save")).toBeVisible();
     await expect(page.getByTestId("archive-open")).toHaveCount(0);
 
     // Turning someone away is a read (FR-4): the refusal cost the archived household nothing.

@@ -78,6 +78,14 @@ function amountFrom(formData: FormData): Cents | null {
   }
 }
 
+/** The answer to an amount `amountFrom` could not read, marking the field it was typed into. */
+const amountUnreadable = {
+  status: "error",
+  message: de.distribution.serve.errors.notAnAmount,
+  tier: "refusal",
+  fields: [{ path: "betrag", problem: de.distribution.serve.errors.notAnAmount }],
+} as const satisfies Extract<ServeState, { status: "error" }>;
+
 /**
  * That the overpayment question was answered by pressing confirm. Read as the field's mere
  * *presence*: the confirm button is a second submit inside the same form, so it re-sends the typed
@@ -160,11 +168,7 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
   if (paidCents === null) {
     // A refusal and not an error: nothing is wrong with the installation, somebody typed something
     // the field cannot read.
-    return {
-      status: "error",
-      message: de.distribution.serve.errors.notAnAmount,
-      tier: "refusal",
-    };
+    return amountUnreadable;
   }
 
   try {
@@ -222,11 +226,7 @@ export async function correctServe(
   } else {
     const paidCents = amountFrom(formData);
     if (paidCents === null) {
-      return {
-        status: "error",
-        message: de.distribution.serve.errors.notAnAmount,
-        tier: "refusal",
-      };
+      return amountUnreadable;
     }
     intent = {
       recordId: recordId.data,

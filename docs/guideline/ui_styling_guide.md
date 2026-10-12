@@ -215,7 +215,7 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 
 - **Two literals are deliberately outside it**, because each is one screen's own and answers to that
   screen's job: the counter's traffic light (`ausgabe/counter-lookup.tsx`) and the two
-  full-strength submit buttons that follow it (`serve-controls.tsx`, `certificate-controls.tsx`).
+  full-strength submit buttons that follow it (`serve-form.tsx`, `certificate-controls.tsx`).
 - **A meaning gets one colour application-wide**, and two unrelated meanings must not share a tint on
   one screen. `BALANCE_STYLES` and `PAYMENT_STANDING_STYLES` share red-500 and blue-500 on purpose
   and are the worked example of the rule rather than a breach of it: a hand-out paid short and a

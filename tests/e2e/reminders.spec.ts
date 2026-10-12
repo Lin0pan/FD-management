@@ -200,7 +200,7 @@ async function lookUp(page: Page): Promise<void> {
  * the ordinary way to reach them.
  */
 async function serve(page: Page): Promise<void> {
-  await expect(page.getByTestId("serve-button")).toBeVisible();
+  await expect(page.getByTestId("serve-button")).toBeEnabled();
   await page.getByTestId("serve-button").click();
   await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
   await page.getByTestId("serve-recorded-correct").click();

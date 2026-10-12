@@ -1,6 +1,6 @@
 /**
- * The counter lookup: one input, one unmissable verdict, everything needed to decide beneath it
- * (`tasks/prd-us-04-lookup-customer.md` §US-04.4).
+ * The counter lookup: the verdict as a chip beside the button, the household under it
+ * (`tasks/prd-us-04-lookup-customer.md` §US-04.4, US-41).
  *
  * Nothing is decided here — this file chooses the words, the colour and the icon for a verdict
  * `evaluateAtCounter` has already reached. The switch is exhaustive by construction: the
@@ -25,24 +25,22 @@ import { CampaignReminderField } from "../campaign-reminder-field";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
 import { NotesControls } from "./notes-controls";
+import { PaidTile } from "./serve-form";
 
 /**
- * What the banner says over and above its colour: an icon, a headline readable from a metre away,
- * and — only where somebody typed one — a sentence.
- *
- * `detail` is `null` for every verdict the screen already answers by itself. What survives is the
- * block reason, the one line no other element holds.
+ * What the chip says over and above its colour: an icon and a headline readable from a metre away.
+ * The block reason is not in it — it is the household's, and stands with the household's facts.
  */
 interface Statement {
   readonly tone: Tone;
   readonly headline: string;
-  readonly detail: string | null;
 }
 
 /**
- * The answers a staff member acts on, plus the two that ask for nothing. `done` is a household who has
- * already collected — a fact about the afternoon rather than a refusal, and since looking one up again
- * is the ordinary way to a correction (US-32), painting it red would report a fault where none is.
+ * The answers a staff member acts on, plus the two that ask for nothing. `serve` paints no chip —
+ * the green button is the signal (US-41.4). `done` is a household who has already collected — a
+ * fact about the afternoon rather than a refusal, and since looking one up again is the ordinary
+ * way to a correction (US-32), painting it red would report a fault where none is.
  */
 type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
 
@@ -56,12 +54,11 @@ type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
  * in them to keep still (`docs/guideline/ui_styling_guide.md` §12).
  */
 const TONES = {
-  serve: { className: "bg-green-700 text-white ring-black/10", Icon: Check },
   warn: { className: "bg-amber-500 text-black ring-black/10", Icon: TriangleAlert },
   refuse: { className: "bg-red-700 text-white ring-black/10", Icon: X },
   unknown: { className: "bg-muted text-foreground ring-foreground/10", Icon: CircleHelp },
   done: { className: "bg-muted text-foreground ring-foreground/10", Icon: Check },
-} as const satisfies Record<Tone, { className: string; Icon: LucideIcon }>;
+} as const satisfies Record<Exclude<Tone, "serve">, { className: string; Icon: LucideIcon }>;
 
 /**
  * The German statement for one verdict.
@@ -73,35 +70,26 @@ function statementFor(verdict: Verdict): Statement {
   const words = de.distribution.counter.verdicts;
   switch (verdict.kind) {
     case "NOT_FOUND":
-      return { tone: "unknown", headline: words.notFound.headline, detail: null };
+      return { tone: "unknown", headline: words.notFound.headline };
     case "ARCHIVED":
-      // The badge below says „archiviert“ and no serve action is offered, so a „nicht ausgeben“
-      // would be the screen narrating what it has already done.
-      return { tone: "refuse", headline: words.archived.headline, detail: null };
+      // The badge below says „archiviert“ and the button is greyed, so a „nicht ausgeben“ would be
+      // the screen narrating what it has already done.
+      return { tone: "refuse", headline: words.archived.headline };
     case "BLOCKED":
-      return {
-        tone: "refuse",
-        headline: words.blocked.headline,
-        // The one verdict that keeps its sentence: the reason is the record of why this household was
-        // blocked (US-08), shown verbatim because nothing else on the screen holds it.
-        detail: verdict.reason ?? words.blocked.noReason,
-      };
+      return { tone: "refuse", headline: words.blocked.headline };
     case "WRONG_GROUP":
       // Both colours are already on screen in words, as US-03.4 requires anyway.
-      return { tone: "refuse", headline: words.wrongGroup.headline, detail: null };
+      return { tone: "refuse", headline: words.wrongGroup.headline };
     case "OUTDATED_CARD":
-      // The card that counts is the current one, and the record below prints it.
-      return { tone: "refuse", headline: words.outdatedCard.headline, detail: null };
+      // The card that counts is the current one, and the household row prints it.
+      return { tone: "refuse", headline: words.outdatedCard.headline };
     case "ALREADY_SERVED":
-      // No detail line: the time and the two amounts are rows of the already-served card immediately
-      // below (`docs/guideline/ui_styling_guide.md` §8).
-      return { tone: "done", headline: words.alreadyServed.headline, detail: null };
+      return { tone: "done", headline: words.alreadyServed.headline };
     case "CLEAR_TO_SERVE":
-      return { tone: "serve", headline: words.clearToServe.headline, detail: null };
+      return { tone: "serve", headline: words.clearToServe.headline };
     case "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED":
-      // The date and the count are rows in the record below; the headline only has to say that both
-      // "serve" and "expired" are true at once.
-      return { tone: "warn", headline: words.certificateExpired.headline, detail: null };
+      // The green button beside it says „serve“; the chip only has to add „expired“.
+      return { tone: "warn", headline: words.certificateExpired.headline };
     default: {
       const unhandled: never = verdict;
       throw new TypeError(`unhandled verdict: ${JSON.stringify(unhandled)}`);
@@ -110,41 +98,40 @@ function statementFor(verdict: Verdict): Statement {
 }
 
 /**
- * The verdict, full width and stated in words — the one thing on this screen that cannot be missed.
- *
- * **Only the headline is painted**, so the bar is one height whatever the sentence turns out to be:
- * a block reason typed by hand runs to paragraphs and used to push the strip past 400px. The
- * `<section>` wraps both, so a screen reader reads verdict and instruction as one answer.
+ * The verdict as the status slot's chip (US-41.4). „Ausgabe frei“ paints nothing — the green button
+ * is the signal — and is still said, so a screen reader hears every verdict. `servedAt` is the time
+ * of today's record, which is how an already-served household is recognised.
  */
-export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactElement {
-  const { tone, headline, detail } = statementFor(verdict);
+export function VerdictChip({
+  verdict,
+  servedAt,
+}: {
+  verdict: Verdict;
+  servedAt: string | null;
+}): React.ReactElement {
+  const { tone, headline } = statementFor(verdict);
+  if (tone === "serve") {
+    return (
+      <span data-testid="counter-verdict-headline" className="sr-only">
+        {headline}
+      </span>
+    );
+  }
   const { className, Icon } = TONES[tone];
-
   return (
-    <section
-      data-testid="counter-verdict"
-      data-verdict={verdict.kind}
-      className="flex w-full flex-col gap-2"
+    <p
+      className={`flex h-12 items-center gap-2 rounded-[10px] px-4 text-base font-semibold ring-1 ${className}`}
     >
-      {/* `text-3xl` is a floor, not a preference: this is read standing up with a queue waiting. */}
-      <p className={`flex items-center gap-3 rounded-xl px-5 py-2.5 ring-1 ${className}`}>
-        <Icon aria-hidden="true" className="size-6 shrink-0 md:size-7" strokeWidth={2.5} />
-        <span data-testid="counter-verdict-headline" className="text-2xl font-bold sm:text-3xl">
-          {headline}
-        </span>
-      </p>
-      {/* `whitespace-pre-line` because a block reason is typed by hand into a multi-line field and
-          is shown verbatim (US-08, FR-4): the paragraphs a colleague wrote have to survive to the
-          counter, not collapse into one run-on line. */}
-      {detail === null ? null : (
-        <p
-          data-testid="counter-verdict-detail"
-          className="max-w-prose px-5 text-base whitespace-pre-line"
-        >
-          {detail}
-        </p>
-      )}
-    </section>
+      <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={2.5} />
+      <span>
+        <span data-testid="counter-verdict-headline">{headline}</span>
+        {verdict.kind === "ALREADY_SERVED" && servedAt !== null ? (
+          <span className="tabular-nums">
+            {de.distribution.counter.verdicts.alreadyServed.at(servedAt)}
+          </span>
+        ) : null}
+      </span>
+    </p>
   );
 }
 
@@ -276,7 +263,7 @@ export function HouseholdRows({
           </p>
         )}
       </div>
-      <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 md:grid-cols-12">
+      <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-12">
         <div className="flex gap-3 md:col-span-3">
           <Stat
             label={words.grownUps}
@@ -304,16 +291,19 @@ export function HouseholdRows({
             valueClassName={TILE_VALUE}
           />
         </div>
-        <div className="flex flex-wrap items-end justify-between gap-3 md:col-span-6">
-          {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
-              (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
-          <Stat
-            label={de.customers.derived.balance}
-            value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
-            testId="counter-balance"
-            className={cn(TILE, "w-[164px]", BALANCE_STYLES[kind])}
-            valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
-          />
+        <div className="flex flex-wrap items-start justify-between gap-3 md:col-span-6">
+          <div className="flex flex-wrap items-start gap-3">
+            <PaidTile />
+            {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
+                (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
+            <Stat
+              label={de.customers.derived.balance}
+              value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
+              testId="counter-balance"
+              className={cn(TILE, "w-[164px]", BALANCE_STYLES[kind])}
+              valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
+            />
+          </div>
           {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
             <p
               data-testid="campaign-reminder-none"
@@ -345,13 +335,25 @@ export function HouseholdRows({
 export function HouseholdFacts({
   customer,
   customerId,
+  verdict,
 }: {
   customer: CounterCustomerView;
   customerId: number;
+  verdict: Verdict;
 }): React.ReactElement {
   return (
     <Card>
       <CardContent className="flex flex-col gap-6">
+        {/* The record of why this household was blocked (US-08), verbatim and with its paragraphs:
+            nothing else on the screen holds it. Row 5 takes it over (US-41.7). */}
+        {verdict.kind === "BLOCKED" ? (
+          <p
+            data-testid="counter-verdict-detail"
+            className="max-w-prose text-base whitespace-pre-line"
+          >
+            {verdict.reason ?? de.distribution.counter.verdicts.blocked.noReason}
+          </p>
+        ) : null}
         <Table>
           <TableBody>
             <Field

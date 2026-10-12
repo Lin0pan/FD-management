@@ -24,14 +24,22 @@ interface ConfirmOverpayment {
 }
 
 /**
+ * A refused hand-out or correction. `fields` names „Gezahlt“ when the amount could not be read:
+ * that refusal marks the tile and not the status slot (US-41.5, Z5).
+ */
+interface AmountRefusal {
+  readonly status: "error";
+  readonly message: string;
+  readonly tier: NoticeTier;
+  readonly fields?: ReadonlyArray<FieldRefusal>;
+}
+
+/**
  * What the serve form shows after a submission — a question or a refusal, and nothing else. There is
  * no `recorded`, for `CorrectState`'s reason: a successful hand-out navigates (`served-flag.ts`), so
  * the state that would hold the answer is unmounted with the form (US-32.7).
  */
-export type ServeState =
-  | { readonly status: "idle" }
-  | ConfirmOverpayment
-  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
+export type ServeState = { readonly status: "idle" } | ConfirmOverpayment | AmountRefusal;
 
 export const initialServeState: ServeState = { status: "idle" };
 
@@ -41,10 +49,7 @@ export const initialServeState: ServeState = { status: "idle" };
  * have shown the answer, and the confirmation goes through a redirect instead (`removed-flag.ts`).
  */
 export type CorrectState =
-  | { readonly status: "idle" }
-  | { readonly status: "saved" }
-  | ConfirmOverpayment
-  | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
+  { readonly status: "idle" } | { readonly status: "saved" } | ConfirmOverpayment | AmountRefusal;
 
 export const initialCorrectState: CorrectState = { status: "idle" };
 

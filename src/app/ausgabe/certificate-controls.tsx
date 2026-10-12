@@ -4,7 +4,7 @@
  * The counter's certificate actions — logging today's reminder and recording a renewed certificate,
  * both without leaving the screen (`tasks/prd-us-06-certificate-reminder.md` §US-06.4).
  *
- * A client component for `ServeControls`' reason: `useActionState` reports the answer beside the
+ * A client component for `serve-form.tsx`'s reason: `useActionState` reports the answer beside the
  * button that asked. No rules — the disabled button repeats what the store knows through
  * `reminderLoggedInSession` rather than being the guard (FR-5).
  *

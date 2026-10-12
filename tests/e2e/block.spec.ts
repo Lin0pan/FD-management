@@ -220,7 +220,7 @@ test.describe("Kunde sperren und entsperren", () => {
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCSS("white-space", "pre-line");
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.BLOCKED);
     await expect(page.getByTestId("counter-name")).toHaveText(name);
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
   });
 
   test("lifting the block makes the household servable on the same number and card", async ({
@@ -249,7 +249,7 @@ test.describe("Kunde sperren und entsperren", () => {
       "data-verdict",
       "CLEAR_TO_SERVE",
     );
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
     await expect(page.getByTestId("counter-card-number")).toHaveText(CARD_NUMBER);
   });
 });

@@ -241,7 +241,10 @@ test.describe("Aktionserinnerung", () => {
     await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
 
     await lookUp(page, NUMBERS.served);
-    await expect(page.getByTestId("already-served")).toBeVisible();
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "ALREADY_SERVED",
+    );
     await expect(box(page)).not.toBeChecked();
     await expect(page.getByTestId("campaign-reminder-outstanding")).toBeVisible();
 

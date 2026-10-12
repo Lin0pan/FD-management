@@ -213,7 +213,7 @@ async function lookUp(page: Page, customerNumber: number): Promise<void> {
 async function serveForAmountAsked(page: Page): Promise<number> {
   // The verdict permits serving, said before the field is read: a household turned away would
   // otherwise fail five seconds later on an input that was never going to be there.
-  await expect(page.getByTestId("serve-button")).toBeVisible();
+  await expect(page.getByTestId("serve-button")).toBeEnabled();
   const asked = parseEuros(await page.getByTestId("serve-amount").inputValue());
   await page.getByTestId("serve-button").click();
   await expect(page.getByTestId("serve-recorded-confirmation")).toContainText(formatEuros(asked));

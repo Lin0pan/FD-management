@@ -1347,7 +1347,7 @@ export const de = {
      * to the one person who has just typed something unreadable.
      */
     counter: {
-      label: "Nummer",
+      label: "Kundennummer",
       /** The one card the counter is: lookup, household, tiles (US-41). */
       mask: {
         label: "Ausgabemaske",
@@ -1377,9 +1377,15 @@ export const de = {
         },
         wrongGroup: { headline: "Falsche Gruppe" },
         outdatedCard: { headline: "Karte ungültig" },
-        alreadyServed: { headline: "Bereits ausgegeben" },
+        /** `at` follows the headline in the chip: the time is how the record is recognised. */
+        alreadyServed: {
+          headline: "Bereits ausgegeben",
+          at: (time: string): string => ` · ${time} Uhr`,
+        },
+        /** Never painted: the green button is the signal, and this is said to screen readers. */
         clearToServe: { headline: "Ausgabe frei" },
-        certificateExpired: { headline: "Ausgabe frei — Nachweis abgelaufen" },
+        /** Short, because the button beside it already says the household is served (US-06). */
+        certificateExpired: { headline: "Nachweis abgelaufen" },
       },
       details: {
         heading: "Angaben zum Haushalt",
@@ -1453,13 +1459,13 @@ export const de = {
      */
     serve: {
       submit: "Ausgabe erfassen",
-      /** „Betrag“ and not „Bezahlt“ (US-29.7): the field takes a number, not a yes-or-no. */
-      amount: "Betrag",
+      /** What was handed over, as a past fact beside what was asked (US-41.5). */
+      amount: "Gezahlt",
       /**
-       * What was asked on the day, above the correction field so the amount can be read against
-       * something. „Gefordert“ rather than „Preis“: a household settling a debt was asked for more.
+       * What was asked, beside „Gezahlt“ so the amount can be read against something: today's
+       * amount to pay, or what was asked on the day of the record being corrected.
        */
-      asked: (cents: number): string => `Gefordert: ${formatEuros(cents)}`,
+      asked: (cents: number): string => `(von ${formatEuros(cents)})`,
       /**
        * Read on the empty counter the write navigates to (US-32.7). The household is gone from the
        * screen by then, so the sentence names all four facts needed to be sure the right record was
@@ -1474,14 +1480,6 @@ export const de = {
       /** The link back to the household this confirmation names, one click from the correction. */
       correctRecorded: "Korrigieren",
       /**
-       * Shown in place of the serve action for a household already recorded today: the time, and what
-       * was handed over against what was asked (US-29.7). Two amounts rather than „bezahlt“/„nicht
-       * bezahlt“, which cannot say 2,00 € of 5,00 €.
-       */
-      alreadyServed: (time: string, paidCents: number, askedCents: number): string =>
-        `Bereits versorgt um ${time} Uhr. ` +
-        `(${formatEuros(paidCents)} von ${formatEuros(askedCents)} gezahlt)`,
-      /**
        * The question an amount above what was asked raises (US-29.7). A question and not a fault —
        * paying ahead is never refused outright — asked because a mistyped credit is the one error
        * this design cannot undo, where a shortfall shows up at the very next hand-out.
@@ -1494,7 +1492,6 @@ export const de = {
         confirm: "Ja, Betrag so buchen",
       },
       correct: {
-        heading: "Eintrag korrigieren",
         save: "Betrag speichern",
         saved: "Eintrag aktualisiert.",
         remove: "Eintrag entfernen",
@@ -1510,7 +1507,7 @@ export const de = {
         removed: "Eintrag entfernt. Der Haushalt kann erneut erfasst werden.",
       },
       errors: {
-        notClearToServe: "Ausgabe nicht möglich. Bitte den Hinweis oben beachten.",
+        notClearToServe: "Ausgabe nicht möglich. Bitte die Nummer erneut nachschlagen.",
         alreadyServed: "Dieser Haushalt hat bei dieser Ausgabe bereits etwas erhalten.",
         noLongerCorrectable:
           "Diese Ausgabe ist beendet. Der Eintrag kann nicht mehr geändert werden.",

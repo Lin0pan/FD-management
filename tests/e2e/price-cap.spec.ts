@@ -185,7 +185,15 @@ async function expectQuoted(page: Page, id: number, price: string, absent: strin
   const listed = sessionHousehold(page, CUSTOMER_NUMBER);
   await expect(listed.getByTestId("customer-row-price")).toHaveText(price);
   await expect(listed).not.toContainText(absent);
-  await expect(page.getByTestId("counter-customer")).not.toContainText(absent);
+  // Less what today's record was asked, which is a past figure and is the test's to state.
+  const mask = await page.getByTestId("counter-customer").evaluate((node): string => {
+    const copy = node.cloneNode(true);
+    if (copy instanceof Element) {
+      copy.querySelector('[data-testid="correct-asked"]')?.remove();
+    }
+    return copy.textContent ?? "";
+  });
+  expect(mask).not.toContain(absent);
 
   await page.goto(`/kunden/${id}`);
   await expect(page.getByTestId("price")).toHaveText(price);
@@ -315,6 +323,12 @@ test.describe("Maximalpreis", () => {
     // 11,00 € on every screen that quoted 5,00 € before, from the same household and the same
     // arithmetic — no hard-coded cap could produce both answers.
     await expectQuoted(page, id, UNCAPPED_PRICE, CAPPED_PRICE);
+
+    // This afternoon's hand-out goes on being judged against the cap it was asked under.
+    await lookUp(page);
+    await expect(page.getByTestId("correct-asked")).toHaveText(
+      de.distribution.serve.asked(CAPPED_PRICE_CENTS),
+    );
 
     // And the hand-out recorded two caps ago still reads what it cost.
     await page.goto(`/kunden/${id}`);
