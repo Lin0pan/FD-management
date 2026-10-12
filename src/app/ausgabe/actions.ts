@@ -78,6 +78,14 @@ function amountFrom(formData: FormData): Cents | null {
   }
 }
 
+/** The answer to an amount `amountFrom` could not read, marking the field it was typed into. */
+const amountUnreadable = {
+  status: "error",
+  message: de.distribution.serve.errors.notAnAmount,
+  tier: "refusal",
+  fields: [{ path: "betrag", problem: de.distribution.serve.errors.notAnAmount }],
+} as const satisfies Extract<ServeState, { status: "error" }>;
+
 /**
  * That the overpayment question was answered by pressing confirm. Read as the field's mere
  * *presence*: the confirm button is a second submit inside the same form, so it re-sends the typed
@@ -160,11 +168,7 @@ export async function recordServe(_previous: ServeState, formData: FormData): Pr
   if (paidCents === null) {
     // A refusal and not an error: nothing is wrong with the installation, somebody typed something
     // the field cannot read.
-    return {
-      status: "error",
-      message: de.distribution.serve.errors.notAnAmount,
-      tier: "refusal",
-    };
+    return amountUnreadable;
   }
 
   try {
@@ -222,11 +226,7 @@ export async function correctServe(
   } else {
     const paidCents = amountFrom(formData);
     if (paidCents === null) {
-      return {
-        status: "error",
-        message: de.distribution.serve.errors.notAnAmount,
-        tier: "refusal",
-      };
+      return amountUnreadable;
     }
     intent = {
       recordId: recordId.data,
@@ -297,8 +297,8 @@ function renewalRefusal(error: unknown, selected: string): RenewalState & { stat
 
 /**
  * Log today's certificate reminder. The rules live in `recordReminder` and in the database's unique
- * day constraint; this only relays the resulting count or the refusal. The page revalidates, so the
- * count and the button's disabled state come back from the store, not from client memory.
+ * day constraint; this only relays that it was logged, or the refusal. The page revalidates, so the
+ * count and the spent reminder come back from the store, not from client memory.
  */
 export async function logReminder(
   _previous: ReminderState,
@@ -314,9 +314,9 @@ export async function logReminder(
   }
 
   try {
-    const count = await recordReminder(counterActionDeps, { customerId: customerId.data });
+    await recordReminder(counterActionDeps, { customerId: customerId.data });
     revalidatePath("/ausgabe");
-    return { status: "logged", count };
+    return { status: "logged" };
   } catch (error: unknown) {
     return { status: "error", message: reminderMessage(error), tier: tierOf(error) };
   }

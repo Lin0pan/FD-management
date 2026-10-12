@@ -7,7 +7,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated } from "./day";
 import { releaseNumbers } from "./seeding";
-import { endSessionInHook, startSessionInHook } from "./session";
+import { endSessionInHook, sessionHousehold, startSessionInHook } from "./session";
 
 /**
  * The egg allowance from the settings screen to the counter (`tasks/prd-us-28-egg-allowance.md`
@@ -234,6 +234,9 @@ async function seedHousehold(household: Household): Promise<number> {
   return customer.id;
 }
 
+/** The record, or the counter with the household on this number looked up. */
+type Screen = "record" | { readonly counter: number };
+
 /**
  * The four figures a screen states, under whichever prefix that screen's testids carry.
  *
@@ -241,27 +244,33 @@ async function seedHousehold(household: Household): Promise<number> {
  * render are the same absence to a check for the figure's absence, and the whole point of stating a
  * zero is that the counter can see the question was answered.
  */
-async function expectTiles(page: Page, prefix: "" | "counter-", expected: Figures): Promise<void> {
+async function expectTiles(page: Page, at: Screen, expected: Figures): Promise<void> {
+  const prefix = at === "record" ? "" : "counter-";
   await expect(page.getByTestId(`${prefix}grown-ups`)).toHaveText(String(expected.grownUps));
   await expect(page.getByTestId(`${prefix}children`)).toHaveText(String(expected.children));
   const eggs = page.getByTestId(`${prefix}eggs`);
   await expect(eggs).toBeVisible();
   await expect(eggs).toHaveText(String(expected.eggs));
-  await expect(page.getByTestId(`${prefix}price`)).toHaveText(expected.price);
+  // The counter's mask holds no price tile; the household's row in the list under it does.
+  const price =
+    at === "record"
+      ? page.getByTestId("price")
+      : sessionHousehold(page, at.counter).getByTestId("customer-row-price");
+  await expect(price).toHaveText(expected.price);
 }
 
 /** Look a household up at the counter, as staff do when the number is called across the table. */
 async function atCounter(page: Page, household: Household): Promise<void> {
   await page.goto(`/ausgabe?nummer=${household.customerNumber}`);
-  await expect(page.getByTestId("counter-customer-number")).toHaveText(
-    String(household.customerNumber),
+  await expect(page.getByTestId("counter-card-number")).toHaveText(
+    new RegExp(`^${household.customerNumber}k\\d+$`),
   );
 }
 
 /** How many eggs the counter states for a household, with the price it must not have moved. */
 async function expectAtCounter(page: Page, household: Household, eggs: number): Promise<void> {
   await atCounter(page, household);
-  await expectTiles(page, "counter-", { ...household, eggs });
+  await expectTiles(page, { counter: household.customerNumber }, { ...household, eggs });
 }
 
 /**
@@ -337,10 +346,10 @@ test.describe("Eier", () => {
     // rows, and which step it reaches comes off the stored rule.
     for (const household of EVERY_HOUSEHOLD) {
       await page.goto(record(household));
-      await expectTiles(page, "", household);
+      await expectTiles(page, "record", household);
 
       await atCounter(page, household);
-      await expectTiles(page, "counter-", household);
+      await expectTiles(page, { counter: household.customerNumber }, household);
     }
   });
 
@@ -401,7 +410,7 @@ test.describe("Eier", () => {
     const household = HOUSEHOLDS.two;
 
     await page.goto(record(household));
-    await expectTiles(page, "", household);
+    await expectTiles(page, "record", household);
 
     await page.getByTestId("add-member").click();
     await page.getByTestId("member-first-name-2").fill(faker.person.firstName());
@@ -409,7 +418,7 @@ test.describe("Eier", () => {
     await fillDay(page.getByTestId("member-birth-date-2"), INFANT_BIRTH_DATE);
 
     // Nothing saved yet, and the panel already says what the household will come to.
-    await expectTiles(page, "", TWO_PLUS_BABY);
+    await expectTiles(page, "record", TWO_PLUS_BABY);
 
     await page.getByTestId("household-submit").click();
     await expect(page.getByTestId("household-saved")).toBeVisible();
@@ -417,10 +426,10 @@ test.describe("Eier", () => {
     // And the server agrees with the browser on a fresh request, on both screens: the preview and
     // the save put the same rule to the same head count.
     await page.goto(record(household));
-    await expectTiles(page, "", TWO_PLUS_BABY);
+    await expectTiles(page, "record", TWO_PLUS_BABY);
 
     await atCounter(page, household);
-    await expectTiles(page, "counter-", TWO_PLUS_BABY);
+    await expectTiles(page, { counter: household.customerNumber }, TWO_PLUS_BABY);
   });
 
   test("two rows at the same threshold are refused and nothing is saved", async ({ page }) => {
@@ -489,7 +498,11 @@ test.describe("Eier", () => {
     // The two households that reach the first step and no further, and the two above it, which the
     // edit must leave exactly where they were.
     await atCounter(page, HOUSEHOLDS.two);
-    await expectTiles(page, "counter-", { ...TWO_PLUS_BABY, eggs: 8 });
+    await expectTiles(
+      page,
+      { counter: HOUSEHOLDS.two.customerNumber },
+      { ...TWO_PLUS_BABY, eggs: 8 },
+    );
     await expectAtCounter(page, HOUSEHOLDS.three, 8);
     await expectAtCounter(page, HOUSEHOLDS.five, 12);
     await expectAtCounter(page, HOUSEHOLDS.eight, 18);
@@ -515,7 +528,11 @@ test.describe("Eier", () => {
     // exactly where the per-head rule and the Maximalpreis had it. The eggs are free, and the one
     // way that could quietly stop being true is a count reaching the sum.
     await atCounter(page, HOUSEHOLDS.two);
-    await expectTiles(page, "counter-", { ...TWO_PLUS_BABY, eggs: 0 });
+    await expectTiles(
+      page,
+      { counter: HOUSEHOLDS.two.customerNumber },
+      { ...TWO_PLUS_BABY, eggs: 0 },
+    );
     await expectAtCounter(page, HOUSEHOLDS.three, 0);
     await expectAtCounter(page, HOUSEHOLDS.five, 0);
     await expectAtCounter(page, HOUSEHOLDS.eight, 0);
@@ -540,7 +557,7 @@ test.describe("Eier", () => {
 
     // And the counter is back where the first test in this file found it.
     await atCounter(page, HOUSEHOLDS.two);
-    await expectTiles(page, "counter-", TWO_PLUS_BABY);
+    await expectTiles(page, { counter: HOUSEHOLDS.two.customerNumber }, TWO_PLUS_BABY);
     await expectAtCounter(page, HOUSEHOLDS.eight, 18);
   });
 });

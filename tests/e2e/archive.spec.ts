@@ -76,6 +76,8 @@ interface Household {
   readonly id: number;
   readonly customerNumber: string;
   readonly name: string;
+  /** The same name as the counter's mask writes it, surname first (US-41.5). */
+  readonly counterName: string;
 }
 
 /**
@@ -128,7 +130,12 @@ async function register(page: Page): Promise<Household> {
   // whole run rather than this household's, so a registration onto a number an archived household
   // released is not `k1` (US-25). The tests that know the run assert the index themselves.
   await expect(page.getByTestId("card-number")).toHaveText(new RegExp(`^${customerNumber}k\\d+$`));
-  return { id, customerNumber, name: `${firstName} ${lastName}` };
+  return {
+    id,
+    customerNumber,
+    name: `${firstName} ${lastName}`,
+    counterName: `${lastName}, ${firstName}`,
+  };
 }
 
 /** Type a number at the counter and press Enter, exactly as staff do it. */
@@ -324,8 +331,10 @@ test.describe("Kunde archivieren", () => {
     // record, which is why the banner no longer repeats it.
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ARCHIVED);
-    // No hand-out can be recorded, and there is nothing left to archive either.
+    // No hand-out can be recorded — the one made at registration is today's record, offered for
+    // correction instead of a second — and there is nothing left to archive either.
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("correct-save")).toBeVisible();
     await expect(page.getByTestId("archive-open")).toHaveCount(0);
 
     // Turning someone away is a read (FR-4): the refusal cost the archived household nothing.
@@ -359,7 +368,7 @@ test.describe("Kunde archivieren", () => {
     // The number now names its new holder — an active holder always wins over an archived one, so
     // the counter cannot serve or refuse the wrong household.
     await lookUp(page, household.customerNumber);
-    await expect(page.getByTestId("counter-name")).toHaveText(successor.name);
+    await expect(page.getByTestId("counter-name")).toHaveText(successor.counterName);
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
       "CLEAR_TO_SERVE",

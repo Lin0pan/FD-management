@@ -241,7 +241,10 @@ test.describe("Aktionserinnerung", () => {
     await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
 
     await lookUp(page, NUMBERS.served);
-    await expect(page.getByTestId("already-served")).toBeVisible();
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "ALREADY_SERVED",
+    );
     await expect(box(page)).not.toBeChecked();
     await expect(page.getByTestId("campaign-reminder-outstanding")).toBeVisible();
 
@@ -255,7 +258,10 @@ test.describe("Aktionserinnerung", () => {
     await expect(page.getByTestId("campaign-reminder-outstanding")).toHaveCount(0);
 
     await lookUp(page, NUMBERS.archived);
+    await expect(page.getByTestId("counter-customer")).toBeVisible();
     await expect(box(page)).toHaveCount(0);
+    // Neither the box nor the corner's „keine Aktionserinnerung“: a reminder is on, just not for them.
+    await expect(page.getByTestId("campaign-reminder-none")).toHaveCount(0);
     await page.goto(`/kunden/${ids.archived}`);
     await expect(page.getByTestId("customer-number")).toHaveText(String(NUMBERS.archived));
     await expect(box(page)).toHaveCount(0);
@@ -312,6 +318,10 @@ test.describe("Aktionserinnerung", () => {
     await lookUp(page, NUMBERS.blocked);
     await expect(page.getByTestId("counter-customer")).toBeVisible();
     await expect(box(page)).toHaveCount(0);
+    // The corner says so rather than standing empty (US-41.5).
+    await expect(page.getByTestId("campaign-reminder-none")).toHaveText(
+      de.distribution.counter.mask.noCampaignReminder,
+    );
     await page.goto(`/kunden/${ids.blocked}`);
     await expect(page.getByTestId("customer-number")).toHaveText(String(NUMBERS.blocked));
     await expect(box(page)).toHaveCount(0);

@@ -38,6 +38,34 @@ function eggRow(minPersons: number, eggs: number): string {
 const EGG_THRESHOLD_COLUMN = "Ab wie vielen Personen";
 const EGG_COUNT_COLUMN = "Eier";
 
+/** One group's share of the counter's tally — what {@link tallyParts} reads per group. */
+export interface TallyFigures {
+  readonly colour: string;
+  readonly served: number;
+  readonly expected: number;
+}
+
+/**
+ * The counter's tally as figure-then-words pieces, so a screen can set each figure bold (US-41.3).
+ * One group reads „2 von 100 Haushalten abgeholt“ — the badge beside it names the group. A merged
+ * afternoon names each: „12 von 100 Rot · 8 von 98 Blau abgeholt“, never one sum, which would hide
+ * the half falling behind (US-34.6). Module-level so the plain-text sentence is the same pieces.
+ */
+function tallyParts(
+  tallies: ReadonlyArray<TallyFigures>,
+): ReadonlyArray<{ readonly figure: number; readonly rest: string }> {
+  if (tallies.length === 1) {
+    return tallies.map((tally) => ({
+      figure: tally.served,
+      rest: ` von ${tally.expected} Haushalten abgeholt`,
+    }));
+  }
+  return tallies.map((tally, index) => {
+    const after = index === tallies.length - 1 ? " abgeholt" : " · ";
+    return { figure: tally.served, rest: ` von ${tally.expected} ${tally.colour}${after}` };
+  });
+}
+
 /**
  * A sentence written as parts, some emphasised when rendered. The dictionary still owns the whole
  * sentence and only says which fragments carry the weight — a component assembling German from
@@ -462,6 +490,8 @@ export const de = {
     archive: {
       heading: "Archivieren",
       action: "Diesen Haushalt archivieren",
+      /** The counter footer's: the household is the mask's, so „diesen Haushalt“ says nothing. */
+      compactAction: "Archivieren",
       reasonLabel: "Grund der Archivierung",
       confirm: (customerNumber: number): string =>
         `Die Kundennummer ${customerNumber} wird frei. Rückgängig machen lässt sich die ` +
@@ -1154,8 +1184,17 @@ export const de = {
      * customers.
      */
     session: {
-      /** The header while one runs. Two facts and no third: that it runs, and whom it serves. */
+      /**
+       * The Start screen's panel while one runs. Two facts and no third: that it runs, and whom it
+       * serves.
+       */
       running: "Ausgabe läuft",
+      /**
+       * The counter's header line: the day the afternoon *started* and its ISO week,
+       * „Mo 12.10.2026 · KW 42“ (US-41.3). Indexed by `getUTCDay()`, so Sunday comes first.
+       */
+      weekdays: ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"],
+      day: (weekday: string, day: string, week: number): string => `${weekday} ${day} · KW ${week}`,
       start: {
         heading: "Ausgabe starten",
         /**
@@ -1261,7 +1300,7 @@ export const de = {
       /** The heading after a count, wherever the list is offered with its size (US-38). */
       countedName: (count: number): string =>
         count === 1 ? "Ausgabetermin" : de.distribution.pastSessions.heading,
-      /** The counter screen's shortcut to this list, and the detail's way back to it. */
+      /** The last-session card's shortcut to this list, and the detail's way back to it. */
       link: "Alle Ausgabetermine",
       /** The afternoon under way, which is the row at the top. */
       running: "Läuft",
@@ -1310,8 +1349,26 @@ export const de = {
      * to the one person who has just typed something unreadable.
      */
     counter: {
-      heading: "Kunden nachschlagen",
-      label: "Nummer",
+      label: "Kundennummer",
+      /** The one card the counter is: lookup, household, tiles (US-41). */
+      mask: {
+        label: "Ausgabemaske",
+        name: "Name",
+        card: "Karte",
+        /** The tiles are a thumb wide; where the age line falls is the record's to say. */
+        grownUps: "Erwachsene",
+        children: "Kinder",
+        /** Said rather than left blank, so an empty corner is not read as a reminder that failed. */
+        noCampaignReminder: "keine Aktionserinnerung",
+        lastHandout: "Letzte Ausgabe",
+        noHandout: "noch keine",
+        /** At the running afternoon the time is what says so — the date would be today's anyway. */
+        handoutToday: (time: string): string => `heute, ${time} Uhr`,
+        noShows: (count: number): string =>
+          `${count === 1 ? "1 Ausgabe" : `${count} Ausgaben`} in Folge verpasst`,
+        /** No date beside it: none is stored (US-41, decision 3). */
+        blockReason: "Sperrgrund",
+      },
       submit: "Nachschlagen",
       /**
        * A verdict is its headline — everything a sentence beneath it could add is already a tile, a
@@ -1330,12 +1387,17 @@ export const de = {
         },
         wrongGroup: { headline: "Falsche Gruppe" },
         outdatedCard: { headline: "Karte ungültig" },
-        alreadyServed: { headline: "Bereits ausgegeben" },
+        /** `at` follows the headline in the chip: the time is how the record is recognised. */
+        alreadyServed: {
+          headline: "Bereits ausgegeben",
+          at: (time: string): string => ` · ${time} Uhr`,
+        },
+        /** Never painted: the green button is the signal, and this is said to screen readers. */
         clearToServe: { headline: "Ausgabe frei" },
-        certificateExpired: { headline: "Ausgabe frei — Nachweis abgelaufen" },
+        /** Short, because the button beside it already says the household is served (US-06). */
+        certificateExpired: { headline: "Nachweis abgelaufen" },
       },
       details: {
-        heading: "Angaben zum Haushalt",
         reminderCount: "Erinnerungen an den Nachweis",
         noNotes: "Keine Bemerkung hinterlegt.",
       },
@@ -1350,6 +1412,7 @@ export const de = {
       notes: {
         add: "Bemerkung hinzufügen",
         edit: "Bemerkung bearbeiten",
+        cancel: "Abbrechen",
       },
       /**
        * The note for a card whose printed counts the household has outgrown (US-13.4).
@@ -1374,29 +1437,29 @@ export const de = {
       },
     },
     /**
-     * How far through today's group the afternoon is (`tasks/prd-us-23-group-progress.md` §US-23.4).
-     *
-     * The summary *is* the tally, not a label hiding one: nobody should have to open the list to
-     * learn the number, and both figures stand in one sentence so a screen reader does not announce
-     * them as unrelated fragments.
-     *
-     * `open`/`close` are the fold's affordance, deliberately outside that sentence: which of the two
-     * shows depends on the fold's state, and the tally does not.
+     * How far through the afternoon's group(s) the counter is (US-23), stated in the header line
+     * (US-41.3), and the list of the session's households below the counter (US-41.8).
      */
     progress: {
-      summary: (group: string, served: number, expected: number): string =>
-        `${group}: ${served} von ${expected} Haushalten abgeholt`,
+      tally: tallyParts,
+      /** {@link tallyParts} as one sentence — what a screen reader and a spec read. */
+      summary: (tallies: ReadonlyArray<TallyFigures>): string =>
+        tallyParts(tallies)
+          .map((part) => `${part.figure}${part.rest}`)
+          .join(""),
       /**
-       * A merged afternoon's two tallies on one line, joined with the middle dot the Kundenliste's
-       * group balance uses. Never added up: a group falling behind is exactly what one fraction
-       * over both would hide (US-34.6).
+       * The list's heading: „Gruppe Rot", or „Gruppen Rot und Blau" — the heading names the table's
+       * contents, so it counts them, where `groups` names the afternoon (US-41.8).
        */
-      summaries: (perGroup: ReadonlyArray<string>): string => perGroup.join(" · "),
-      open: "Liste anzeigen",
-      close: "Liste ausblenden",
+      heading: (colours: ReadonlyArray<string>): string =>
+        `${colours.length === 1 ? "Gruppe" : "Gruppen"} ${colours.join(" und ")}`,
+      count: (households: number): string =>
+        households === 1 ? "1 Haushalt" : `${households} Haushalte`,
+      /** The column the list adds to the Kundenliste's nine. */
+      today: "Heute",
       /** The mark on a household that has collected today. Only these rows are marked. */
       served: "abgeholt",
-      /** An empty group in words, rather than a disclosure that opens onto nothing. */
+      /** An empty group in words, rather than a table with nothing under its heads. */
       empty: (group: string): string => `${group}: zurzeit ist kein Haushalt zugeordnet.`,
     },
     /**
@@ -1406,13 +1469,13 @@ export const de = {
      */
     serve: {
       submit: "Ausgabe erfassen",
-      /** „Betrag“ and not „Bezahlt“ (US-29.7): the field takes a number, not a yes-or-no. */
-      amount: "Betrag",
+      /** What was handed over, as a past fact beside what was asked (US-41.5). */
+      amount: "Gezahlt",
       /**
-       * What was asked on the day, above the correction field so the amount can be read against
-       * something. „Gefordert“ rather than „Preis“: a household settling a debt was asked for more.
+       * What was asked, beside „Gezahlt“ so the amount can be read against something: today's
+       * amount to pay, or what was asked on the day of the record being corrected.
        */
-      asked: (cents: number): string => `Gefordert: ${formatEuros(cents)}`,
+      asked: (cents: number): string => `(von ${formatEuros(cents)})`,
       /**
        * Read on the empty counter the write navigates to (US-32.7). The household is gone from the
        * screen by then, so the sentence names all four facts needed to be sure the right record was
@@ -1427,14 +1490,6 @@ export const de = {
       /** The link back to the household this confirmation names, one click from the correction. */
       correctRecorded: "Korrigieren",
       /**
-       * Shown in place of the serve action for a household already recorded today: the time, and what
-       * was handed over against what was asked (US-29.7). Two amounts rather than „bezahlt“/„nicht
-       * bezahlt“, which cannot say 2,00 € of 5,00 €.
-       */
-      alreadyServed: (time: string, paidCents: number, askedCents: number): string =>
-        `Bereits versorgt um ${time} Uhr. ` +
-        `(${formatEuros(paidCents)} von ${formatEuros(askedCents)} gezahlt)`,
-      /**
        * The question an amount above what was asked raises (US-29.7). A question and not a fault —
        * paying ahead is never refused outright — asked because a mistyped credit is the one error
        * this design cannot undo, where a shortfall shows up at the very next hand-out.
@@ -1447,7 +1502,6 @@ export const de = {
         confirm: "Ja, Betrag so buchen",
       },
       correct: {
-        heading: "Eintrag korrigieren",
         save: "Betrag speichern",
         saved: "Eintrag aktualisiert.",
         remove: "Eintrag entfernen",
@@ -1463,7 +1517,7 @@ export const de = {
         removed: "Eintrag entfernt. Der Haushalt kann erneut erfasst werden.",
       },
       errors: {
-        notClearToServe: "Ausgabe nicht möglich. Bitte den Hinweis oben beachten.",
+        notClearToServe: "Ausgabe nicht möglich. Bitte die Nummer erneut nachschlagen.",
         alreadyServed: "Dieser Haushalt hat bei dieser Ausgabe bereits etwas erhalten.",
         noLongerCorrectable:
           "Diese Ausgabe ist beendet. Der Eintrag kann nicht mehr geändert werden.",
@@ -1479,14 +1533,12 @@ export const de = {
      * mean, that judgement being deliberately the staff's (FR-6).
      */
     certificate: {
-      /** Names the pair of actions as one thing on the counter screen; the renewal keeps its own. */
+      /** The mask's label over the household's Nachweis-Art. */
       heading: "Bedarfsnachweis",
       reminder: {
         submit: "Erinnerung erfassen",
-        /** The explanatory label the disabled button carries for the rest of the session (FR-5). */
-        loggedInSession: "Erinnerung bereits erfasst",
-        confirmed: (count: number): string =>
-          `Erinnerung erfasst. Bisherige Erinnerungen: ${count}.`,
+        /** The chip the button turns into for the rest of the session (FR-5); the count beside it. */
+        logged: "Erinnerung erfasst",
         errors: {
           alreadyLogged:
             "Für diesen Haushalt ist bei dieser Ausgabe bereits eine Erinnerung erfasst.",
@@ -1495,7 +1547,11 @@ export const de = {
         },
       },
       renewal: {
+        /** The form's accessible name; it opens in place of the certificate's two facts. */
         heading: "Neuen Bedarfsnachweis erfassen",
+        open: "Neuer Nachweis",
+        validUntil: "gültig bis",
+        cancel: "Abbrechen",
         /** The side effect — the only part of this form the form itself does not show. */
         hint: "Erinnerungen werden dabei auf 0 zurückgesetzt.",
         submit: "Nachweis speichern",

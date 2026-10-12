@@ -243,7 +243,7 @@ test.describe("Kartennummern werden nie doppelt vergeben", () => {
     // And the number that *is* valid on this slot is named beside it, so the conversation can move
     // straight to the card the household in front of the counter should be holding.
     await expect(page.getByTestId("counter-card-number")).toHaveText(successor.cardNumber);
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
   });
 
   test("the successor's own card is clear to serve at the same afternoon", async ({ page }) => {
@@ -257,7 +257,7 @@ test.describe("Kartennummern werden nie doppelt vergeben", () => {
       verdicts.clearToServe.headline,
     );
     await expect(page.getByTestId("counter-card-number")).toHaveText(card(2));
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
   });
 
   test("the successor's card count is theirs and not the slot's", async ({ page }) => {

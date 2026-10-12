@@ -446,6 +446,7 @@ interface CustomerOverrides {
   readonly customerNumber?: number;
   readonly status?: CustomerStatus;
   readonly cardIndex?: number;
+  readonly certificateType?: string;
   readonly certificateValidUntil?: string;
   readonly reminderCount?: number;
   readonly notes?: string;
@@ -463,7 +464,7 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
     birthDate: new Date(GROWN_UP),
     address: { street: "Hauptstraße", houseNumber: "1", zip: "33129", city: "Delbrück" },
     certificate: {
-      type: "Jobcenter",
+      type: overrides.certificateType ?? "Jobcenter",
       validUntil: new Date(overrides.certificateValidUntil ?? "2027-01-31T00:00:00.000Z"),
     },
     householdMembers: overrides.householdMembers ?? [member(GROWN_UP)],
@@ -678,6 +679,44 @@ describe("lookupCustomer", () => {
     const result = await lookupCustomer(deps(), "50");
 
     expect(result.customer?.certificateExpired).toBe(false);
+  });
+
+  it("states the certificate type as recorded", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ certificateType: "Wohngeldbescheid" }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.certificateType).toBe("Wohngeldbescheid");
+  });
+
+  it("states a certificate that runs out soon as expiring soon", async () => {
+    customers = new FakeCustomerRepository(
+      customerRecord({ certificateValidUntil: "2026-08-10T00:00:00.000Z" }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.certificateState).toBe("EXPIRING_SOON");
+  });
+
+  it("states the last hand-out of a household served today as today", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+    records = new FakeDistributionRecordRepository(
+      earlierRecord("2026-07-09T09:00:00.000Z", { id: 1 }),
+      distributionRecord("2026-07-23T07:30:00.000Z", { id: 2 }),
+    );
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.lastHandoutAt).toEqual(new Date("2026-07-23T07:30:00.000Z"));
+  });
+
+  it("has no last hand-out for a household never served", async () => {
+    customers = new FakeCustomerRepository(customerRecord({ id: 1 }));
+
+    const result = await lookupCustomer(deps(), "50");
+
+    expect(result.customer?.lastHandoutAt).toBeNull();
   });
 
   it("derives the counts and the price from the household and today's settings", async () => {

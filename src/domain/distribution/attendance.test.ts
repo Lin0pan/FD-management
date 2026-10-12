@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { AlreadyServedInSession } from "../errors";
-import { canCorrect, canRecord, recordForSession, type AttendanceRecord } from "./attendance";
+import {
+  canCorrect,
+  canRecord,
+  lastHandoutAt,
+  recordForSession,
+  type AttendanceRecord,
+} from "./attendance";
 import { createSessionGroups, type DistributionSession } from "./session";
 
 /** A hand-out belongs to exactly one session, and that is the whole of what the rules read. */
@@ -61,5 +67,28 @@ describe("canCorrect", () => {
 
   it("refuses to correct a record whose session the store cannot hand back", () => {
     expect(canCorrect(null)).toBe(false);
+  });
+});
+
+describe("lastHandoutAt", () => {
+  const at = (iso: string) => ({ date: new Date(iso) });
+
+  it("has no last hand-out before the first one", () => {
+    expect(lastHandoutAt([])).toBeNull();
+  });
+
+  it("takes the latest of several hand-outs", () => {
+    // Out of order on purpose: the answer is the latest instant, not the last row the store returned.
+    const records = [
+      at("2026-01-08T14:10:00Z"),
+      at("2026-01-22T14:30:00Z"),
+      at("2026-01-15T15:00:00Z"),
+    ];
+    expect(lastHandoutAt(records)).toEqual(new Date("2026-01-22T14:30:00Z"));
+  });
+
+  it("counts a hand-out made today", () => {
+    // The counter asks this after a booking too, and the hand-out it just wrote is the answer.
+    expect(lastHandoutAt([at("2026-01-22T14:30:00Z")])).toEqual(new Date("2026-01-22T14:30:00Z"));
   });
 });

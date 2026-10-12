@@ -44,9 +44,10 @@ export function submitsOnEnter(tagName: string, inputType: string | null): boole
 /**
  * `onKeyDown` for a form that may only be saved by its button. On the form rather than each field:
  * the controls are written in four different places, and a guard remembered per input is one the next
- * field will be added without.
+ * field will be added without. The one exception is a field joined to its form by the `form`
+ * attribute: its keydown bubbles through where it *stands*, not the form, so it carries the guard.
  */
-export function guardEnter(event: React.KeyboardEvent<HTMLFormElement>): void {
+export function guardEnter(event: React.KeyboardEvent<HTMLElement>): void {
   if (event.key !== "Enter") {
     return;
   }

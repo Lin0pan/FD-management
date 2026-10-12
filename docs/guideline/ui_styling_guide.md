@@ -214,8 +214,8 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   screen.
 
 - **Two literals are deliberately outside it**, because each is one screen's own and answers to that
-  screen's job: the counter's traffic light (`ausgabe/counter-lookup.tsx`) and the two
-  full-strength submit buttons that follow it (`serve-controls.tsx`, `certificate-controls.tsx`).
+  screen's job: the counter's traffic light (`ausgabe/counter-lookup.tsx`) and the full-strength
+  green button beside it (`serve-form.tsx`).
 - **A meaning gets one colour application-wide**, and two unrelated meanings must not share a tint on
   one screen. `BALANCE_STYLES` and `PAYMENT_STANDING_STYLES` share red-500 and blue-500 on purpose
   and are the worked example of the rule rather than a breach of it: a hand-out paid short and a
@@ -298,6 +298,14 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   which is §8's rule paying rent for a missing 16px glyph; the chevron says it and both keys went.
   **A `<details>` that forgets `group` is a silent no-op**, so check a fold open as well as closed.
 
+- **One exception: a confirmation that opens below a whole row.** The counter's header line
+  („Ausgabe beenden", „Ausgabe verwerfen", US-41.3) and the mask's footer („Eintrag entfernen",
+  „Sperren", „Archivieren", US-41.7) are `<button aria-expanded>` toggles — `ControlToggle` in
+  `disclosure.tsx` — because a `<details>` draws its content inside its own box. The footer's are a
+  `FoldRow` (`fold-row.tsx`): one open at a time, the panel right-aligned under the row. Same chevron,
+  still nothing to dismiss, and the testid a spec clicks is on the toggle. Reach for it only where
+  that is the problem; `BlockControls` and `ArchiveControls` stay `<details>` on the record and take
+  `compact` for the footer.
 - A `<details>` keeps `open` through any re-render, including a soft navigation to the same route.
   Put a `key` on the card so it remounts closed.
 - **A control that resets a form navigates the document** — a plain `<a href>` inside the ghost
@@ -384,7 +392,7 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   again.** React reconciles an input that is already in the tree rather than mounting a fresh one,
   and `autoFocus` only fires on mount — so the field the redirect was supposed to hand back arrives
   empty and with the cursor nowhere. `key` it on whatever the redirect changed (the counter keys its
-  Nummer field on the hand-out just recorded). A plain `method="get"` form submit is a full document
+  Kundennummer field on the query and the hand-out just recorded). A plain `method="get"` form submit is a full document
   navigation and never needs this.
 - **A form action clears every uncontrolled field it owns**, on refusal as well as success. Decide by
   **outcome, not by field**: _a save clears everything, a refusal keeps everything._ Three ways,
@@ -619,10 +627,13 @@ draws is a visible weight mismatch: the icon version of the three-treatments-of-
 
 A new icon extends one of these rather than inventing a role of its own.
 
-1. **Tone inside a coloured box** — `notice.tsx`'s three answers, `counter-lookup.tsx`'s five
-   verdict tones. The box is tinted, the word states the meaning, and the glyph repeats it. Two of
-   the five are tinted `bg-muted`: a number nobody holds and a household who has already collected
-   are not signals, and only the traffic light gets the colour budget.
+1. **Tone inside a coloured box** — `notice.tsx`'s three answers, and the counter's status chip
+   beside the action button (`VerdictChip` in `counter-lookup.tsx`, US-41). The box is tinted, the
+   word states the meaning, and the glyph repeats it. **„Ausgabe frei" gets no chip**: the green
+   button is the signal, and the verdict is said to screen readers only. A chip appears only for an
+   exception, in one of four tones — amber for an expired certificate that still serves, solid red
+   for a refusal, and `bg-muted` for a number nobody holds and for a household who has already
+   collected, which are not signals; only the traffic light gets the colour budget.
 2. **Affordance inside a control** — what the control does, or that it opens rather than acts. This
    is where almost every icon on these screens lives.
 3. **Relation between two values** — the `ArrowRight` between „Auf der Karte gedruckt" and „Haushalt
@@ -633,26 +644,26 @@ A new icon extends one of these rather than inventing a role of its own.
 The registry, so a second use cannot quietly contradict the first — the same discipline
 `src/app/accents.ts` imposes on colour (§5).
 
-| Glyph                      | Means                                          | Role     |
-| -------------------------- | ---------------------------------------------- | -------- |
-| `Check`                    | it happened / clear to serve / collected       | tone     |
-| `TriangleAlert`            | refused, and nothing is broken                 | tone     |
-| `CircleAlert`              | it did not happen and something is wrong       | tone     |
-| `CircleHelp`               | no such household                              | tone     |
-| `BellRing`                 | not yet ticked — the campaign reminder (US-40) | tone     |
-| `Search`                   | search — the filter box and „Nachschlagen"     | afford.  |
-| `UserPlus`                 | take a household on                            | afford.  |
-| `Users`                    | the waiting list                               | afford.  |
-| `IdCard` / `CreditCard`    | the cards due list / reissue this card         | afford.  |
-| `Printer`                  | tick this card off as printed                  | afford.  |
-| `Undo2`                    | take back what was just done                   | afford.  |
-| `Ban`                      | block — a refusal, not a locked record         | afford.  |
-| `Archive`                  | archive the household                          | afford.  |
-| `SquarePen`                | edit what is already written                   | afford.  |
-| `Plus` / `X`               | add a row / take a row off an unsaved form     | afford.  |
-| `ChevronDown`              | this folds (`FoldChevron`, §6)                 | afford.  |
-| `ChevronRight`             | opens the list — a `ListLink` (§4)             | afford.  |
-| `ArrowRight` / `ArrowLeft` | before → after / back to the list              | relation |
+| Glyph                      | Means                                                                                 | Role     |
+| -------------------------- | ------------------------------------------------------------------------------------- | -------- |
+| `Check`                    | it happened / clear to serve / collected                                              | tone     |
+| `TriangleAlert`            | refused, and nothing is broken                                                        | tone     |
+| `CircleAlert`              | it did not happen and something is wrong                                              | tone     |
+| `CircleHelp`               | no such household                                                                     | tone     |
+| `BellRing`                 | not yet ticked — the campaign reminder (US-40)                                        | tone     |
+| `Search`                   | search — the filter box and „Nachschlagen"                                            | afford.  |
+| `UserPlus`                 | take a household on                                                                   | afford.  |
+| `Users`                    | the waiting list                                                                      | afford.  |
+| `IdCard` / `CreditCard`    | the cards due list / reissue this card                                                | afford.  |
+| `Printer`                  | tick this card off as printed                                                         | afford.  |
+| `Undo2`                    | take back what was just done — a printed tick, today's hand-out („Eintrag entfernen") | afford.  |
+| `Ban`                      | block — a refusal, not a locked record                                                | afford.  |
+| `Archive`                  | archive the household                                                                 | afford.  |
+| `SquarePen`                | edit what is already written                                                          | afford.  |
+| `Plus` / `X`               | add a row / take a row off an unsaved form                                            | afford.  |
+| `ChevronDown`              | this folds (`FoldChevron`, §6)                                                        | afford.  |
+| `ChevronRight`             | opens the list — a `ListLink` (§4)                                                    | afford.  |
+| `ArrowRight` / `ArrowLeft` | before → after / back to the list                                                     | relation |
 
 `X` is the one glyph with two meanings — a verdict tone on `/ausgabe` and a row control on three
 other screens. It is tolerable because the two are different roles at different scales and **never

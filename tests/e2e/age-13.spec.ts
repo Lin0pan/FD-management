@@ -8,7 +8,7 @@ import { germanDate } from "@/i18n/format";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
-import { endSessionInHook, startSessionInHook } from "./session";
+import { endSessionInHook, sessionHousehold, startSessionInHook } from "./session";
 
 /**
  * A child turns 13 and every number that depends on it follows
@@ -328,14 +328,16 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
       "data-verdict",
       "CLEAR_TO_SERVE",
     );
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
 
     // The figures the hand-out goes by are today's, and the note beside them says which numbers the
     // card still carries — a remark, not a verdict.
     await expect(page.getByTestId("counter-grown-ups")).toHaveText(AFTER.grownUps);
     await expect(page.getByTestId("counter-children")).toHaveText(AFTER.children);
     await expect(page.getByTestId("counter-eggs")).toHaveText(AFTER.eggs);
-    await expect(page.getByTestId("counter-price")).toHaveText(AFTER.price);
+    await expect(
+      sessionHousehold(page, CUSTOMER_NUMBER).getByTestId("customer-row-price"),
+    ).toHaveText(AFTER.price);
     await expect(page.getByTestId("counter-stale-card")).toHaveText(
       de.distribution.counter.staleCard(card(1), de.customers.derived.countsValue(1, 2)),
     );
@@ -382,6 +384,8 @@ test.describe("Umstufung zum 13. Geburtstag", () => {
       "CLEAR_TO_SERVE",
     );
     await expect(page.getByTestId("counter-stale-card")).toHaveCount(0);
-    await expect(page.getByTestId("counter-price")).toHaveText(AFTER.price);
+    await expect(
+      sessionHousehold(page, CUSTOMER_NUMBER).getByTestId("customer-row-price"),
+    ).toHaveText(AFTER.price);
   });
 });

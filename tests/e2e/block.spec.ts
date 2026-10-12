@@ -139,7 +139,7 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
     select: { id: true },
   });
 
-  return { id: customer.id, name: `${firstName} ${lastName}` };
+  return { id: customer.id, name: `${lastName}, ${firstName}` };
 }
 
 /** Type a number at the counter and press Enter, exactly as staff do it. */
@@ -220,7 +220,7 @@ test.describe("Kunde sperren und entsperren", () => {
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCSS("white-space", "pre-line");
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.BLOCKED);
     await expect(page.getByTestId("counter-name")).toHaveText(name);
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
   });
 
   test("lifting the block makes the household servable on the same number and card", async ({
@@ -249,7 +249,56 @@ test.describe("Kunde sperren und entsperren", () => {
       "data-verdict",
       "CLEAR_TO_SERVE",
     );
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
     await expect(page.getByTestId("counter-card-number")).toHaveText(CARD_NUMBER);
+  });
+
+  test("blocks and unblocks from the counter's footer, each answer outliving the change of verdict", async ({
+    page,
+  }) => {
+    const before = await prisma.auditEntry.count();
+    await lookUp(page, CUSTOMER_NUMBER);
+    // The list under the mask shows the same household, so each write is proved there too, without
+    // navigating (CLAUDE.md, Testing): a blocked household that has not collected leaves the tally.
+    const row = page.locator(
+      `[data-testid="session-household"][data-customer-number="${CUSTOMER_NUMBER}"]`,
+    );
+    const tally = await page.getByTestId("group-progress").textContent();
+    await expect(row.getByTestId("customer-row-status")).toHaveText(de.customers.status.ACTIVE);
+
+    // One heavy step at a time: opening the archive closes the block, and the other way round.
+    await page.getByTestId("block-open").click();
+    await expect(page.getByTestId("block-reason")).toBeVisible();
+    await page.getByTestId("archive-open").click();
+    await expect(page.getByTestId("archive-reason")).toBeVisible();
+    await expect(page.getByTestId("block-reason")).toHaveCount(0);
+    await page.getByTestId("block-open").click();
+    await expect(page.getByTestId("archive-reason")).toHaveCount(0);
+
+    // The block turns a hand-out into a refusal on the same page load — the confirmation must
+    // survive that, the mask swapping its whole state around it (US-41.7).
+    await page.getByTestId("block-reason").fill(BLOCK_REASON);
+    await page.getByTestId("block-submit").click();
+    await expect(page.getByTestId("block-saved")).toHaveText(de.customers.block.blocked);
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute("data-verdict", "BLOCKED");
+    await expect(page.getByTestId("counter-verdict-detail")).toHaveText(BLOCK_REASON);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
+    await expect(row.getByTestId("customer-row-status")).toHaveText(de.customers.status.BLOCKED);
+    await expect(page.getByTestId("group-progress")).not.toHaveText(tally ?? "");
+
+    await page.getByTestId("unblock-open").click();
+    await page.getByTestId("unblock-submit").click();
+    await expect(page.getByTestId("block-saved")).toHaveText(de.customers.block.unblocked);
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "CLEAR_TO_SERVE",
+    );
+    await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
+    await expect(row.getByTestId("customer-row-status")).toHaveText(de.customers.status.ACTIVE);
+    await expect(page.getByTestId("group-progress")).toHaveText(tally ?? "");
+
+    // The footer is a second door onto the same two writes, so each still leaves its entry.
+    expect(await prisma.auditEntry.count()).toBe(before + 2);
   });
 });

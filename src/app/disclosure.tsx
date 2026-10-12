@@ -9,7 +9,7 @@
  */
 
 import { ChevronDown } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -63,5 +63,47 @@ export function ControlSummary({
       {children}
       <FoldChevron />
     </summary>
+  );
+}
+
+/**
+ * `ControlSummary`'s look on a `<button aria-expanded>`, for the one case §6 allows it: a confirmation
+ * that has to open below a whole row of controls, where a `<details>` would draw it inside its own
+ * box. The chevron turns off `aria-expanded` rather than `open`.
+ */
+export function ControlToggle({
+  testId,
+  controls,
+  expanded,
+  onToggle,
+  variant = "outline",
+  className,
+  children,
+}: {
+  testId: string;
+  controls: string;
+  expanded: boolean;
+  onToggle: () => void;
+  variant?: "outline" | "ghost";
+  className?: string;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <Button
+      type="button"
+      variant={variant}
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onToggle}
+      data-testid={testId}
+      className={cn("group", className)}
+    >
+      {children}
+      <ChevronDown
+        aria-hidden="true"
+        data-icon="inline-end"
+        className="size-4 shrink-0 transition-transform group-aria-expanded:rotate-180"
+      />
+    </Button>
   );
 }

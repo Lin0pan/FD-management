@@ -17,7 +17,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Domain only. `ls` and read src/domain/calendarDay.ts BEFORE writing — it already holds several exports (see Codebase Patterns: never `cat >` over an existing file)."
     },
     {
@@ -33,7 +33,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Shape only, no UI. The fields are read by the mask stories."
     },
     {
@@ -51,7 +51,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "No UI yet. Check src/application/CLAUDE.md for the use-case conventions before starting."
     },
     {
@@ -73,7 +73,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins. Runs before the header and the mask on purpose: the list replaces the fold first, so no iteration leaves group-progress.spec with nothing to assert."
     },
     {
@@ -95,7 +95,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Read ui_styling_guide.md §2 and §10 first. Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins."
     },
     {
@@ -118,7 +118,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins. The Saldo tile leaves PaymentRow in this story so it is not shown twice."
     },
     {
@@ -142,7 +142,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The largest story of the batch — keep the restyle and any behaviour change in separate commits. Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins."
     },
     {
@@ -161,7 +161,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Behaviour change — its own commit (feat), separate from any restyle."
     },
     {
@@ -181,7 +181,7 @@
         "Lint passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins."
     },
     {
@@ -202,7 +202,7 @@
         "Lint passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins."
     },
     {
@@ -220,7 +220,7 @@
         "Lint passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "If the fit fails only on WebKit, the markup is what is wrong — never branch on browserName."
     },
     {
@@ -238,7 +238,7 @@
         "Lint passes"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "No code changes in this story."
     }
   ]

@@ -2,7 +2,7 @@ import { rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { germanTime } from "@/i18n/format";
 import { foldName } from "@/domain/customer/nameSearch";
@@ -10,7 +10,14 @@ import { formatEuroAmount, formatEuros } from "@/domain/money";
 import { fillSticky } from "./day";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
-import { endSession, endSessionInHook, startSession, startSessionInHook } from "./session";
+import {
+  endSession,
+  endSessionInHook,
+  expectServedRecord,
+  sessionHousehold,
+  startSession,
+  startSessionInHook,
+} from "./session";
 
 /**
  * The customer balance, from the counter to the next week's amount to pay
@@ -200,6 +207,11 @@ async function secondAfternoon(page: Page): Promise<void> {
   await startSession(page, "BLUE");
 }
 
+/** The price the counter screen states for a household: its row in the list under the mask. */
+function listedPrice(page: Page, customerNumber: number): Locator {
+  return sessionHousehold(page, customerNumber).getByTestId("customer-row-price");
+}
+
 /** Type a number at the counter and press Enter, exactly as staff do it. */
 async function lookUp(page: Page, customerNumber: number): Promise<void> {
   await page.goto("/ausgabe");
@@ -262,8 +274,10 @@ test.describe("Saldo", () => {
     // Nothing has happened to this household yet, so the three figures agree: the week costs 3,00 €,
     // 3,00 € is what to collect, and the field opens on it. A settled balance is the one that stays
     // a word: „ausgeglichen“, never a signed „0,00 €“.
-    await expect(page.getByTestId("counter-price")).toHaveText(formatEuros(PRICE_CENTS));
-    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(PRICE_CENTS));
+    await expect(listedPrice(page, NUMBERS.carry)).toHaveText(formatEuros(PRICE_CENTS));
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(
+      serveWords.asked(PRICE_CENTS),
+    );
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("SETTLED", 0),
     );
@@ -276,9 +290,7 @@ test.describe("Saldo", () => {
 
     // The record states both halves of the transaction, and the balance beside it has moved to the
     // 2,00 € that did not change hands — in the same render the confirmation landed in.
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serveWords.alreadyServed(SERVED_AT, 100, PRICE_CENTS),
-    );
+    await expectServedRecord(page, { time: SERVED_AT, paidCents: 100, askedCents: PRICE_CENTS });
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("DEBT", -200),
     );
@@ -305,6 +317,20 @@ test.describe("Saldo", () => {
     await expect(page.getByTestId("history-price")).toHaveText(formatEuros(PRICE_CENTS));
   });
 
+  test("greys out the overpayment confirmation while the number field names someone else", async ({
+    page,
+  }) => {
+    await lookUp(page, NUMBERS.smallCredit);
+    await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(400));
+    await page.getByTestId("serve-button").click();
+    await expect(page.getByTestId("serve-confirm-overpayment")).toBeEnabled();
+
+    // Decision 1: the question still belongs to the household on screen, not the number typed.
+    await page.getByTestId("counter-input").fill(String(NUMBERS.largeCredit));
+    await expect(page.getByTestId("serve-confirm-overpayment")).toBeDisabled();
+    expect(await handOutsOf(smallCredit)).toBe(0);
+  });
+
   test("refuses an amount above the one asked for until it is confirmed", async ({ page }) => {
     await lookUp(page, NUMBERS.smallCredit);
     await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(400));
@@ -324,9 +350,7 @@ test.describe("Saldo", () => {
     // the amount and the confirm button standing (US-32.7).
     await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
     await page.getByTestId("serve-recorded-correct").click();
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serveWords.alreadyServed(SERVED_AT, 400, PRICE_CENTS),
-    );
+    await expectServedRecord(page, { time: SERVED_AT, paidCents: 400, askedCents: PRICE_CENTS });
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("CREDIT", 100),
     );
@@ -350,9 +374,9 @@ test.describe("Saldo", () => {
 
     // 11,00 € per head, 5,00 € to pay: the cap is what the household is charged, and therefore what
     // the balance is measured against.
-    await expect(page.getByTestId("counter-price")).toHaveText(formatEuros(CAPPED_PRICE_CENTS));
+    await expect(listedPrice(page, NUMBERS.capped)).toHaveText(formatEuros(CAPPED_PRICE_CENTS));
     await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(
-      formatEuros(CAPPED_PRICE_CENTS),
+      serveWords.asked(CAPPED_PRICE_CENTS),
     );
 
     await serve(page, 200);
@@ -367,10 +391,10 @@ test.describe("Saldo", () => {
     await secondAfternoon(page);
     await lookUp(page, NUMBERS.carry);
 
-    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(500));
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(serveWords.asked(500));
     // The week costs what it always cost. The debt is added to what is *asked*, never to the price —
     // the household is not being charged twice for last fortnight's food.
-    await expect(page.getByTestId("counter-price")).toHaveText(formatEuros(PRICE_CENTS));
+    await expect(listedPrice(page, NUMBERS.carry)).toHaveText(formatEuros(PRICE_CENTS));
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("DEBT", -200),
     );
@@ -385,8 +409,8 @@ test.describe("Saldo", () => {
 
     // 1,00 € ahead against a 3,00 € week: 2,00 € to collect, and the credit is spent by collecting it.
     await lookUp(page, NUMBERS.smallCredit);
-    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(200));
-    await expect(page.getByTestId("counter-price")).toHaveText(formatEuros(PRICE_CENTS));
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(serveWords.asked(200));
+    await expect(listedPrice(page, NUMBERS.smallCredit)).toHaveText(formatEuros(PRICE_CENTS));
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("CREDIT", 100),
     );
@@ -395,7 +419,7 @@ test.describe("Saldo", () => {
     // zero — DF never hand money back — and the remaining 4,00 € stays a credit for the fortnight
     // after this one.
     await lookUp(page, NUMBERS.largeCredit);
-    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(0));
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(serveWords.asked(0));
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("CREDIT", 700),
     );
@@ -410,8 +434,8 @@ test.describe("Saldo", () => {
 
     // The one case where the amount to pay exceeds the cap, and it is not a cap being broken: the
     // cap limits what a *week* costs, and 3,00 € of this figure is a fortnight-old debt.
-    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(800));
-    await expect(page.getByTestId("counter-price")).toHaveText(formatEuros(CAPPED_PRICE_CENTS));
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(serveWords.asked(800));
+    await expect(listedPrice(page, NUMBERS.capped)).toHaveText(formatEuros(CAPPED_PRICE_CENTS));
   });
 
   test("puts the balance back when the afternoon's hand-out is removed", async ({ page }) => {
@@ -441,7 +465,7 @@ test.describe("Saldo", () => {
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("DEBT", -200),
     );
-    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(500));
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(serveWords.asked(500));
     expect(await handOutsOf(carry)).toBe(1);
   });
 
@@ -475,9 +499,8 @@ test.describe("Saldo", () => {
     await fillSticky(page.getByTestId("correct-amount"), formatEuroAmount(400));
     await page.getByTestId("correct-save").click();
     await expect(page.getByTestId("serve-confirmation")).toHaveText(serveWords.correct.saved);
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serveWords.alreadyServed(SERVED_AT, 400, 500),
-    );
+    // The slot holds the saved answer, so the time is not asserted here.
+    await expectServedRecord(page, { time: null, paidCents: 400, askedCents: 500 });
     await expect(page.getByTestId("counter-balance")).toHaveText(
       derived.balanceValue("DEBT", -100),
     );

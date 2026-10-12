@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { germanDate, germanDateTime, germanDayOf } from "./format";
+import { germanDate, germanDateTime, germanDayOf, germanSessionDay } from "./format";
 
 describe("germanDate", () => {
   it("writes a date the German way, with both parts padded", () => {
@@ -40,5 +40,20 @@ describe("germanDayOf", () => {
 
   it("writes the 29th of February of a leap year", () => {
     expect(germanDayOf(new Date("2028-02-29T12:00:00.000Z"))).toBe("29.02.2028");
+  });
+});
+
+describe("germanSessionDay", () => {
+  it("names the weekday, the day and the calendar week an afternoon started in", () => {
+    expect(germanSessionDay(new Date("2026-10-12T12:00:00.000Z"))).toBe("Mo 12.10.2026 · KW 42");
+  });
+
+  it("keeps a Sunday-night start in the Berlin day and week, not the UTC one", () => {
+    // 22:30 UTC on Sunday 11 October is already Monday in Berlin, and KW 42 rather than 41.
+    expect(germanSessionDay(new Date("2026-10-11T22:30:00.000Z"))).toBe("Mo 12.10.2026 · KW 42");
+  });
+
+  it("gives 1 January 2027 the week of the year that holds its Thursday", () => {
+    expect(germanSessionDay(new Date("2027-01-01T12:00:00.000Z"))).toBe("Fr 01.01.2027 · KW 53");
   });
 });

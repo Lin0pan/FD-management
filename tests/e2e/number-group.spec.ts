@@ -466,7 +466,7 @@ test.describe("Die Nummer entscheidet die Gruppe", () => {
     );
     await expect(page.getByTestId("counter-group")).toHaveText(de.customers.groups.BLUE);
     await expect(page.getByTestId("counter-card-number")).toHaveText(card(NUMBERS.moveTo, 2));
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
 
     // And on the card itself, which is how it is read at the table.
     await lookUp(page, card(NUMBERS.moveTo, 2));

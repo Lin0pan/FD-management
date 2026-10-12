@@ -2,16 +2,16 @@ import { rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
-import { fillDay } from "./day";
+import { fillDay, typedDay } from "./day";
 import { expectCertificateTypeControlValue, fillCertificateTypeControl } from "./registration-form";
 import { releaseNumbers } from "./seeding";
 import { endSession, endSessionInHook, startSession } from "./session";
 
-/** `CertificateTypeField`'s id on the counter's own renewal form (`certificate-controls.tsx`). */
+/** `CertificateTypeField`'s id on the counter's own renewal form (`certificate-row.tsx`). */
 const RENEWAL_TYPE = "renewal-type";
 
 /**
@@ -190,6 +190,13 @@ async function lookUp(page: Page): Promise<void> {
   await expect(page).toHaveURL(new RegExp(`nummer=${CUSTOMER_NUMBER}`));
 }
 
+/** This household's row in the list under the counter's mask. */
+function householdListRow(page: Page): Locator {
+  return page.locator(
+    `[data-testid="session-household"][data-customer-number="${CUSTOMER_NUMBER}"]`,
+  );
+}
+
 /**
  * Record the afternoon's hand-out — the household is *served* on every visit, reminders or not — and
  * come back to them.
@@ -200,7 +207,7 @@ async function lookUp(page: Page): Promise<void> {
  * the ordinary way to reach them.
  */
 async function serve(page: Page): Promise<void> {
-  await expect(page.getByTestId("serve-button")).toBeVisible();
+  await expect(page.getByTestId("serve-button")).toBeEnabled();
   await page.getByTestId("serve-button").click();
   await expect(page.getByTestId("serve-recorded-confirmation")).toBeVisible();
   await page.getByTestId("serve-recorded-correct").click();
@@ -208,6 +215,7 @@ async function serve(page: Page): Promise<void> {
 
 const words = de.distribution.certificate;
 const verdicts = de.distribution.counter.verdicts;
+const mask = de.distribution.counter.mask;
 
 test.describe.configure({ mode: "serial" });
 
@@ -248,32 +256,42 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
     await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText("31.12.2025");
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("0");
+    await expect(page.getByTestId("counter-last-handout")).toHaveText(mask.noHandout);
     await serve(page);
+    // Back on the household: the hand-out just made is the last one, said by its time.
+    await expect(page.getByTestId("counter-last-handout")).toHaveText(
+      new RegExp(`^${mask.handoutToday("\\d{2}:\\d{2}")}$`),
+    );
 
     await expect(page.getByTestId("reminder-button")).toBeEnabled();
     await page.getByTestId("reminder-button").click();
 
-    await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.confirmed(1));
-    // For the rest of the afternoon the action is spent, and it says so in place of its own label.
-    await expect(page.getByTestId("reminder-button")).toBeDisabled();
-    await expect(page.getByTestId("reminder-button")).toHaveText(words.reminder.loggedInSession);
+    // For the rest of the afternoon the action is spent: the button turns into a chip saying so,
+    // and the count beside it has climbed by exactly one.
+    await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.logged);
+    await expect(page.getByTestId("reminder-button")).toHaveCount(0);
+    await expect(page.getByTestId("counter-reminder-count")).toHaveText("1");
+    // The list under the mask counts it too, in the same page load (CLAUDE.md, Testing).
+    await expect(householdListRow(page).getByTestId("customer-row-reminders")).toHaveText("1");
 
-    // The disabled state comes from the store, not client memory: a fresh lookup re-reads it.
+    // The spent state comes from the store, not client memory: a fresh lookup re-reads it.
     await lookUp(page);
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("1");
-    await expect(page.getByTestId("reminder-button")).toBeDisabled();
+    await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.logged);
+    await expect(page.getByTestId("reminder-button")).toHaveCount(0);
   });
 
   test("refuses a second reminder attempt at the same afternoon", async ({ page }) => {
     await lookUp(page);
-    await expect(page.getByTestId("reminder-button")).toBeDisabled();
+    await expect(page.getByTestId("reminder-confirmation")).toBeVisible();
+    await expect(page.getByTestId("reminder-button")).toHaveCount(0);
 
-    // The greyed button is a courtesy, not the guard: a second counter tab opened before the first
-    // reminder was logged would still offer an enabled button. Submitting the form underneath the
-    // disabled button is that stale tab's click, and the *server* refuses it.
+    // The chip is a courtesy, not the guard: a second counter tab opened before the first reminder
+    // was logged would still offer the button. Submitting the form underneath the chip is that
+    // stale tab's click, and the *server* refuses it.
     await page
-      .getByTestId("reminder-button")
-      .evaluate((button) => button.closest("form")?.requestSubmit());
+      .getByTestId("reminder-confirmation")
+      .evaluate((chip) => chip.closest("form")?.requestSubmit());
     await expect(page.getByTestId("reminder-error")).toHaveText(
       words.reminder.errors.alreadyLogged,
     );
@@ -289,13 +307,18 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await openAfternoon(page, 1);
     await lookUp(page);
 
-    // A new afternoon: the spent action is an offer again, under its own label.
+    // A new afternoon: the spent action is an offer again, under its own label — and the last
+    // hand-out is the first visit's, now a day rather than a time.
+    await expect(page.getByTestId("counter-last-handout")).toHaveText(
+      typedDay(DAYS[0].slice(0, 10)),
+    );
     await expect(page.getByTestId("reminder-button")).toBeEnabled();
     await expect(page.getByTestId("reminder-button")).toHaveText(words.reminder.submit);
 
     await serve(page);
     await page.getByTestId("reminder-button").click();
-    await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.confirmed(2));
+    await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.logged);
+    await expect(page.getByTestId("counter-reminder-count")).toHaveText("2");
   });
 
   test("shows a count of 3 after the third reminder and leaves the household active", async ({
@@ -305,7 +328,8 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await lookUp(page);
     await serve(page);
     await page.getByTestId("reminder-button").click();
-    await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.confirmed(3));
+    await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.logged);
+    await expect(page.getByTestId("counter-reminder-count")).toHaveText("3");
 
     // Three reminders state a fact, never a consequence: the screen shows the count, the status
     // stays active, and nothing anywhere prompts an archive — that judgement is US-10's, made by a
@@ -314,8 +338,8 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     // The verdict on this second look-up is ALREADY_SERVED and not the serve-and-remind one
     // asserted before the hand-out (line ~198): since US-32 the afternoon's record outranks the
     // lapsed certificate. What the re-lookup has to prove is that the reminder controls survive
-    // that — `CertificateControls` reads `certificateExpired` off the household, not off the
-    // verdict kind, so a served household keeps everything it needs to be reminded and renewed.
+    // that — row 4 reads `certificateExpired` off the household, not off the verdict kind, so a
+    // served household keeps everything it needs to be reminded and renewed.
     await lookUp(page);
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("3");
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ACTIVE);
@@ -327,7 +351,8 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
       verdicts.alreadyServed.headline,
     );
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
-    await expect(page.getByTestId("reminder-button")).toBeVisible();
+    await expect(page.getByTestId("reminder-confirmation")).toBeVisible();
+    await expect(page.getByTestId("renewal-open")).toBeVisible();
 
     const household = await householdRow();
     expect(household.status).toBe("ACTIVE");
@@ -348,10 +373,11 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
    * mark is what says it is the date rather than the type that needs the four characters changed.
    *
    * It runs before the successful renewal below, because that one makes the certificate valid and
-   * takes this whole card off the screen. A refusal writes nothing, so it leaves the count at 3.
+   * takes the renewal off the screen. A refusal writes nothing, so it leaves the count at 3.
    */
   test("a renewal refused for a past date marks the date, not the type", async ({ page }) => {
     await lookUp(page);
+    await page.getByTestId("renewal-open").click();
 
     await fillCertificateTypeControl(page, RENEWAL_TYPE, "Rentenbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), "2025-06-30");
@@ -380,14 +406,34 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     page,
   }) => {
     await lookUp(page);
+    // The renewal opens in place of the certificate's two facts, so they are gone while it is open.
+    await page.getByTestId("renewal-open").click();
+    await expect(page.getByTestId("renewal-open")).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByTestId("counter-certificate-valid-until")).toHaveCount(0);
 
     await fillCertificateTypeControl(page, RENEWAL_TYPE, "Wohngeldbescheid");
     await fillDay(page.getByTestId("renewal-valid-until"), RENEWED_CERTIFICATE);
     await page.getByTestId("renewal-save").click();
 
     // The confirmation names the reset count while the revalidated page around it already shows the
-    // certificate as valid again.
+    // certificate as valid again: the form closed, the new date and count in its place.
     await expect(page.getByTestId("renewal-confirmation")).toHaveText(words.renewal.saved);
+    await expect(page.getByTestId("renewal-form")).toHaveCount(0);
+    await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText(
+      typedDay(RENEWED_CERTIFICATE),
+    );
+    await expect(page.getByTestId("counter-certificate-type")).toHaveText("Wohngeldbescheid");
+    await expect(page.getByTestId("counter-reminder-count")).toHaveText("0");
+    const listed = householdListRow(page);
+    await expect(listed.getByTestId("customer-row-certificate")).toHaveText(
+      typedDay(RENEWED_CERTIFICATE),
+    );
+    await expect(listed.getByTestId("customer-row-certificate-state")).toHaveText(
+      de.customerList.certificateStates.VALID,
+    );
+    await expect(listed.getByTestId("customer-row-reminders")).toHaveText(
+      de.customerList.table.noReminders,
+    );
 
     // A fresh lookup: the prompt is gone with the reminder action, and the count reads 0. The
     // verdict is still the afternoon's — this household was served earlier in the spec and US-32
@@ -399,7 +445,9 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
       "ALREADY_SERVED",
     );
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("0");
-    await expect(page.getByTestId("certificate-controls")).toHaveCount(0);
+    await expect(page.getByTestId("reminder-button")).toHaveCount(0);
+    await expect(page.getByTestId("reminder-confirmation")).toHaveCount(0);
+    await expect(page.getByTestId("renewal-open")).toHaveCount(0);
 
     // The renewal appended a certificate and reset the count; the reminder history is untouched —
     // it is the record of what was said, not a balance to clear.

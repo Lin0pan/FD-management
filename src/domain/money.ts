@@ -26,13 +26,16 @@ export function formatEuroAmount(cents: Cents): string {
   return `${sign}${euros},${fraction}`;
 }
 
+/** The unit beside a bare {@link formatEuroAmount}, where an input holds the number alone. */
+export const EURO_SIGN = "€";
+
 /**
  * `150` → `"1,50 €"`.
  *
  * @throws {RangeError} if `cents` is not an integer.
  */
 export function formatEuros(cents: Cents): string {
-  return `${formatEuroAmount(cents)} €`;
+  return `${formatEuroAmount(cents)} ${EURO_SIGN}`;
 }
 
 /** Euros, then optionally a comma or full stop and one or two cent digits. Nothing else. */

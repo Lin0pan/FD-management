@@ -7,7 +7,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
-import { endSessionInHook, startSessionInHook } from "./session";
+import { endSessionInHook, sessionHousehold, startSessionInHook } from "./session";
 
 /**
  * Every verdict the counter can hand down (`tasks/prd-us-04-lookup-customer.md` §US-04.5).
@@ -181,7 +181,8 @@ async function seedHousehold(household: Household): Promise<string> {
     },
   });
 
-  return `${firstName} ${lastName}`;
+  // As the mask names a household: surname first, the way the Kundenliste sorts them (US-41.5).
+  return `${lastName}, ${firstName}`;
 }
 
 /**
@@ -272,11 +273,8 @@ async function expectVerdict(
 }
 
 /**
- * Open the note editor the way a staff member does — a real click on the `<summary>`.
- *
- * Never `evaluate(d => d.open = true)`: a fold that silently stopped opening has to turn the suite
- * red rather than be nudged past (`docs/guideline/ui_styling_guide.md` §10). The wait is not decoration —
- * `fill()` needs visibility, and a closed `<details>` has none.
+ * Open the note editor the way a staff member does — a real click on „Bemerkung bearbeiten“, which
+ * swaps the paragraph for the field (US-41.7). The wait is not decoration: `fill()` needs the field.
  */
 async function openNoteEditor(page: Page): Promise<void> {
   await page.getByTestId("counter-notes-open").click();
@@ -383,7 +381,9 @@ test.describe("Verdikt am Tresen", () => {
     // One grown-up and one child against the seeded settings: 2,00 € + 1,00 €.
     await expect(page.getByTestId("counter-grown-ups")).toHaveText("1");
     await expect(page.getByTestId("counter-children")).toHaveText("1");
-    await expect(page.getByTestId("counter-price")).toHaveText("3,00 €");
+    await expect(
+      sessionHousehold(page, NUMBERS.clear).getByTestId("customer-row-price"),
+    ).toHaveText("3,00 €");
   });
 
   test("serves a household whose certificate has lapsed and asks for the renewal", async ({
@@ -398,10 +398,15 @@ test.describe("Verdikt am Tresen", () => {
     );
     // An expired certificate never withholds food: the verdict above is a clear-to-serve one, and
     // the household is priced exactly as any other — reminded, not turned away.
-    await expect(page.getByTestId("counter-price")).toHaveText("3,00 €");
+    await expect(
+      sessionHousehold(page, NUMBERS.certificateExpired).getByTestId("customer-row-price"),
+    ).toHaveText("3,00 €");
     // The date and the count the headline no longer spells out, in the record it sends staff to.
     // This is what makes dropping the banner's sentence safe rather than a loss of information.
     await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText("31.12.2025");
+    await expect(page.getByTestId("counter-certificate-state")).toHaveText(
+      de.customerList.certificateStates.EXPIRED,
+    );
     await expect(page.getByTestId("counter-reminder-count")).toHaveText(String(REMINDERS_SENT));
   });
 
@@ -414,6 +419,20 @@ test.describe("Verdikt am Tresen", () => {
     await expectVerdict(page, "WRONG_GROUP", verdicts.wrongGroup.headline);
     await expect(page.getByTestId("counter-group")).toHaveText(de.customers.groups.BLUE);
     await expect(page.getByTestId("session-groups")).toHaveText(de.distribution.colours.RED);
+  });
+
+  test("names the afternoon by the day it started, after the clock has passed midnight", async ({
+    page,
+  }) => {
+    // The header reads the session's own start, never the clock: an afternoon left running through
+    // the night keeps the day and the week it was held in (US-41.3).
+    writeFileSync(NOW_FILE, "2026-01-09T01:00:00.000Z", "utf8");
+    try {
+      await page.goto("/ausgabe");
+      await expect(page.getByTestId("session-day")).toHaveText("Do 08.01.2026 · KW 2");
+    } finally {
+      pinToday();
+    }
   });
 
   test("refuses a superseded card and names the current one", async ({ page }) => {
@@ -469,11 +488,40 @@ test.describe("Verdikt am Tresen", () => {
     await lookUp(page, String(NUMBERS.unassigned));
 
     await expectVerdict(page, "NOT_FOUND", verdicts.notFound.headline);
-    // No household, so nothing to show below the banner — but the screen itself is still there,
-    // with the input ready for the number staff meant to type.
+    // No household, so nothing to show below the chip — but the screen itself is still there,
+    // with the number that was not found ready to be typed over.
     await expect(page.getByTestId("counter-customer")).toHaveCount(0);
-    await expect(page.getByTestId("counter-input")).toHaveValue("");
+    await expect(page.getByTestId("counter-input")).toHaveValue(String(NUMBERS.unassigned));
     await expect(page.getByTestId("counter-input")).toBeFocused();
+  });
+
+  test("greys out the hand-out while the number field names someone not yet looked up", async ({
+    page,
+  }) => {
+    await lookUp(page, String(NUMBERS.clear));
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
+
+    // The query stays in the field, selected: typing the next number replaces it. Selecting is
+    // React's, so a number typed before hydration would be appended instead.
+    const field = page.getByTestId("counter-input");
+    await expect(field).toBeFocused();
+    await expect
+      .poll(() =>
+        field.evaluate((input: HTMLInputElement) => [input.selectionStart, input.selectionEnd]),
+      )
+      .toEqual([0, String(NUMBERS.clear).length]);
+    await page.keyboard.type(String(NUMBERS.certificateExpired));
+    await expect(page.getByTestId("counter-input")).toHaveValue(String(NUMBERS.certificateExpired));
+
+    // Decision 1: the household on screen is still the one looked up, so booking it now would book
+    // the wrong one.
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
+    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.clear]);
+
+    await page.getByTestId("counter-input").press("Enter");
+    await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.certificateExpired}`));
+    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.certificateExpired]);
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
   });
 
   test("records nothing when a household is turned away", async ({ page }) => {
@@ -572,21 +620,21 @@ test.describe("Verdikt am Tresen", () => {
   test("closes the note editor when the counter moves to another household", async ({ page }) => {
     await lookUp(page, String(NUMBERS.notes));
 
-    const fold = page.locator("details").filter({ has: page.getByTestId("counter-notes-open") });
+    const editor = page.getByTestId("counter-notes-field");
     // Closed on arrival: the note is read on every lookup and written on hardly any.
-    await expect(fold).not.toHaveAttribute("open", /.*/);
+    await expect(editor).toHaveCount(0);
 
     await openNoteEditor(page);
     await page.getByTestId("counter-notes-field").fill("Für den falschen Haushalt getippt.");
 
-    // A soft navigation, not a fresh page load — a `<details>` survives one, and so would the text
-    // above, which is how a note gets written onto the wrong household.
-    await page.getByTestId("group-progress").click();
+    // A soft navigation, not a fresh page load — component state survives one unless it is keyed,
+    // and so would the text above, which is how a note gets written onto the wrong household.
     await page.getByTestId(`group-member-${NUMBERS.clear}`).click();
     await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.clear}`));
 
     await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.clear]);
-    await expect(fold).not.toHaveAttribute("open", /.*/);
+    await expect(editor).toHaveCount(0);
+    await expect(page.getByTestId("counter-notes")).toHaveText("Kommt immer früh.");
     await openNoteEditor(page);
     await expect(page.getByTestId("counter-notes-field")).toHaveValue("Kommt immer früh.");
   });

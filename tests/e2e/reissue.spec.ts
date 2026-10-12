@@ -285,7 +285,7 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
     await expect(page.getByTestId("counter-card-number")).toHaveText(card(2));
     // Turned away means turned away: no hand-out can be recorded from this screen.
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
 
     // FR-3: an old card is a refusal, never a sanction. The household is neither blocked nor
     // archived, no distribution record appeared, and the register is byte-for-byte as it was.
@@ -310,7 +310,7 @@ test.describe("Karte nach Verlust neu ausstellen", () => {
     // Same household, same number, same group as before the loss — only the index moved.
     await expect(page.getByTestId("counter-card-number")).toHaveText(card(2));
     await expect(page.getByTestId("counter-status")).toHaveText(de.customers.status.ACTIVE);
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
   });
 
   test("two further reissues take the loss count to three and are not held up", async ({

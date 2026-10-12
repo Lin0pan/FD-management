@@ -88,3 +88,23 @@ export function isoCalendarDay(date: Date): string {
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
   return `${date.getUTCFullYear()}-${month}-${day}`;
 }
+
+/** An ISO 8601 calendar week — „KW 53" belongs to `year`, which is not always the day's own year. */
+export interface IsoWeek {
+  readonly week: number;
+  readonly year: number;
+}
+
+/**
+ * The ISO week a UTC day falls in: weeks start on Monday, and a week belongs to the year that holds
+ * its Thursday — so 1 January 2027 is in week 53 of 2026.
+ */
+export function isoWeek(day: Date): IsoWeek {
+  const isoWeekday = day.getUTCDay() === 0 ? 7 : day.getUTCDay();
+  const thursday = new Date(
+    Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate() + 4 - isoWeekday),
+  );
+  const year = thursday.getUTCFullYear();
+  const dayOfYear = (thursday.getTime() - Date.UTC(year, 0, 1)) / 86_400_000;
+  return { week: Math.floor(dayOfYear / 7) + 1, year };
+}

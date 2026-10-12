@@ -4,7 +4,7 @@
  *
  * Nothing is computed here — `readDistributionSessionState` and `lookupCustomer` answer, this page
  * lays them out. The lookup is a read (FR-4), so a plain GET form carries the query in the URL, which
- * also means Enter reloads the page with the input empty and focused for the next customer.
+ * also means Enter reloads the page with the query selected in the field, ready to be typed over.
  *
  * **Every counter read is behind the running session**: with none running there is nothing to record
  * against, so the lookup, the tally and the household's controls are not built at all — and the use
@@ -23,26 +23,22 @@ import {
   type RunningSession,
 } from "@/application/distribution/read-distribution-session-state";
 import {
-  readGroupRoster,
-  type GroupRosterView,
-} from "@/application/distribution/read-group-roster";
+  readCounterRoster,
+  type CounterRosterView,
+} from "@/application/distribution/read-counter-roster";
 import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
-import { germanDateTime, germanTime } from "@/i18n/format";
-import { CampaignReminderField } from "../campaign-reminder-field";
-import { ArchiveControls } from "../kunden/archive-controls";
-import { BlockControls } from "../kunden/block-controls";
-import { CertificateControls } from "./certificate-controls";
-import { CustomerDetails, VerdictBanner } from "./counter-lookup";
+import { germanDateTime, germanSessionDay, germanTime } from "@/i18n/format";
+import { CertificateProvider } from "./certificate-row";
+import { HouseholdRows, VerdictChip } from "./counter-lookup";
 import { distributionDeps } from "./deps";
-import { GroupProgressCard } from "./group-progress-card";
+import { LookupProvider, NumberField } from "./lookup-field";
 import { RECORD_REMOVED } from "./removed-flag";
 import {
   ReopenSessionControls,
@@ -50,55 +46,82 @@ import {
   StartSessionForm,
 } from "./session-controls";
 import { SessionGroupBadges } from "./session-group-badges";
+import { SessionHouseholds, SessionTally } from "./session-households";
 import { optionFor } from "./session-options";
 import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
-import { ServeControls } from "./serve-controls";
-import { Confirmation } from "../notice";
+import { ActionButton, ServeFormProvider, StatusSlot, type ServeMode } from "./serve-form";
+import { Confirmation, Notice } from "../notice";
 import { NoticeBoard } from "../notice-board";
 import { SHELL } from "../shell";
+import { SLOT_NOTICE } from "./slot-notice";
 
 /**
  * Whether a verdict permits recording a hand-out — only the two clear-to-serve outcomes, an expired
- * certificate serving and reminding (US-06). The use case re-checks before writing, so hiding the
+ * certificate serving and reminding (US-06). The use case re-checks before writing, so greying the
  * button here is a courtesy, not the guard (FR-8).
  */
 function permitsServing(verdict: Verdict): boolean {
   return verdict.kind === "CLEAR_TO_SERVE" || verdict.kind === "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED";
 }
 
+/**
+ * What the mask's write offers for this lookup (the PRD's state table). Today's record comes first:
+ * a household served and then blocked still has a record somebody may need to correct.
+ */
+function serveModeFor(lookup: CounterLookup | null, nummer: string): ServeMode {
+  if (lookup === null || lookup.customer === null || lookup.customerId === null) {
+    return { kind: "none" };
+  }
+  const record = lookup.sessionRecord;
+  if (record !== null) {
+    return {
+      kind: "correct",
+      lookedUpNumber: nummer,
+      record: {
+        recordId: record.recordId,
+        time: germanTime(record.at),
+        paidCents: record.paidCents,
+        askedCents: record.askedCents,
+        balanceWithoutRecordCents: record.balanceWithoutRecordCents,
+      },
+    };
+  }
+  if (permitsServing(lookup.verdict)) {
+    return {
+      kind: "serve",
+      customerId: lookup.customerId,
+      customerNumber: lookup.customer.customerNumber,
+      amountToPayCents: lookup.customer.amountToPayCents,
+    };
+  }
+  return { kind: "refused" };
+}
+
 /** A session is started and ended on another workstation too, so never cache this screen. */
 export const dynamic = "force-dynamic";
 
-/**
- * The afternoon (US-34.7). Two facts and no third: that an Ausgabe is under way, and which group
- * or groups it serves — a badge each, wearing what the Kundenliste and a customer's record wear, so
- * one colour means one thing application-wide.
- *
- * The groups cannot be changed while it runs, and nothing here says so: a control that is not on the
- * screen needs no sentence explaining its absence (`ui_styling_guide.md` §8).
- */
-function SessionHeader({ running }: { running: RunningSession }): React.ReactElement {
+/** The header line (US-41.3): a line, not a card. */
+function SessionHeader({
+  running,
+  roster,
+}: {
+  running: RunningSession;
+  roster: CounterRosterView;
+}): React.ReactElement {
   return (
-    <Card data-testid="session-header">
-      {/* `text-base` against the `Card`'s own 14px: this is read at a glance from standing, not from
-          a chair like the admin tables the default is tuned for. */}
-      <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-base font-medium">{de.distribution.session.running}</p>
-          <SessionGroupBadges groups={running.session.groups} testId="session-groups" />
-          {/* A shortcut to the afternoons already held, whose home is Übersichten (US-38.3).
-              Borderless and pushed to the far edge: it navigates, and it must not read as a third
-              thing to do to the afternoon under way. */}
-          <Button variant="ghost" asChild className="ml-auto">
-            <Link href="/ausgabetermine" data-testid="session-past-link">
-              {de.distribution.pastSessions.link}
-            </Link>
-          </Button>
-        </div>
-        <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard} />
-      </CardContent>
-    </Card>
+    <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard}>
+      <h1 className="text-3xl font-semibold tracking-tight">{de.distribution.heading}</h1>
+      <p data-testid="session-day" className="text-lg text-muted-foreground tabular-nums">
+        {germanSessionDay(running.session.startedAt)}
+      </p>
+      <SessionGroupBadges
+        groups={running.session.groups}
+        testId="session-groups"
+        className="h-6 px-2.5 text-sm"
+      />
+      <SessionTally roster={roster} />
+    </RunningSessionControls>
   );
 }
 
@@ -152,10 +175,7 @@ function LastSessionCard({ ended }: { ended: EndedSession }): React.ReactElement
   );
 }
 
-/**
- * A German sentence explaining why the screen has no answer — never a verdict, which has its own
- * painted banner. Either the installation is missing something or what was typed is not a number.
- */
+/** Why the screen has no answer, in German: the installation is missing something. */
 function ErrorNote({ message, testId }: { message: string; testId: string }): React.ReactElement {
   return (
     <Alert variant="destructive">
@@ -235,9 +255,81 @@ async function recordedHandout(
 interface CounterReads {
   readonly running: RunningSession;
   readonly counter: CounterResult | null;
-  readonly roster: GroupRosterView;
+  readonly roster: CounterRosterView;
   readonly recorded: RecordedHandout | null;
   readonly certificateTypes: CertificateTypeList;
+}
+
+/**
+ * What the screen came back with, for the status slot (US-41.4, decision 6) — at most one of these
+ * can hold at a time, the URL carrying one flag per navigation.
+ *
+ * Called, not rendered: the slot falls back to the chip on `null`, and an element is never `null`.
+ */
+function slotAnswer({
+  counter,
+  recorded,
+  recordRemoved,
+  justArchived,
+}: {
+  counter: CounterResult | null;
+  recorded: RecordedHandout | null;
+  recordRemoved: boolean;
+  justArchived: boolean;
+}): React.ReactElement | null {
+  if (counter !== null && counter.lookup === null) {
+    return (
+      <Notice tone="refusal" text={counter.error} testId="counter-error" className={SLOT_NOTICE} />
+    );
+  }
+  // The hand-out that just happened, on the empty mask the write navigates to (US-32.7). It names
+  // the household, because they are no longer on the screen. The balance is deliberately left out —
+  // a debt is not something to tell a household about after they have left the counter;
+  // „Korrigieren“ leads back to the screen that states it.
+  if (recorded !== null) {
+    return (
+      <Confirmation
+        text={de.distribution.serve.recorded(
+          recorded.customerNumber,
+          recorded.name,
+          recorded.paidCents,
+          recorded.time,
+        )}
+        testId="serve-recorded-confirmation"
+        className={SLOT_NOTICE}
+      >
+        {" "}
+        <Link
+          href={`/ausgabe?nummer=${recorded.customerNumber}`}
+          data-testid="serve-recorded-correct"
+          className="font-medium underline underline-offset-4"
+        >
+          {de.distribution.serve.correctRecorded}
+        </Link>
+      </Confirmation>
+    );
+  }
+  if (recordRemoved) {
+    return (
+      <Confirmation
+        text={de.distribution.serve.correct.removed}
+        testId="serve-removed-confirmation"
+        className={SLOT_NOTICE}
+      />
+    );
+  }
+  // An archived household still resolves, so the lookup still names whose slot came free.
+  const customer = counter?.lookup?.customer ?? null;
+  if (justArchived && customer !== null) {
+    return (
+      <Confirmation
+        text={de.customers.archive.saved(customer.customerNumber)}
+        testId="archive-saved"
+        className={SLOT_NOTICE}
+      />
+    );
+  }
+  return null;
 }
 
 /** No back-link: the nav bar reaches Start from every screen (US-17.4). */
@@ -278,7 +370,7 @@ export default async function DistributionPage({
       // number is — so it must not be sequenced behind it.
       const [counter, roster, recorded, certificateTypes] = await Promise.all([
         lookUpNumber(nummer),
-        readGroupRoster(distributionDeps),
+        readCounterRoster(distributionDeps),
         recordedHandout(lookingUp ? undefined : params[HANDOUT_RECORDED]),
         readCertificateTypes(distributionDeps),
       ]);
@@ -305,70 +397,24 @@ export default async function DistributionPage({
     }
   }
 
-  // What the two confirmations above the header read. Both are silent between afternoons: there is
-  // no lookup to name a household with, and nothing was recorded at a session that is not running.
+  // What the status slot reads. All silent between afternoons: there is no lookup to name a
+  // household with, and nothing was recorded at a session that is not running.
   const recorded = counterReads?.recorded ?? null;
   const counter = counterReads?.counter ?? null;
+  const lookup = counter?.lookup ?? null;
+  const lookedUpNumber = typeof nummer === "string" ? nummer : "";
+  const mode = serveModeFor(lookup, lookedUpNumber);
 
   return (
     // Six write controls stand here. One answer at a time, so a confirmation from the household
     // before this one cannot be read as this one's (`notice-board.tsx`).
     <NoticeBoard>
       <main className={SHELL}>
-        <PageHeader />
-
-        {/* The hand-out that just happened, stated at the top of the empty screen the write
-          navigates to (US-32.7). It has to name the household, because they are no longer on the
-          screen: the number and the name say who, the amount and the time say what was booked. The
-          balance is deliberately left out — a household that still owes money is not something to
-          be told about after they have left the counter; „Korrigieren“ leads back to the screen
-          that states it. The rising group tally below is the standing evidence the write
-          landed. */}
-        {recorded === null ? null : (
-          <Confirmation
-            text={de.distribution.serve.recorded(
-              recorded.customerNumber,
-              recorded.name,
-              recorded.paidCents,
-              recorded.time,
-            )}
-            testId="serve-recorded-confirmation"
-          >
-            {" "}
-            <Link
-              href={`/ausgabe?nummer=${recorded.customerNumber}`}
-              data-testid="serve-recorded-correct"
-            >
-              {de.distribution.serve.correctRecorded}
-            </Link>
-          </Confirmation>
+        {counterReads === null ? (
+          <PageHeader />
+        ) : (
+          <SessionHeader running={counterReads.running} roster={counterReads.roster} />
         )}
-
-        {/* At the top of the screen rather than beside the button that was pressed, which is the rule
-          everywhere else on this page. The removal navigates — it has to, because it destroys the
-          card the answer would have stood in — and a navigation lands at the top, so this is where
-          the eye already is. Above the session header: it is about what just happened, and the
-          header is about the afternoon. */}
-        {recordRemoved ? (
-          <Confirmation
-            text={de.distribution.serve.correct.removed}
-            testId="serve-removed-confirmation"
-          />
-        ) : null}
-
-        {/* The archive is offered at the foot of this screen too, and lands back here rather than on
-          the record: the queue is what the staff member has to get back to. The number comes off the
-          lookup that is still on screen — an archived household still resolves, so the counter can
-          still name whose slot came free. */}
-        {justArchived &&
-        counter !== null &&
-        counter.lookup !== null &&
-        counter.lookup.customer !== null ? (
-          <Confirmation
-            text={de.customers.archive.saved(counter.lookup.customer.customerNumber)}
-            testId="archive-saved"
-          />
-        ) : null}
 
         {counterReads === null ? (
           /* Between afternoons the screen has two jobs: start the next afternoon and say what the
@@ -383,188 +429,77 @@ export default async function DistributionPage({
           </>
         ) : (
           <>
-            <SessionHeader running={counterReads.running} />
-
-            {/* How far through the group the afternoon is (US-23), between the session header and the
-          counter: it is a fact about the afternoon, like the header, and it must be readable without
-          scrolling past the field staff type into. The group(s) it names are the running
-          session's.
-
-          Keyed by the number looked up, because a `<details>` keeps `open` through any re-render and
-          only a remount closes it (`docs/guideline/ui_styling_guide.md` §6): clicking a name in the list is a
-          soft navigation, so without the key the household's verdict would arrive underneath a
-          hundred rows the staff member has to scroll past. */}
-            <GroupProgressCard
-              key={typeof nummer === "string" ? nummer : ""}
-              roster={counterReads.roster}
-            />
-
-            {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
-          navigates, so the input comes back empty and — being autofocused — ready for the next
-          customer without touching the mouse. A native `<label>` rather than the shadcn one: this
-          form is deliberately server-rendered with no client component, and Radix's label would drag
-          a client boundary onto the counter's critical path for nothing.
-
-          No hint under the heading. It used to spell out the two formats and say to press Enter, on
-          every lookup of every afternoon, for a field that is labelled, autofocused and the only one
-          on the screen. The formats are worth stating at the one moment they are not obvious — a
-          mistyped entry — and `errors.notANumber` states them there. */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  <h2>{de.distribution.counter.heading}</h2>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <form method="get" className="flex flex-wrap items-end gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="counter-input" className="text-sm font-medium">
-                      {de.distribution.counter.label}
-                    </label>
-                    <Input
-                      // Keyed on the hand-out just recorded, and that is what re-focuses the field. A
-                      // `redirect` out of a server action is a *soft* navigation: React reconciles an
-                      // input that is already in the tree, so `autoFocus` — which only fires on mount —
-                      // would not fire again and the cursor would be left nowhere. The lookup form's
-                      // own GET submit is a full document navigation and never needed this. The key
-                      // changes exactly when a hand-out lands, so nothing else remounts the field.
-                      key={recorded === null ? "" : String(recorded.customerNumber)}
-                      // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
-                      type="text"
-                      name="nummer"
-                      id="counter-input"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      autoFocus
-                      data-testid="counter-input"
-                      className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
-                    />
-                  </div>
-                  <Button type="submit" size="lg" className="h-12 px-6">
-                    <Search aria-hidden="true" data-icon="inline-start" />
-                    {de.distribution.counter.submit}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            {counter === null ? null : counter.lookup === null ? (
-              <ErrorNote message={counter.error} testId="counter-error" />
-            ) : (
-              <>
-                <VerdictBanner verdict={counter.lookup.verdict} />
-                {/* One guard, not two. `customer` and `customerId` are null on exactly the same
-                NOT_FOUND branch — `lookupCustomer` says so where it defines `CounterLookup` — so
-                testing them separately said there were cases where a household has an id but no
-                details, and there are none. Both are narrowed here because `CustomerDetails` now
-                needs the id, and a non-null assertion is not an option. The banner stays outside:
-                a number nobody holds still gets a verdict. */}
-                {counter.lookup.customer === null || counter.lookup.customerId === null ? null : (
-                  <>
-                    <CustomerDetails
-                      customer={counter.lookup.customer}
-                      customerId={counter.lookup.customerId}
-                    />
-                    {/* Below the household and above everything that serves them: prominent when
-                    unticked, never a step the queue has to clear (US-40, D4). */}
-                    {counter.lookup.campaignReminder === null ? null : (
-                      <CampaignReminderField
-                        key={`campaign-${counter.lookup.customerId}`}
-                        reminderId={counter.lookup.campaignReminder.reminderId}
-                        customerId={counter.lookup.customerId}
-                        name={counter.lookup.campaignReminder.name}
-                        received={counter.lookup.campaignReminder.received}
+            {/* The counter, one card (US-41): every state swaps content inside it, none adds a
+                card. The lookup is a plain GET form, so Enter reloads the page with the field
+                autofocused on what was looked up. */}
+            {/* Both keyed on the household: no answer about one survives into the next lookup, and
+                within it every answer outlives a change of mode (an unblock turns a refusal into a
+                hand-out). */}
+            <CertificateProvider key={lookup?.customerId ?? ""}>
+              <ServeFormProvider key={lookup?.customerId ?? ""} mode={mode}>
+                <section
+                  aria-label={de.distribution.counter.mask.label}
+                  className="flex flex-col gap-[18px] rounded-xl bg-card px-6 py-5 text-card-foreground ring-1 ring-foreground/10"
+                >
+                  {/* Row 1: look up, book, and the answer — the button beside the field it follows
+                    (US-41.4). The lookup form ends before the button, which joins the serve form by
+                    attribute (`serve-form.tsx`). */}
+                  <LookupProvider
+                    key={`${lookedUpNumber}|${recorded === null ? "" : recorded.customerNumber}`}
+                    query={lookedUpNumber}
+                  >
+                    <div className="flex flex-wrap items-end gap-3">
+                      <form method="get" className="flex flex-wrap items-end gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label htmlFor="counter-input" className="text-sm font-medium">
+                            {de.distribution.counter.label}
+                          </label>
+                          <NumberField />
+                        </div>
+                        <Button type="submit" variant="outline" className="h-12 px-4 text-base">
+                          <Search aria-hidden="true" data-icon="inline-start" />
+                          {de.distribution.counter.submit}
+                        </Button>
+                      </form>
+                      <ActionButton />
+                      <StatusSlot
+                        verdictKind={lookup === null ? null : lookup.verdict.kind}
+                        chip={
+                          lookup === null ? null : (
+                            <VerdictChip
+                              verdict={lookup.verdict}
+                              servedAt={mode.kind === "correct" ? mode.record.time : null}
+                            />
+                          )
+                        }
+                        answer={slotAnswer({ counter, recorded, recordRemoved, justArchived })}
                       />
-                    )}
-                    {/* Keyed by customer so a confirmation from one lookup cannot survive into the
-                    next customer's screen; within one customer the state rides out revalidation,
-                    which is what keeps the renewal confirmation visible once the certificate
-                    reads as valid again. */}
-                    {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
-                    be compared against. Since US-32 an already-collected household answers
-                    ALREADY_SERVED, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
-                    reading the reminder controls off the verdict would make them vanish the moment
-                    the household was served, on the very re-lookup a staff member does to correct
-                    the record. Whether the certificate has lapsed is a fact about the household;
-                    `lookupCustomer` derives it at the same instant the verdict is evaluated. */}
-                    <CertificateControls
-                      key={counter.lookup.customerId}
-                      customerId={counter.lookup.customerId}
-                      expired={counter.lookup.customer.certificateExpired}
-                      reminderLoggedInSession={counter.lookup.reminderLoggedInSession}
-                      certificateTypes={counterReads.certificateTypes}
-                    />
-                    {/* Every figure the payment turns on comes off the lookup, derived there from the
-                    household's own hand-out history (US-29.5). Nothing about money is worked out on
-                    this page: it hands the amounts down and the controls render them. */}
-                    <ServeControls
-                      customerId={counter.lookup.customerId}
-                      customerNumber={counter.lookup.customer.customerNumber}
-                      canServe={permitsServing(counter.lookup.verdict)}
-                      amountToPayCents={counter.lookup.customer.amountToPayCents}
-                      balanceCents={counter.lookup.customer.balanceCents}
-                      lookedUpNumber={typeof nummer === "string" ? nummer : ""}
-                      sessionRecord={
-                        counter.lookup.sessionRecord === null
-                          ? null
-                          : {
-                              recordId: counter.lookup.sessionRecord.recordId,
-                              time: germanTime(counter.lookup.sessionRecord.at),
-                              paidCents: counter.lookup.sessionRecord.paidCents,
-                              askedCents: counter.lookup.sessionRecord.askedCents,
-                              balanceWithoutRecordCents:
-                                counter.lookup.sessionRecord.balanceWithoutRecordCents,
-                            }
-                      }
-                    />
-                    {/* Blocking and archiving are offered here because the reasons for both show up at
-                    the counter: the certificate still expired after several reminders, the no-show
-                    run above (FR-2), and whatever a household does in front of the person serving
-                    them. US-08.4 shipped the block controls on the record only, which left a staff
-                    member who had decided at the counter with no route off this screen (US-16.5).
-                    Both are the same closed disclosures as on the record, last on the screen and
-                    never a prompt: the queue must not have to dismiss anything to get the next
-                    customer served (PRD §6). Keyed by customer, like the certificate controls, so
-                    nothing typed about one household survives into the next lookup. Still the
-                    pre-shadcn disclosures: they are shared with the customer record, so restyling
-                    them is that screen's change, not this one's.
+                    </div>
+                  </LookupProvider>
 
-                    In a card, because everything else after a lookup is one and these two used to
-                    float against the page like something left over. The heading is the record's
-                    own — the same two acts, offered from a different screen, and a second wording
-                    of one fact is how two screens come to disagree. It is read from
-                    `customers.record` rather than copied into `distribution`, which is the same
-                    call `cardsDue` makes for the reissue words. No hint paragraph and no `<h3>`
-                    per control: the record needs those to tell three controls apart, and here each
-                    `<summary>` names itself. */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>
-                          <h2>{de.customers.record.dangerHeading}</h2>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="flex flex-col gap-3">
-                        <BlockControls
-                          key={`block-${counter.lookup.customerId}`}
-                          customerId={counter.lookup.customerId}
-                          status={counter.lookup.customer.status}
-                          blockReason={counter.lookup.customer.blockReason}
-                        />
-                        <ArchiveControls
-                          key={counter.lookup.customerId}
-                          customerId={counter.lookup.customerId}
-                          customerNumber={counter.lookup.customer.customerNumber}
-                          status={counter.lookup.customer.status}
-                          returnTo={`/ausgabe?nummer=${encodeURIComponent(
-                            typeof nummer === "string" ? nummer : "",
-                          )}`}
-                        />
-                      </CardContent>
-                    </Card>
-                  </>
-                )}
-              </>
-            )}
+                  {/* One guard, not two: `customer` and `customerId` are null on exactly the same
+                    NOT_FOUND branch (`CounterLookup`). */}
+                  {lookup === null ||
+                  lookup.customer === null ||
+                  lookup.customerId === null ? null : (
+                    <HouseholdRows
+                      customer={lookup.customer}
+                      customerId={lookup.customerId}
+                      campaignReminder={lookup.campaignReminder}
+                      servedAt={mode.kind === "correct" ? mode.record.time : null}
+                      reminderLoggedInSession={lookup.reminderLoggedInSession}
+                      certificateTypes={counterReads.certificateTypes}
+                      verdict={lookup.verdict}
+                      lookedUpNumber={lookedUpNumber}
+                    />
+                  )}
+                </section>
+              </ServeFormProvider>
+            </CertificateProvider>
+
+            {/* Last, under everything a lookup shows: a hundred rows above the verdict would push it
+                off the screen (US-41.8). */}
+            <SessionHouseholds roster={counterReads.roster} />
           </>
         )}
       </main>

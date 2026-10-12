@@ -97,6 +97,9 @@ export async function fillCertificateTypeControl(
     await select.selectOption(type);
   } else {
     await select.selectOption(CERTIFICATE_TYPE_OTHER);
+    // The control focuses the free text a frame later; a field filled before that frame has its
+    // text typed into this one instead.
+    await expect(page.locator(`#${id}-other`)).toBeFocused();
     await fillSticky(page.locator(`#${id}-other`), type);
   }
 }

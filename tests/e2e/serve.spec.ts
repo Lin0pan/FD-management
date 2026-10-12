@@ -10,7 +10,7 @@ import { formatEuroAmount, formatEuros } from "@/domain/money";
 import { fillSticky } from "./day";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
-import { endSessionInHook, startSessionInHook } from "./session";
+import { endSessionInHook, expectServedRecord, startSessionInHook } from "./session";
 
 /**
  * The afternoon's happy path (`tasks/prd-us-05-record-attendance.md` §US-05.5).
@@ -227,10 +227,10 @@ test.describe("Ausgabe erfassen", () => {
   }) => {
     await lookUp(page, NUMBERS.confirmed);
 
-    // The verdict permits serving, so the button is offered — with the amount to collect stated
-    // above it and already standing in the field, which is the ordinary case: staff confirm it.
-    await expect(page.getByTestId("serve-button")).toBeVisible();
-    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(formatEuros(PRICE_CENTS));
+    // The verdict permits serving, so the button is enabled — with the amount to collect stated
+    // beside the field and already standing in it, which is the ordinary case: staff confirm it.
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
+    await expect(page.getByTestId("counter-amount-to-pay")).toHaveText(serve.asked(PRICE_CENTS));
     await expect(page.getByTestId("serve-amount")).toHaveValue(formatEuroAmount(PRICE_CENTS));
     await page.getByTestId("serve-button").click();
 
@@ -246,8 +246,8 @@ test.describe("Ausgabe erfassen", () => {
     await expect(confirmation).toContainText(SERVED_AT);
     // The household is gone from the screen, not merely un-servable.
     await expect(page.getByTestId("counter-verdict")).toHaveCount(0);
-    await expect(page.getByTestId("already-served")).toHaveCount(0);
-    await expect(page.getByTestId("serve-button")).toHaveCount(0);
+    await expect(page.getByTestId("counter-customer")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
 
     const records = await recordsFor(NUMBERS.confirmed);
     expect(records).toEqual([{ paidCents: PRICE_CENTS, date: new Date(TODAY), showedUp: true }]);
@@ -259,9 +259,11 @@ test.describe("Ausgabe erfassen", () => {
     // one row.
     await lookUp(page, NUMBERS.confirmed);
 
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
-    );
+    await expectServedRecord(page, {
+      time: SERVED_AT,
+      paidCents: PRICE_CENTS,
+      askedCents: PRICE_CENTS,
+    });
     await expect(page.getByTestId("serve-button")).toHaveCount(0);
 
     expect(await recordsFor(NUMBERS.confirmed)).toHaveLength(1);
@@ -270,7 +272,7 @@ test.describe("Ausgabe erfassen", () => {
   test("stores a hand-out of nothing when the amount is typed over with zero", async ({ page }) => {
     await lookUp(page, NUMBERS.nothing);
 
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
     await fillSticky(page.getByTestId("serve-amount"), formatEuroAmount(0));
     await page.getByTestId("serve-button").click();
 
@@ -279,9 +281,7 @@ test.describe("Ausgabe erfassen", () => {
     // The balance is deliberately not in the confirmation, so it is read where it is stated: back
     // on the household, which „Korrigieren" reaches in one click.
     await page.getByTestId("serve-recorded-correct").click();
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serve.alreadyServed(SERVED_AT, 0, PRICE_CENTS),
-    );
+    await expectServedRecord(page, { time: SERVED_AT, paidCents: 0, askedCents: PRICE_CENTS });
     // The whole price is now open, and the screen says so with a sign in front of the amount.
     await expect(page.getByTestId("counter-balance")).toHaveText(
       de.customers.derived.balanceValue("DEBT", -PRICE_CENTS),
@@ -304,7 +304,7 @@ test.describe("Ausgabe erfassen", () => {
     expect(await page.evaluate(() => window.scrollY)).toBe(0);
     // Nothing about the served household is left on the screen.
     await expect(page.getByTestId("counter-verdict")).toHaveCount(0);
-    await expect(page.getByTestId("already-served")).toHaveCount(0);
+    await expect(page.getByTestId("counter-customer")).toHaveCount(0);
   });
 
   test("hands the cursor back to an empty Nummer field for the next household", async ({
@@ -346,9 +346,11 @@ test.describe("Ausgabe erfassen", () => {
       "data-verdict",
       "ALREADY_SERVED",
     );
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serve.alreadyServed(SERVED_AT, PRICE_CENTS, PRICE_CENTS),
-    );
+    await expectServedRecord(page, {
+      time: SERVED_AT,
+      paidCents: PRICE_CENTS,
+      askedCents: PRICE_CENTS,
+    });
 
     // And the correction is made from there, in the same visit: what a staff member does when the
     // household says the amount was wrong as they walk away (R-13).
@@ -375,9 +377,8 @@ test.describe("Ausgabe erfassen", () => {
     // Still the same screen, still the same household, and no hand-out confirmation at the top of
     // it — nothing navigated.
     await expect(page).toHaveURL(`/ausgabe?nummer=${NUMBERS.corrected}`);
-    await expect(page.getByTestId("already-served-message")).toHaveText(
-      serve.alreadyServed(SERVED_AT, 200, PRICE_CENTS),
-    );
+    // The slot holds the answer, so the time is not asserted here — the amounts are the point.
+    await expectServedRecord(page, { time: null, paidCents: 200, askedCents: PRICE_CENTS });
     await expect(page.getByTestId("serve-recorded-confirmation")).toHaveCount(0);
   });
 
@@ -385,7 +386,7 @@ test.describe("Ausgabe erfassen", () => {
     page,
   }) => {
     await lookUp(page, NUMBERS.nothing);
-    await expect(page.getByTestId("already-served")).toBeVisible();
+    await expect(page.getByTestId("correct-save")).toBeVisible();
 
     // The two-step guard: the closed disclosure has to be opened before the button that deletes
     // exists to be clicked.
@@ -401,8 +402,25 @@ test.describe("Ausgabe erfassen", () => {
     await expect(page.getByTestId("serve-removed-confirmation")).toBeInViewport();
 
     // And the household can be served again at this afternoon, which is what the sentence promises.
-    await expect(page.getByTestId("already-served")).toHaveCount(0);
-    await expect(page.getByTestId("serve-button")).toBeVisible();
+    await expect(page.getByTestId("correct-save")).toHaveCount(0);
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
+    expect(await recordsFor(NUMBERS.nothing)).toHaveLength(0);
+  });
+
+  test("marks „Gezahlt“ when the amount cannot be read, and writes nothing", async ({ page }) => {
+    // On the household the removal above freed. The refusal names the field, so it is stated under
+    // the field and not in the status slot, which goes on holding the verdict (US-41.5, Z5).
+    await lookUp(page, NUMBERS.nothing);
+    await fillSticky(page.getByTestId("serve-amount"), "vier Euro");
+    await page.getByTestId("serve-button").click();
+
+    await expect(page.getByTestId("serve-amount-error")).toHaveText(serve.errors.notAnAmount);
+    await expect(page.getByTestId("serve-amount")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByTestId("serve-error")).toHaveCount(0);
+    await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+      "data-verdict",
+      "CLEAR_TO_SERVE",
+    );
     expect(await recordsFor(NUMBERS.nothing)).toHaveLength(0);
   });
 

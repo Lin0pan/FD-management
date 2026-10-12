@@ -1,6 +1,6 @@
 /**
- * The counter lookup: one input, one unmissable verdict, everything needed to decide beneath it
- * (`tasks/prd-us-04-lookup-customer.md` §US-04.4).
+ * The counter lookup: the verdict as a chip beside the button, the household under it
+ * (`tasks/prd-us-04-lookup-customer.md` §US-04.4, US-41).
  *
  * Nothing is decided here — this file chooses the words, the colour and the icon for a verdict
  * `evaluateAtCounter` has already reached. The switch is exhaustive by construction: the
@@ -9,37 +9,40 @@
 
 import { Check, CircleHelp, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import type { CampaignReminderCheckbox } from "@/application/campaign/campaign-reminder-for";
 import type { CounterCustomerView } from "@/application/customers/lookup-customer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { balanceKind } from "@/domain/distribution/balance";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
-import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
-import { germanDate } from "@/i18n/format";
-import { GROUP_STYLES } from "../accents";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
+import { germanDate, germanDayOf } from "@/i18n/format";
+import { cn } from "@/lib/utils";
+import { BALANCE_STYLES, GROUP_STYLES } from "../accents";
+import { CampaignReminderField } from "../campaign-reminder-field";
+import { ArchiveControls } from "../kunden/archive-controls";
+import { BlockControls } from "../kunden/block-controls";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
-import { NotesControls } from "./notes-controls";
+import { CertificateRow } from "./certificate-row";
+import { CounterNotes } from "./notes-controls";
+import { PaidTile, RemoveEntry } from "./serve-form";
 
 /**
- * What the banner says over and above its colour: an icon, a headline readable from a metre away,
- * and — only where somebody typed one — a sentence.
- *
- * `detail` is `null` for every verdict the screen already answers by itself. What survives is the
- * block reason, the one line no other element holds.
+ * What the chip says over and above its colour: an icon and a headline readable from a metre away.
+ * The block reason is not in it — it is the household's, and stands in row 5 with the note.
  */
 interface Statement {
   readonly tone: Tone;
   readonly headline: string;
-  readonly detail: string | null;
 }
 
 /**
- * The answers a staff member acts on, plus the two that ask for nothing. `done` is a household who has
- * already collected — a fact about the afternoon rather than a refusal, and since looking one up again
- * is the ordinary way to a correction (US-32), painting it red would report a fault where none is.
+ * The answers a staff member acts on, plus the two that ask for nothing. `serve` paints no chip —
+ * the green button is the signal (US-41.4). `done` is a household who has already collected — a
+ * fact about the afternoon rather than a refusal, and since looking one up again is the ordinary
+ * way to a correction (US-32), painting it red would report a fault where none is.
  */
 type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
 
@@ -53,12 +56,11 @@ type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
  * in them to keep still (`docs/guideline/ui_styling_guide.md` §12).
  */
 const TONES = {
-  serve: { className: "bg-green-700 text-white ring-black/10", Icon: Check },
   warn: { className: "bg-amber-500 text-black ring-black/10", Icon: TriangleAlert },
   refuse: { className: "bg-red-700 text-white ring-black/10", Icon: X },
   unknown: { className: "bg-muted text-foreground ring-foreground/10", Icon: CircleHelp },
   done: { className: "bg-muted text-foreground ring-foreground/10", Icon: Check },
-} as const satisfies Record<Tone, { className: string; Icon: LucideIcon }>;
+} as const satisfies Record<Exclude<Tone, "serve">, { className: string; Icon: LucideIcon }>;
 
 /**
  * The German statement for one verdict.
@@ -70,35 +72,26 @@ function statementFor(verdict: Verdict): Statement {
   const words = de.distribution.counter.verdicts;
   switch (verdict.kind) {
     case "NOT_FOUND":
-      return { tone: "unknown", headline: words.notFound.headline, detail: null };
+      return { tone: "unknown", headline: words.notFound.headline };
     case "ARCHIVED":
-      // The badge below says „archiviert“ and no serve action is offered, so a „nicht ausgeben“
-      // would be the screen narrating what it has already done.
-      return { tone: "refuse", headline: words.archived.headline, detail: null };
+      // The badge below says „archiviert“ and the button is greyed, so a „nicht ausgeben“ would be
+      // the screen narrating what it has already done.
+      return { tone: "refuse", headline: words.archived.headline };
     case "BLOCKED":
-      return {
-        tone: "refuse",
-        headline: words.blocked.headline,
-        // The one verdict that keeps its sentence: the reason is the record of why this household was
-        // blocked (US-08), shown verbatim because nothing else on the screen holds it.
-        detail: verdict.reason ?? words.blocked.noReason,
-      };
+      return { tone: "refuse", headline: words.blocked.headline };
     case "WRONG_GROUP":
       // Both colours are already on screen in words, as US-03.4 requires anyway.
-      return { tone: "refuse", headline: words.wrongGroup.headline, detail: null };
+      return { tone: "refuse", headline: words.wrongGroup.headline };
     case "OUTDATED_CARD":
-      // The card that counts is the current one, and the record below prints it.
-      return { tone: "refuse", headline: words.outdatedCard.headline, detail: null };
+      // The card that counts is the current one, and the household row prints it.
+      return { tone: "refuse", headline: words.outdatedCard.headline };
     case "ALREADY_SERVED":
-      // No detail line: the time and the two amounts are rows of the already-served card immediately
-      // below (`docs/guideline/ui_styling_guide.md` §8).
-      return { tone: "done", headline: words.alreadyServed.headline, detail: null };
+      return { tone: "done", headline: words.alreadyServed.headline };
     case "CLEAR_TO_SERVE":
-      return { tone: "serve", headline: words.clearToServe.headline, detail: null };
+      return { tone: "serve", headline: words.clearToServe.headline };
     case "CLEAR_TO_SERVE_CERTIFICATE_EXPIRED":
-      // The date and the count are rows in the record below; the headline only has to say that both
-      // "serve" and "expired" are true at once.
-      return { tone: "warn", headline: words.certificateExpired.headline, detail: null };
+      // The green button beside it says „serve“; the chip only has to add „expired“.
+      return { tone: "warn", headline: words.certificateExpired.headline };
     default: {
       const unhandled: never = verdict;
       throw new TypeError(`unhandled verdict: ${JSON.stringify(unhandled)}`);
@@ -107,235 +100,144 @@ function statementFor(verdict: Verdict): Statement {
 }
 
 /**
- * The verdict, full width and stated in words — the one thing on this screen that cannot be missed.
- *
- * **Only the headline is painted**, so the bar is one height whatever the sentence turns out to be:
- * a block reason typed by hand runs to paragraphs and used to push the strip past 400px. The
- * `<section>` wraps both, so a screen reader reads verdict and instruction as one answer.
+ * The verdict as the status slot's chip (US-41.4). „Ausgabe frei“ paints nothing — the green button
+ * is the signal — and is still said, so a screen reader hears every verdict. `servedAt` is the time
+ * of today's record, which is how an already-served household is recognised.
  */
-export function VerdictBanner({ verdict }: { verdict: Verdict }): React.ReactElement {
-  const { tone, headline, detail } = statementFor(verdict);
+export function VerdictChip({
+  verdict,
+  servedAt,
+}: {
+  verdict: Verdict;
+  servedAt: string | null;
+}): React.ReactElement {
+  const { tone, headline } = statementFor(verdict);
+  if (tone === "serve") {
+    return (
+      <span data-testid="counter-verdict-headline" className="sr-only">
+        {headline}
+      </span>
+    );
+  }
   const { className, Icon } = TONES[tone];
-
   return (
-    <section
-      data-testid="counter-verdict"
-      data-verdict={verdict.kind}
-      className="flex w-full flex-col gap-2"
+    <p
+      className={`flex h-12 items-center gap-2 rounded-[10px] px-4 text-base font-semibold ring-1 ${className}`}
     >
-      {/* `text-3xl` is a floor, not a preference: this is read standing up with a queue waiting. */}
-      <p className={`flex items-center gap-3 rounded-xl px-5 py-2.5 ring-1 ${className}`}>
-        <Icon aria-hidden="true" className="size-6 shrink-0 md:size-7" strokeWidth={2.5} />
-        <span data-testid="counter-verdict-headline" className="text-2xl font-bold sm:text-3xl">
-          {headline}
-        </span>
-      </p>
-      {/* `whitespace-pre-line` because a block reason is typed by hand into a multi-line field and
-          is shown verbatim (US-08, FR-4): the paragraphs a colleague wrote have to survive to the
-          counter, not collapse into one run-on line. */}
-      {detail === null ? null : (
-        <p
-          data-testid="counter-verdict-detail"
-          className="max-w-prose px-5 text-base whitespace-pre-line"
-        >
-          {detail}
-        </p>
-      )}
-    </section>
+      <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={2.5} />
+      <span>
+        <span data-testid="counter-verdict-headline">{headline}</span>
+        {verdict.kind === "ALREADY_SERVED" && servedAt !== null ? (
+          <span className="tabular-nums">
+            {de.distribution.counter.verdicts.alreadyServed.at(servedAt)}
+          </span>
+        ) : null}
+      </span>
+    </p>
   );
 }
 
-/** A field that is read only when it matters: the certificate, the reminder tally, a no-show run. */
-function Field({
+/** The mask's tile: a `Stat` at the size the row of six has room for (US-41.5). */
+const TILE = "gap-0.5 rounded-lg bg-muted/60 px-3 py-1.5";
+const TILE_VALUE = "text-2xl";
+
+/** A label over a figure at the name's size — the two things the counter reads out and compares. */
+function Headline({
   label,
-  value,
-  testId,
+  children,
+  className,
 }: {
   label: string;
-  value: string;
-  testId: string;
+  children: React.ReactNode;
+  className?: string;
 }): React.ReactElement {
   return (
-    <TableRow>
-      <TableHeadCell>{label}</TableHeadCell>
-      <TableCell className="font-medium tabular-nums">
-        <span data-testid={testId}>{value}</span>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-/** The label column. A `<th>` in a key/value table, so the value's row header is announced with it. */
-function TableHeadCell({ children }: { children: string }): React.ReactElement {
-  return (
-    <th scope="row" className="w-72 p-2 text-left align-middle font-normal text-muted-foreground">
+    <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
+      <span className="text-xs text-muted-foreground">{label}</span>
       {children}
-    </th>
+    </div>
   );
 }
 
 /**
- * Everything the counter decision rests on, on screen at once: no field here costs a further click,
- * because the queue does not wait (FR-2).
+ * The household inside the mask: who they are on one line, what they draw and owe as tiles under it.
  *
- * Ordered by how it is *used* rather than how a record is written: the two numbers lead, because the
- * loop at the table is *call the number, check the card*; then the counts and the price; then the
- * fields read only when something is off.
+ * Ordered as the counter uses it: the name and the card are compared against the person and the card
+ * across the table, so they lead at the largest size; the group and the status decide whether the
+ * rest matters, and wear what they wear everywhere else. The customer number is not repeated — it
+ * stands in the field it was typed into.
  */
-export function CustomerDetails({
+export function HouseholdRows({
   customer,
   customerId,
+  campaignReminder,
+  servedAt,
+  reminderLoggedInSession,
+  certificateTypes,
+  verdict,
+  lookedUpNumber,
 }: {
   customer: CounterCustomerView;
   /** The surrogate id the record lives under. Not on `CounterCustomerView` — it is `CounterLookup`'s. */
   customerId: number;
+  campaignReminder: CampaignReminderCheckbox | null;
+  /** The time of today's record, which is the last hand-out when there is one. */
+  servedAt: string | null;
+  reminderLoggedInSession: boolean;
+  certificateTypes: CertificateTypeList;
+  verdict: Verdict;
+  /** The query as typed, which an archiving comes back to. */
+  lookedUpNumber: string;
 }): React.ReactElement {
+  const words = de.distribution.counter.mask;
+  const kind = balanceKind(customer.balanceCents);
+
   return (
-    <Card data-testid="counter-customer">
-      <CardHeader>
-        <CardTitle className="min-w-0 text-2xl">
-          {/* `min-w-0` because `CardAction` shares this row: a flex item's floor is its content, so
-              without it an unbreakable name pushes the badges out of the card instead of wrapping. */}
-          <h2 data-testid="counter-name" className="break-words">
-            {customer.firstName} {customer.lastName}
-          </h2>
-        </CardTitle>
-        {/* The group and the status, the two facts that decide whether the rest matters at all —
-            wearing what they wear everywhere else in the application.
-
-            Both used to be local tables here. The group was solid `bg-red-600 text-white`, a second
-            copy of a tint that `accents.ts` exists to keep single, so one household's group was
-            painted one way on their record and another at the counter. And the status badged every
-            state including `aktiv`, which is nine records in ten: a pill that says "this one is
-            normal" is texture, not emphasis, and `STATUS_CHROME` is where that judgement is already
-            made. What is left is a mark per exception, the same mark the list and the record make.
-
-            The way onto the whole record rides in the same corner (US-16.5). Everything the counter
-            shows is a slice of it, and the question staff most often have next — who else lives
-            there, what was noted, when did they last collect — is answered there and nowhere here.
-            It belongs beside the household's name rather than below the serve button, because it is
-            a fact about *them* and not a step in serving them; /kunden/[id] hangs the way to the
-            card off its header row for the same reason. `gap-3` rather than `gap-2`: two badges
-            beside each other need less air than a badge beside a control. */}
-        <CardAction className="flex flex-wrap items-center gap-3">
-          <Badge
-            data-testid="counter-group"
-            variant="outline"
-            className={GROUP_STYLES[customer.group]}
-          >
-            {de.customers.groups[customer.group]}
-          </Badge>
-          <StateWord
-            word={de.customers.status[customer.status]}
-            testId="counter-status"
-            chrome={STATUS_CHROME[customer.status]}
-          />
-          <Button variant="ghost" asChild>
-            <Link href={`/kunden/${customerId}`} data-testid="counter-record-link">
-              {de.distribution.counter.recordLink}
-            </Link>
-          </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        {/* The two numbers the counter actually runs on, and the reason they lead the card rather
-            than sitting under the name in 14px grey, which is where they were.
-
-            Neither is read silently. The Kundennummer is *called out* to fetch the next household —
-            staff use it in preference to the name, which comes from any of a dozen languages and is
-            not theirs to mispronounce in front of a room. The Kartennummer is compared, glyph by
-            glyph, against the card being held out across the table. Both are read at arm's length
-            and at a glance, which is a size argument, not a layout one: the screen had the name at
-            24px and these two at 14px, and the name is the one thing here nobody says out loud.
-
-            Bigger than the derived figures below them, so six tiles do not read as one undivided
-            grid — the counts answer "how much", these answer "who", and the gap plus the step in
-            size is what separates the questions. No colour: that budget is the verdict's.
-
-            `Stat` because it already holds the label and the value in one `<p>` (a screen reader
-            gets "Kundennummer 6", not two loose facts) and sets `tabular-nums`, which is what makes
-            6k1 and 6k2 differ at a glance. The grid is the counts row's own, verbatim, so the pair
-            takes the first two of the same four columns: identical widths on one baseline is what a
-            comparison needs (`docs/guideline/ui_styling_guide.md` §4), and sharing the track keeps the card to
-            one column rhythm instead of two that miss each other by a pixel. */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat
-            label={de.customers.fields.customerNumber}
-            value={String(customer.customerNumber)}
-            testId="counter-customer-number"
-            valueClassName="text-4xl"
-          />
-          <Stat
-            label={de.customers.fields.cardNumber}
-            value={customer.cardNumber}
-            testId="counter-card-number"
-            valueClassName="text-4xl"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat
-            label={de.customers.derived.grownUps}
-            value={String(customer.grownUps)}
-            testId="counter-grown-ups"
-          />
-          <Stat
-            label={de.customers.derived.children}
-            value={String(customer.children)}
-            testId="counter-children"
-          />
-          {/* Third, in the slot the portion tile left behind (US-27), so the price stays in the
-              fourth — where a staff member's eye already goes for it. Moving the price is the one
-              change on this screen somebody could act on wrongly, and there was no reason to.
-
-              A plain number, like the two counts beside it: the eggs are handed over, not explained.
-              A household entitled to none reads 0 rather than nothing at all — the counter has to
-              be able to see that the question was answered. */}
-          <Stat
-            label={de.customers.derived.eggs}
-            value={String(customer.eggs)}
-            testId="counter-eggs"
-          />
-          <Stat
-            label={de.customers.derived.price}
-            value={formatEuros(customer.priceCents)}
-            testId="counter-price"
-          />
-        </div>
-        <Table>
-          <TableBody>
-            <Field
-              label={de.customers.fields.certificateValidUntil}
-              value={germanDate(customer.certificateValidUntil)}
-              testId="counter-certificate-valid-until"
+    <div data-testid="counter-customer" className="flex flex-col gap-[18px]">
+      <div className="flex flex-col gap-1">
+        <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 border-t pt-4 md:grid-cols-12">
+          <Headline label={words.name} className="md:col-span-6">
+            <h2
+              data-testid="counter-name"
+              className="text-[28px] leading-tight font-semibold break-words"
+            >
+              {customer.lastName}, {customer.firstName}
+            </h2>
+          </Headline>
+          <Headline label={words.card} className="md:col-span-2">
+            <span
+              data-testid="counter-card-number"
+              className="text-[28px] leading-tight font-semibold tabular-nums"
+            >
+              {customer.cardNumber}
+            </span>
+          </Headline>
+          {/* The way onto the whole record rides beside the household rather than below the serve
+              button: it is a fact about *them*, not a step in serving them (US-16.5). */}
+          <div className="flex flex-wrap items-center gap-3 md:col-span-4 md:justify-end">
+            <Badge
+              data-testid="counter-group"
+              variant="outline"
+              className={GROUP_STYLES[customer.group]}
+            >
+              {de.customers.groups[customer.group]}
+            </Badge>
+            <StateWord
+              word={de.customers.status[customer.status]}
+              testId="counter-status"
+              chrome={STATUS_CHROME[customer.status]}
             />
-            <Field
-              label={de.distribution.counter.details.reminderCount}
-              value={String(customer.reminderCount)}
-              testId="counter-reminder-count"
-            />
-            {/* The second archiving trigger (US-10.4), shown only when there is a run to see: a
-                household that has quietly stopped coming is invisible at the counter otherwise. It is
-                a number and nothing more — no threshold, no warning, no action follows from it
-                (PRD §5). */}
-            {customer.consecutiveNoShows === 0 ? null : (
-              <Field
-                label={de.customers.derived.noShows}
-                value={de.customers.derived.noShowsValue(customer.consecutiveNoShows)}
-                testId="counter-no-shows"
-              />
-            )}
-          </TableBody>
-        </Table>
-        {/* No "Standardpreis; am Ausgabetisch nicht anpassbar." here, though the
-            three screens that *can* edit a household still carry it. At the counter it described an
-            absence: there is no control to adjust, so the sentence answered a question the screen
-            had already answered by having no field to type in. */}
-        {/* The stale-card note (US-13.4). Deliberately the smallest, quietest thing on the screen —
-            the same grey as the hint above it, no border, no icon, no colour — because it is neither a
-            verdict nor a warning: the verdict is the banner, and the serve action below is untouched
-            by this. A card that has fallen behind is never grounds to turn anyone away (FR-5). */}
+            <Button variant="ghost" asChild>
+              <Link href={`/kunden/${customerId}`} data-testid="counter-record-link">
+                {de.distribution.counter.recordLink}
+              </Link>
+            </Button>
+          </div>
+        </div>
+        {/* Quiet on purpose: a card that has fallen behind is never grounds to turn anyone away
+            (US-13.4, FR-5). */}
         {customer.staleCard === null ? null : (
-          <p data-testid="counter-stale-card" className="max-w-prose text-xs text-muted-foreground">
+          <p data-testid="counter-stale-card" className="text-xs text-muted-foreground">
             {de.distribution.counter.staleCard(
               customer.cardNumber,
               de.customers.derived.countsValue(
@@ -345,36 +247,155 @@ export function CustomerDetails({
             )}
           </p>
         )}
-        {/* The note, and the way to write one without leaving the screen (US-16.3).
-
-            `record.notesHeading` rather than `fields.notes`: „Bemerkung (optional)" is a *form
-            field's* label, and above a paragraph it told the reader that a note they are looking at
-            was optional to write. The „(optional)" survives on the field inside the fold, where it
-            is the answer to a question somebody is about to ask.
-
-            `whitespace-pre-line` for the same reason the block reason has it: a note is typed into
-            a multi-line field, and the paragraphs a colleague wrote must reach the counter rather
-            than collapse into one run-on line.
-
-            No fold for an archived household — `updateNotes` refuses one, and the record screen
-            already drops to read-only text there. A control that can only ever answer "nein" is
-            worse than no control.
-
-            Keyed by customer: a `<details>` keeps `open` through a soft navigation, and this screen
-            navigates to itself from the group list and the lookup form
-            (`docs/guideline/ui_styling_guide.md` §6). Without the key the next household's card arrives with the
-            fold open and the previous household's text still in the field — which is the one way
-            this control could write a note onto the wrong record. */}
-        <div className="flex flex-col gap-2 border-t pt-4">
-          <span className="text-sm text-muted-foreground">{de.customers.record.notesHeading}</span>
-          <p data-testid="counter-notes" className="max-w-prose whitespace-pre-line">
-            {customer.notes === "" ? de.distribution.counter.details.noNotes : customer.notes}
-          </p>
-          {customer.status === "ARCHIVED" ? null : (
-            <NotesControls key={customerId} customerId={customerId} notes={customer.notes} />
+      </div>
+      <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-12">
+        <div className="flex gap-3 md:col-span-3">
+          <Stat
+            label={words.grownUps}
+            value={String(customer.grownUps)}
+            testId="counter-grown-ups"
+            className={cn(TILE, "w-24")}
+            valueClassName={TILE_VALUE}
+          />
+          <Stat
+            label={words.children}
+            value={String(customer.children)}
+            testId="counter-children"
+            className={cn(TILE, "w-24")}
+            valueClassName={TILE_VALUE}
+          />
+        </div>
+        {/* A household entitled to none reads 0 rather than nothing: the counter has to see that the
+            question was answered (US-27). */}
+        <div className="flex md:col-span-3">
+          <Stat
+            label={de.customers.derived.eggs}
+            value={String(customer.eggs)}
+            testId="counter-eggs"
+            className={cn(TILE, "w-24")}
+            valueClassName={TILE_VALUE}
+          />
+        </div>
+        <div className="flex flex-wrap items-start justify-between gap-3 md:col-span-6">
+          <div className="flex flex-wrap items-start gap-3">
+            <PaidTile />
+            {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
+                (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
+            <Stat
+              label={de.customers.derived.balance}
+              value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
+              testId="counter-balance"
+              className={cn(TILE, "w-[164px]", BALANCE_STYLES[kind])}
+              valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
+            />
+          </div>
+          {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
+            <p
+              data-testid="campaign-reminder-none"
+              className="flex w-40 items-center self-stretch rounded-lg border px-3 text-xs text-muted-foreground"
+            >
+              {words.noCampaignReminder}
+            </p>
+          ) : (
+            // Keyed by customer: the optimistic tick must not survive into the next household.
+            <CampaignReminderField
+              key={`campaign-${customerId}`}
+              reminderId={campaignReminder.reminderId}
+              customerId={customerId}
+              name={campaignReminder.name}
+              received={campaignReminder.received}
+              tile
+            />
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+      <CertificateRow
+        customerId={customerId}
+        lastHandout={
+          servedAt !== null
+            ? words.handoutToday(servedAt)
+            : customer.lastHandoutAt === null
+              ? words.noHandout
+              : germanDayOf(customer.lastHandoutAt)
+        }
+        consecutiveNoShows={customer.consecutiveNoShows}
+        certificateType={customer.certificateType}
+        certificateValidUntil={germanDate(customer.certificateValidUntil)}
+        certificateState={customer.certificateState}
+        expired={customer.certificateExpired}
+        reminderCount={customer.reminderCount}
+        reminderLoggedInSession={reminderLoggedInSession}
+        certificateTypes={certificateTypes}
+      />
+      <NoteRow
+        customer={customer}
+        customerId={customerId}
+        verdict={verdict}
+        servedToday={servedAt !== null}
+        lookedUpNumber={lookedUpNumber}
+      />
+    </div>
+  );
+}
+
+/**
+ * Row 5 (US-41.7): why the household is blocked, when it is, the note, and the footer — the heavy,
+ * rare actions set apart at the bottom right, each opening its confirmation under the row.
+ */
+function NoteRow({
+  customer,
+  customerId,
+  verdict,
+  servedToday,
+  lookedUpNumber,
+}: {
+  customer: CounterCustomerView;
+  customerId: number;
+  verdict: Verdict;
+  servedToday: boolean;
+  lookedUpNumber: string;
+}): React.ReactElement {
+  return (
+    <div className="flex flex-col gap-2 border-t pt-3.5">
+      {/* The record of why this household was blocked (US-08), verbatim and with its paragraphs:
+          nothing else on the screen holds it. */}
+      {verdict.kind === "BLOCKED" ? (
+        <div className="flex max-w-[75ch] flex-col gap-0.5 rounded-lg border border-red-700/35 px-3 py-2">
+          <span className="text-xs font-semibold text-red-700">
+            {de.distribution.counter.mask.blockReason}
+          </span>
+          <p data-testid="counter-verdict-detail" className="whitespace-pre-line">
+            {verdict.reason ?? de.distribution.counter.verdicts.blocked.noReason}
+          </p>
+        </div>
+      ) : null}
+      {/* Keyed by customer, so nothing typed about one household — a note, a reason, an open fold —
+          survives into the next lookup. */}
+      <CounterNotes
+        key={customerId}
+        customerId={customerId}
+        notes={customer.notes}
+        editable={customer.status !== "ARCHIVED"}
+      >
+        {/* Nothing to set apart from an archived household nobody served today. */}
+        {servedToday || customer.status !== "ARCHIVED" ? (
+          <span aria-hidden="true" className="ml-auto h-7 border-l pl-3" />
+        ) : null}
+        <RemoveEntry />
+        <BlockControls
+          customerId={customerId}
+          status={customer.status}
+          blockReason={customer.blockReason}
+          compact
+        />
+        <ArchiveControls
+          customerId={customerId}
+          customerNumber={customer.customerNumber}
+          status={customer.status}
+          returnTo={`/ausgabe?nummer=${encodeURIComponent(lookedUpNumber)}`}
+          compact
+        />
+      </CounterNotes>
+    </div>
   );
 }

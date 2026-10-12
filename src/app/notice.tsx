@@ -17,6 +17,7 @@ import { Fragment } from "react";
 import { Check, CircleAlert, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Segment } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { CONFIRMATION_ACCENT, REFUSAL_ACCENT } from "./accents";
 import type { NoticeTier } from "./notice-tier";
 
@@ -74,6 +75,7 @@ export function Notice({
   tone,
   text,
   testId,
+  className,
   children,
 }: {
   tone: NoticeTone;
@@ -81,6 +83,8 @@ export function Notice({
   text: string | ReadonlyArray<Segment>;
   /** Goes on the sentence, so a spec asserts the words rather than the box around them. */
   testId: string;
+  /** Box overrides, for the counter's status slot, where the answer stands in a row (US-41.4). */
+  className?: string;
   /**
    * One way onward, inside the box that states the fact (US-32.7). It sits *within* the sentence's
    * element, so a screen reader reaching the status reaches the offer with it.
@@ -89,7 +93,11 @@ export function Notice({
 }): React.ReactElement {
   const { Icon, box, destructive } = TONES[tone];
   return (
-    <Alert role="status" variant={destructive ? "destructive" : "default"} className={box}>
+    <Alert
+      role="status"
+      variant={destructive ? "destructive" : "default"}
+      className={cn(box, className)}
+    >
       <Icon />
       <AlertDescription
         data-testid={testId}
@@ -113,14 +121,16 @@ export function Notice({
 export function Confirmation({
   text,
   testId,
+  className,
   children,
 }: {
   text: string | ReadonlyArray<Segment>;
   testId: string;
+  className?: string;
   children?: React.ReactNode;
 }): React.ReactElement {
   return (
-    <Notice tone="success" text={text} testId={testId}>
+    <Notice tone="success" text={text} testId={testId} className={className}>
       {children}
     </Notice>
   );

@@ -1,5 +1,7 @@
-import { expect, type Browser, type Page } from "@playwright/test";
+import { expect, type Browser, type Locator, type Page } from "@playwright/test";
 import type { GroupOption } from "@/app/ausgabe/session-options";
+import { de } from "@/i18n/de";
+import { formatEuroAmount } from "@/domain/money";
 import { hydrated } from "./day";
 
 /**
@@ -99,4 +101,37 @@ export async function endSessionInHook({ browser, baseURL }: HookFixtures): Prom
   } finally {
     await page.close();
   }
+}
+
+/**
+ * A household's row in the list under the counter (US-41.8), scoped by number because the
+ * Kundenliste's testids repeat once per row. Since the mask holds no price tile, this row is where the
+ * counter screen states a household's price.
+ */
+export function sessionHousehold(page: Page, customerNumber: number): Locator {
+  return page.locator(
+    `[data-testid="session-household"][data-customer-number="${customerNumber}"]`,
+  );
+}
+
+/**
+ * Today's record as the mask states it (US-41.4): the time in the „Bereits ausgegeben" chip, what
+ * was paid standing in „Gezahlt" and what was asked beside it. `time` is `null` where an answer has
+ * taken the chip's place in the slot — a saved correction — and the time is then asserted nowhere.
+ */
+export async function expectServedRecord(
+  page: Page,
+  record: { time: string | null; paidCents: number; askedCents: number },
+): Promise<void> {
+  await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
+    "data-verdict",
+    "ALREADY_SERVED",
+  );
+  if (record.time !== null) {
+    await expect(page.getByTestId("counter-verdict")).toContainText(record.time);
+  }
+  await expect(page.getByTestId("correct-amount")).toHaveValue(formatEuroAmount(record.paidCents));
+  await expect(page.getByTestId("correct-asked")).toHaveText(
+    de.distribution.serve.asked(record.askedCents),
+  );
 }

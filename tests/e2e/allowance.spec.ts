@@ -6,7 +6,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
-import { endSessionInHook, startSessionInHook } from "./session";
+import { endSessionInHook, sessionHousehold, startSessionInHook } from "./session";
 
 /**
  * The counts and the price follow the household, driven through the built app.
@@ -192,9 +192,13 @@ test("the counter states no withdrawn figure beside the counts and the price", a
 
   // The household the test above left behind — two children by now — looked up as a staff member
   // would at the table. The counter is a read, so it states the same derivation the record does.
-  await expect(page.getByTestId("counter-customer-number")).toHaveText(String(CUSTOMER_NUMBER));
+  await expect(page.getByTestId("counter-card-number")).toHaveText(
+    new RegExp(`^${CUSTOMER_NUMBER}k\\d+$`),
+  );
   await expect(page.getByTestId("counter-grown-ups")).toHaveText("1");
-  await expect(page.getByTestId("counter-price")).toHaveText(PRICE_WITH_SECOND_CHILD);
+  await expect(
+    sessionHousehold(page, CUSTOMER_NUMBER).getByTestId("customer-row-price"),
+  ).toHaveText(PRICE_WITH_SECOND_CHILD);
 
   // US-27: DF hand out food by judgement, so the software states no quantity of it. This is the
   // assertion that fails if the figure is ever put back on the screen it was read from.
