@@ -372,9 +372,10 @@ function RenewalForm({
     >
       <input type="hidden" name="customerId" value={customerId} />
       {/* Two lines on purpose: at 1440 px the four controls overrun six columns by a few pixels, and a
-          date's refusal widens its column — wrapping would decide the layout per state.
+          date's refusal widens its column — wrapping would decide the layout per state. The hint
+          rides beside the date: a third line pushes `Z1` with „Sonstiges“ open past 800 px (FR-9).
           `items-start`, so a mark rides under its own field rather than pushing the row apart. */}
-      <div className="flex flex-wrap items-start gap-3">
+      <div className="flex items-start gap-3">
         <CertificateTypeField
           types={certificateTypes}
           height="h-8"
@@ -410,6 +411,7 @@ function RenewalForm({
             />
           )}
         </div>
+        <p className="mt-5 min-w-0 flex-1 text-xs text-muted-foreground">{words.hint}</p>
       </div>
       <div className="mt-1 flex gap-2">
         <Button type="submit" disabled={renewing} data-testid="renewal-save" className="h-8">
@@ -425,7 +427,6 @@ function RenewalForm({
           {words.cancel}
         </Button>
       </div>
-      <p className="text-xs text-muted-foreground">{words.hint}</p>
     </form>
   );
 }

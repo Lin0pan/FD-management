@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
+import { CERTIFICATE_TYPE_OTHER } from "@/app/certificate-type-resolver";
 import { foldName } from "@/domain/customer/nameSearch";
 import { clearRegister } from "@/infrastructure/prisma/test-support";
 import { fillSticky, hydrated } from "./day";
@@ -33,6 +34,11 @@ const EXPIRED_CERTIFICATE = new Date(Date.now() - 7 * DAY_MS);
 const VALID_CERTIFICATE = new Date(Date.now() + 365 * DAY_MS);
 const GROWN_UP_BIRTH_DATE = new Date("1985-02-11T00:00:00.000Z");
 const CHILD_BIRTH_DATE = new Date("2020-06-15T00:00:00.000Z");
+
+/** A configured list, so `Z1` opens on a select the way it does once DF have set theirs up. */
+const CERTIFICATE_TYPES = ["Bürgergeldbescheid", "Rentenbescheid"] as const;
+/** The list this register held before the spec, put back afterwards for the specs that follow. */
+let previousTypes: string[] = [];
 
 const TWO_LINE_NOTE = "Kommt meist zu zweit.\nHolt für die Nachbarin mit ab.";
 
@@ -127,6 +133,11 @@ test.describe("Ausgabemaske auf einem Bildschirm", () => {
     // A retry replays this against the register the failed attempt left, afternoon included.
     await endSessionInHook({ browser, baseURL });
     await clearRegister(prisma);
+    previousTypes = (await prisma.certificateType.findMany()).map((type) => type.label);
+    await prisma.certificateType.deleteMany();
+    await prisma.certificateType.createMany({
+      data: CERTIFICATE_TYPES.map((label) => ({ label })),
+    });
 
     await seedHousehold({
       customerNumber: NUMBERS.main,
@@ -157,6 +168,8 @@ test.describe("Ausgabemaske auf einem Bildschirm", () => {
 
   test.afterAll(async ({ browser, baseURL }) => {
     await endSessionInHook({ browser, baseURL });
+    await prisma.certificateType.deleteMany();
+    await prisma.certificateType.createMany({ data: previousTypes.map((label) => ({ label })) });
     await prisma.$disconnect();
   });
 
@@ -171,6 +184,16 @@ test.describe("Ausgabemaske auf einem Bildschirm", () => {
     await expect(page.getByTestId("campaign-reminder-received")).not.toBeChecked();
     await expect(page.getByTestId("counter-notes")).toHaveText(TWO_LINE_NOTE);
 
+    await expectMaskFits(page);
+
+    // `Z1`: the renewal opens in place of the certificate's two facts, two lines where they had one.
+    await hydrated(page.getByTestId("renewal-open"));
+    await page.getByTestId("renewal-open").click();
+    await expect(page.getByTestId("renewal-form")).toBeVisible();
+    await expectMaskFits(page);
+    // „Sonstiges“ opens the free text under the select — and is where an empty list starts.
+    await page.getByTestId("renewal-type").selectOption(CERTIFICATE_TYPE_OTHER);
+    await expect(page.locator("#renewal-type-other")).toBeVisible();
     await expectMaskFits(page);
   });
 
