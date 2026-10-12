@@ -894,3 +894,23 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - A quick margin readout without touching the spec permanently: `sed` a `console.log` into the
     measuring helper, run, restore from a `/tmp` copy.
 ---
+
+## 2026-10-12 - US-012
+- Docs only. `docs/handout/betriebsanleitung.md`: new chapter „Der Ausgabe-Bildschirm" (header line,
+  mask rows, the chip table, decision 1, the household list); „Betrag"/„Zu zahlen"/„Preis" tile,
+  the confirmation line „ganz oben" and „Eintrag korrigieren" rewritten for „Gezahlt (von …)", the
+  slot and the footer; „Alle Ausgabetermine" → header's „Ausgabetermine" while one runs. README's
+  table row names the counter screen.
+- `docs/architecture/05-building-block-view.md` (arc42 skill): readGroupRoster gone from the
+  distribution row, `/ausgabe` row reworded, new table mapping `src/app/ausgabe/` files. Use-case
+  count recounted: still 57 (readCounterRoster replaced readGroupRoster; `servedInSession` is an
+  exported helper like `heldCard`, not a use case). `arc42.py check` clean.
+- `docs/guideline/ui_styling_guide.md` §12 role 1 describes the status chip (no chip on „Ausgabe
+  frei", four exception tones), `Undo2` row names „Eintrag entfernen", §7's key note names the
+  Kundennummer field keyed on query + recorded hand-out.
+- **Learnings for future iterations:**
+  - Recount „N use cases" by diffing `export (async )?function` names between `main` and `HEAD`
+    under `src/application` — the absolute count includes helpers, the diff shows what moved.
+  - Prettier does not rewrap markdown prose here; rewrap by hand after inserting words.
+  - The PRD's „one look in real Safari on a Mac" is still open — not doable from the sandbox.
+---
