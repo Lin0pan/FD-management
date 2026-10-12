@@ -836,3 +836,36 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
     infrastructure SQLite file (15 skipped).
   - The dev DB (`data/fd.db`) now has household 1 renewed and household 6 served + reminded today.
 ---
+
+## 2026-10-12 - US-010
+- Row 5 (`NoteRow` in counter-lookup.tsx, inside `HouseholdRows` so inside `counter-customer`):
+  „Sperrgrund“ box (no date, decision 3) with `counter-verdict-detail` on the reason; `CounterNotes`
+  (notes-controls.tsx, replaces `NotesControls`) — label, paragraph `counter-notes` or a 3-row
+  textarea in place; while editing, „Bemerkung speichern“/„Abbrechen“ take the edit button's place on
+  the footer line (joined by `form=`), so editing adds no line. A saved note closes the field.
+- Footer: `src/app/fold-row.tsx` — `FoldRow` (context: one open fold), `FoldToggle`, `FoldPanel`
+  (red-framed, right-aligned), `FoldLine`, `FOOTER_RED`. Toggles and panels are siblings in one flex
+  row; `order-last basis-full` drops panels under it. `ControlToggle` (disclosure.tsx, refactor
+  commit) is the header line's old `ConfirmToggle`, shared.
+- `BlockControls`/`ArchiveControls` take `compact`; /kunden/[id] renders exactly as before.
+  `de.customers.archive.compactAction` „Archivieren“. `RemoveEntry` is now the footer's first toggle
+  (`correct-remove-open`; specs still click it by its text).
+- **`ServeFormProvider` is keyed on the customer only.** Keyed on the mode it remounted the footer's
+  block control in the very render „Gesperrt.“ arrived (serve → refused). An answer from another mode
+  now reads as idle via a value-keyed resync (`stale` snapshot of both states at the mode change).
+  Server actions revalidate only on success, so an error never arrives together with a mode change.
+- Danger-zone card and `HouseholdFacts` gone from /ausgabe. Dead key `counter.details.heading` removed.
+- e2e: counter.spec's „closes the note editor…“ asserts the field is absent (no `<details>` any more);
+  block.spec gains „blocks and unblocks from the counter's footer…“ (one fold at a time, block-saved
+  survives serve→refused and back, two audit entries). Both engines 264 passed.
+- Driven with playwright-cli (Chromium, 1440 × 800): Z2 removal open, block → unblock on a served
+  and a servable household, note editing. Mask bottom ≈ 660 px closed, ≈ 745 with a fold open.
+  Canvas not read (see US-004).
+- **Learnings for future iterations:**
+  - Two flakes this run, each green alone and in a full rerun: certificate-types „Sonstiges saves
+    exactly…“ and reminders „resets the displayed count to 0…“ (both Chromium).
+  - A panel that must open under a whole row of controls: siblings + `order-last basis-full` keeps
+    each control's toggle and form in one component without portals.
+  - Tab order follows the DOM, not `order`: an opened footer panel is reached right after its toggle,
+    which is what a keyboard user wants.
+---
