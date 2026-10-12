@@ -14,7 +14,7 @@
 import { Check, Undo2 } from "lucide-react";
 import { createContext, useActionState, useContext, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { formatEuroAmount } from "@/domain/money";
+import { EURO_SIGN, formatEuroAmount } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { correctServe, recordServe } from "./actions";
@@ -291,7 +291,7 @@ export function PaidTile(): React.ReactElement | null {
             className="w-full min-w-0 bg-transparent text-right text-[22px] font-semibold tabular-nums outline-none disabled:cursor-not-allowed"
           />
           <span aria-hidden="true" className="text-lg font-semibold">
-            €
+            {EURO_SIGN}
           </span>
         </span>
       </div>
