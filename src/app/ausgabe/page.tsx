@@ -36,11 +36,10 @@ import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
 import { de } from "@/i18n/de";
 import { germanDateTime, germanSessionDay, germanTime } from "@/i18n/format";
-import { CampaignReminderField } from "../campaign-reminder-field";
 import { ArchiveControls } from "../kunden/archive-controls";
 import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
-import { CustomerDetails, VerdictBanner } from "./counter-lookup";
+import { HouseholdFacts, HouseholdRows, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { RECORD_REMOVED } from "./removed-flag";
 import {
@@ -386,125 +385,110 @@ export default async function DistributionPage({
           </>
         ) : (
           <>
-            {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
-          navigates, so the input comes back empty and — being autofocused — ready for the next
-          customer without touching the mouse. A native `<label>` rather than the shadcn one: this
-          form is deliberately server-rendered with no client component, and Radix's label would drag
-          a client boundary onto the counter's critical path for nothing.
+            {/* The counter, one card (US-41): every state swaps content inside it, none adds a
+                card. The lookup is a server-rendered GET form with no client component — Radix's
+                label would drag a client boundary onto the counter's critical path for nothing —
+                so Enter reloads the page with the field autofocused for the next customer. */}
+            <section
+              aria-label={de.distribution.counter.mask.label}
+              className="flex flex-col gap-[18px] rounded-xl bg-card px-6 py-5 text-card-foreground ring-1 ring-foreground/10"
+            >
+              <form method="get" className="flex flex-wrap items-end gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="counter-input" className="text-sm font-medium">
+                    {de.distribution.counter.label}
+                  </label>
+                  <Input
+                    // Keyed on the hand-out just recorded, and that is what re-focuses the field. A
+                    // `redirect` out of a server action is a *soft* navigation: React reconciles an
+                    // input already in the tree, so `autoFocus` — which only fires on mount — would
+                    // not fire again. The key changes exactly when a hand-out lands.
+                    key={recorded === null ? "" : String(recorded.customerNumber)}
+                    // Not `type="number"`: a card number carries a `k`, and a spinner means nothing.
+                    type="text"
+                    name="nummer"
+                    id="counter-input"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    autoFocus
+                    data-testid="counter-input"
+                    className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
+                  />
+                </div>
+                <Button type="submit" size="lg" className="h-12 px-6">
+                  <Search aria-hidden="true" data-icon="inline-start" />
+                  {de.distribution.counter.submit}
+                </Button>
+              </form>
 
-          No hint under the heading. It used to spell out the two formats and say to press Enter, on
-          every lookup of every afternoon, for a field that is labelled, autofocused and the only one
-          on the screen. The formats are worth stating at the one moment they are not obvious — a
-          mistyped entry — and `errors.notANumber` states them there. */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">
-                  <h2>{de.distribution.counter.heading}</h2>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <form method="get" className="flex flex-wrap items-end gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label htmlFor="counter-input" className="text-sm font-medium">
-                      {de.distribution.counter.label}
-                    </label>
-                    <Input
-                      // Keyed on the hand-out just recorded, and that is what re-focuses the field. A
-                      // `redirect` out of a server action is a *soft* navigation: React reconciles an
-                      // input that is already in the tree, so `autoFocus` — which only fires on mount —
-                      // would not fire again and the cursor would be left nowhere. The lookup form's
-                      // own GET submit is a full document navigation and never needed this. The key
-                      // changes exactly when a hand-out lands, so nothing else remounts the field.
-                      key={recorded === null ? "" : String(recorded.customerNumber)}
-                      // Not `type="number"`: a card number carries a `k`, and a spinner has no meaning here.
-                      type="text"
-                      name="nummer"
-                      id="counter-input"
-                      inputMode="numeric"
-                      autoComplete="off"
-                      autoFocus
-                      data-testid="counter-input"
-                      className="h-12 w-44 text-2xl tabular-nums md:text-2xl"
-                    />
-                  </div>
-                  <Button type="submit" size="lg" className="h-12 px-6">
-                    <Search aria-hidden="true" data-icon="inline-start" />
-                    {de.distribution.counter.submit}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
-            {counter === null ? null : counter.lookup === null ? (
-              <ErrorNote message={counter.error} testId="counter-error" />
-            ) : (
-              <>
-                <VerdictBanner verdict={counter.lookup.verdict} />
-                {/* One guard, not two. `customer` and `customerId` are null on exactly the same
-                NOT_FOUND branch — `lookupCustomer` says so where it defines `CounterLookup` — so
-                testing them separately said there were cases where a household has an id but no
-                details, and there are none. Both are narrowed here because `CustomerDetails` now
-                needs the id, and a non-null assertion is not an option. The banner stays outside:
-                a number nobody holds still gets a verdict. */}
-                {counter.lookup.customer === null || counter.lookup.customerId === null ? null : (
-                  <>
-                    <CustomerDetails
+              {counter === null ? null : counter.lookup === null ? (
+                <ErrorNote message={counter.error} testId="counter-error" />
+              ) : (
+                <>
+                  <VerdictBanner verdict={counter.lookup.verdict} />
+                  {/* One guard, not two: `customer` and `customerId` are null on exactly the same
+                      NOT_FOUND branch (`CounterLookup`). */}
+                  {counter.lookup.customer === null || counter.lookup.customerId === null ? null : (
+                    <HouseholdRows
                       customer={counter.lookup.customer}
                       customerId={counter.lookup.customerId}
+                      campaignReminder={counter.lookup.campaignReminder}
                     />
-                    {/* Below the household and above everything that serves them: prominent when
-                    unticked, never a step the queue has to clear (US-40, D4). */}
-                    {counter.lookup.campaignReminder === null ? null : (
-                      <CampaignReminderField
-                        key={`campaign-${counter.lookup.customerId}`}
-                        reminderId={counter.lookup.campaignReminder.reminderId}
-                        customerId={counter.lookup.customerId}
-                        name={counter.lookup.campaignReminder.name}
-                        received={counter.lookup.campaignReminder.received}
-                      />
-                    )}
-                    {/* Keyed by customer so a confirmation from one lookup cannot survive into the
+                  )}
+                </>
+              )}
+            </section>
+
+            {counter === null ||
+            counter.lookup === null ||
+            counter.lookup.customer === null ||
+            counter.lookup.customerId === null ? null : (
+              <>
+                <HouseholdFacts
+                  customer={counter.lookup.customer}
+                  customerId={counter.lookup.customerId}
+                />
+                {/* Keyed by customer so a confirmation from one lookup cannot survive into the
                     next customer's screen; within one customer the state rides out revalidation,
                     which is what keeps the renewal confirmation visible once the certificate
                     reads as valid again. */}
-                    {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
+                {/* `customer.certificateExpired`, and deliberately not the verdict kind it used to
                     be compared against. Since US-32 an already-collected household answers
                     ALREADY_SERVED, which outranks CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so
                     reading the reminder controls off the verdict would make them vanish the moment
                     the household was served, on the very re-lookup a staff member does to correct
                     the record. Whether the certificate has lapsed is a fact about the household;
                     `lookupCustomer` derives it at the same instant the verdict is evaluated. */}
-                    <CertificateControls
-                      key={counter.lookup.customerId}
-                      customerId={counter.lookup.customerId}
-                      expired={counter.lookup.customer.certificateExpired}
-                      reminderLoggedInSession={counter.lookup.reminderLoggedInSession}
-                      certificateTypes={counterReads.certificateTypes}
-                    />
-                    {/* Every figure the payment turns on comes off the lookup, derived there from the
+                <CertificateControls
+                  key={counter.lookup.customerId}
+                  customerId={counter.lookup.customerId}
+                  expired={counter.lookup.customer.certificateExpired}
+                  reminderLoggedInSession={counter.lookup.reminderLoggedInSession}
+                  certificateTypes={counterReads.certificateTypes}
+                />
+                {/* Every figure the payment turns on comes off the lookup, derived there from the
                     household's own hand-out history (US-29.5). Nothing about money is worked out on
                     this page: it hands the amounts down and the controls render them. */}
-                    <ServeControls
-                      customerId={counter.lookup.customerId}
-                      customerNumber={counter.lookup.customer.customerNumber}
-                      canServe={permitsServing(counter.lookup.verdict)}
-                      amountToPayCents={counter.lookup.customer.amountToPayCents}
-                      balanceCents={counter.lookup.customer.balanceCents}
-                      lookedUpNumber={typeof nummer === "string" ? nummer : ""}
-                      sessionRecord={
-                        counter.lookup.sessionRecord === null
-                          ? null
-                          : {
-                              recordId: counter.lookup.sessionRecord.recordId,
-                              time: germanTime(counter.lookup.sessionRecord.at),
-                              paidCents: counter.lookup.sessionRecord.paidCents,
-                              askedCents: counter.lookup.sessionRecord.askedCents,
-                              balanceWithoutRecordCents:
-                                counter.lookup.sessionRecord.balanceWithoutRecordCents,
-                            }
-                      }
-                    />
-                    {/* Blocking and archiving are offered here because the reasons for both show up at
+                <ServeControls
+                  customerId={counter.lookup.customerId}
+                  customerNumber={counter.lookup.customer.customerNumber}
+                  canServe={permitsServing(counter.lookup.verdict)}
+                  amountToPayCents={counter.lookup.customer.amountToPayCents}
+                  lookedUpNumber={typeof nummer === "string" ? nummer : ""}
+                  sessionRecord={
+                    counter.lookup.sessionRecord === null
+                      ? null
+                      : {
+                          recordId: counter.lookup.sessionRecord.recordId,
+                          time: germanTime(counter.lookup.sessionRecord.at),
+                          paidCents: counter.lookup.sessionRecord.paidCents,
+                          askedCents: counter.lookup.sessionRecord.askedCents,
+                          balanceWithoutRecordCents:
+                            counter.lookup.sessionRecord.balanceWithoutRecordCents,
+                        }
+                  }
+                />
+                {/* Blocking and archiving are offered here because the reasons for both show up at
                     the counter: the certificate still expired after several reminders, the no-show
                     run above (FR-2), and whatever a household does in front of the person serving
                     them. US-08.4 shipped the block controls on the record only, which left a staff
@@ -524,32 +508,30 @@ export default async function DistributionPage({
                     call `cardsDue` makes for the reissue words. No hint paragraph and no `<h3>`
                     per control: the record needs those to tell three controls apart, and here each
                     `<summary>` names itself. */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>
-                          <h2>{de.customers.record.dangerHeading}</h2>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="flex flex-col gap-3">
-                        <BlockControls
-                          key={`block-${counter.lookup.customerId}`}
-                          customerId={counter.lookup.customerId}
-                          status={counter.lookup.customer.status}
-                          blockReason={counter.lookup.customer.blockReason}
-                        />
-                        <ArchiveControls
-                          key={counter.lookup.customerId}
-                          customerId={counter.lookup.customerId}
-                          customerNumber={counter.lookup.customer.customerNumber}
-                          status={counter.lookup.customer.status}
-                          returnTo={`/ausgabe?nummer=${encodeURIComponent(
-                            typeof nummer === "string" ? nummer : "",
-                          )}`}
-                        />
-                      </CardContent>
-                    </Card>
-                  </>
-                )}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>
+                      <h2>{de.customers.record.dangerHeading}</h2>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3">
+                    <BlockControls
+                      key={`block-${counter.lookup.customerId}`}
+                      customerId={counter.lookup.customerId}
+                      status={counter.lookup.customer.status}
+                      blockReason={counter.lookup.customer.blockReason}
+                    />
+                    <ArchiveControls
+                      key={counter.lookup.customerId}
+                      customerId={counter.lookup.customerId}
+                      customerNumber={counter.lookup.customer.customerNumber}
+                      status={counter.lookup.customer.status}
+                      returnTo={`/ausgabe?nummer=${encodeURIComponent(
+                        typeof nummer === "string" ? nummer : "",
+                      )}`}
+                    />
+                  </CardContent>
+                </Card>
               </>
             )}
 

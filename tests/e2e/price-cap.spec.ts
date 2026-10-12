@@ -8,7 +8,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { fillDay } from "./day";
 import { releaseNumbers } from "./seeding";
-import { endSessionInHook, startSessionInHook } from "./session";
+import { endSessionInHook, sessionHousehold, startSessionInHook } from "./session";
 
 /**
  * The Maximalpreis from the settings screen to the counter (`tasks/prd-us-26-price-cap.md` §US-26.7,
@@ -176,12 +176,15 @@ async function lookUp(page: Page): Promise<void> {
  *
  * The absence is asserted alongside it and scoped to the block the price stands in: a screen that
  * quoted 11,00 € *beside* the capped figure — as an explanation, or because a second derivation
- * disagreed — would pass a check on the figure alone. The counter is read through the record card
- * rather than the page, because the week banner and the group list live on the same screen.
+ * disagreed — would pass a check on the figure alone. The counter is read through the household's
+ * own row in the list under the mask, and through the mask's household rows, never the page: the
+ * other rows of the list live on the same screen.
  */
 async function expectQuoted(page: Page, id: number, price: string, absent: string): Promise<void> {
   await lookUp(page);
-  await expect(page.getByTestId("counter-price")).toHaveText(price);
+  const listed = sessionHousehold(page, CUSTOMER_NUMBER);
+  await expect(listed.getByTestId("customer-row-price")).toHaveText(price);
+  await expect(listed).not.toContainText(absent);
   await expect(page.getByTestId("counter-customer")).not.toContainText(absent);
 
   await page.goto(`/kunden/${id}`);

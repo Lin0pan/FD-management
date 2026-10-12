@@ -7,7 +7,7 @@ import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
-import { endSessionInHook, startSessionInHook } from "./session";
+import { endSessionInHook, sessionHousehold, startSessionInHook } from "./session";
 
 /**
  * Every verdict the counter can hand down (`tasks/prd-us-04-lookup-customer.md` §US-04.5).
@@ -181,7 +181,8 @@ async function seedHousehold(household: Household): Promise<string> {
     },
   });
 
-  return `${firstName} ${lastName}`;
+  // As the mask names a household: surname first, the way the Kundenliste sorts them (US-41.5).
+  return `${lastName}, ${firstName}`;
 }
 
 /**
@@ -383,7 +384,9 @@ test.describe("Verdikt am Tresen", () => {
     // One grown-up and one child against the seeded settings: 2,00 € + 1,00 €.
     await expect(page.getByTestId("counter-grown-ups")).toHaveText("1");
     await expect(page.getByTestId("counter-children")).toHaveText("1");
-    await expect(page.getByTestId("counter-price")).toHaveText("3,00 €");
+    await expect(
+      sessionHousehold(page, NUMBERS.clear).getByTestId("customer-row-price"),
+    ).toHaveText("3,00 €");
   });
 
   test("serves a household whose certificate has lapsed and asks for the renewal", async ({
@@ -398,7 +401,9 @@ test.describe("Verdikt am Tresen", () => {
     );
     // An expired certificate never withholds food: the verdict above is a clear-to-serve one, and
     // the household is priced exactly as any other — reminded, not turned away.
-    await expect(page.getByTestId("counter-price")).toHaveText("3,00 €");
+    await expect(
+      sessionHousehold(page, NUMBERS.certificateExpired).getByTestId("customer-row-price"),
+    ).toHaveText("3,00 €");
     // The date and the count the headline no longer spells out, in the record it sends staff to.
     // This is what makes dropping the banner's sentence safe rather than a loss of information.
     await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText("31.12.2025");

@@ -353,7 +353,9 @@ test.describe("Gruppenfortschritt", () => {
     await page.getByTestId(`group-member-${NUMBERS.unserved}`).click();
 
     await expect(page).toHaveURL(new RegExp(`/ausgabe\\?nummer=${NUMBERS.unserved}$`));
-    await expect(page.getByTestId("counter-customer-number")).toHaveText(String(NUMBERS.unserved));
+    await expect(page.getByTestId("counter-card-number")).toHaveText(
+      new RegExp(`^${NUMBERS.unserved}k\\d+$`),
+    );
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute(
       "data-verdict",
       "CLEAR_TO_SERVE",

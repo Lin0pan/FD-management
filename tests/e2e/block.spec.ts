@@ -139,7 +139,7 @@ async function seedHousehold(): Promise<{ id: number; name: string }> {
     select: { id: true },
   });
 
-  return { id: customer.id, name: `${firstName} ${lastName}` };
+  return { id: customer.id, name: `${lastName}, ${firstName}` };
 }
 
 /** Type a number at the counter and press Enter, exactly as staff do it. */

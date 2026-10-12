@@ -11,9 +11,8 @@
  * Which of the two it shows is a property of the day rather than a click: the page decides by passing
  * `sessionRecord`, so a correction is reached by looking the household up again.
  *
- * **The transaction is one number, stated three times over**: what to collect, where the household
- * stands, and what was handed over. The last sits **on the same line as the button that books it**,
- * because the field and the button are one gesture.
+ * What was handed over sits **on the same line as the button that books it**, because the field and
+ * the button are one gesture.
  */
 
 import { useActionState } from "react";
@@ -21,12 +20,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { balanceKind } from "@/domain/distribution/balance";
 import { formatEuroAmount, formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { correctServe, recordServe } from "./actions";
-import { BALANCE_STYLES } from "../accents";
 import { FoldChevron } from "../disclosure";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
@@ -45,55 +42,6 @@ export interface SessionRecordProps {
   readonly askedCents: number;
   /** Where the household's balance would stand if this record were removed, so the warning says so. */
   readonly balanceWithoutRecordCents: number;
-}
-
-/**
- * The two figures the transaction turns on, in a grid of their own above the form.
- *
- * Deliberately not a fifth and sixth derived tile: those four say what the household *draws* at
- * this Ausgabe, these two say what *changes hands* — a different question at a different moment.
- *
- * **One pair: same size, same width, separated by weight.** `Zu zahlen` keeps the semibold, being the
- * figure that leaves the screen — read aloud and counted out in coins — while `Saldo` states where it
- * came from. `Saldo` is **signed**, chosen on the domain's `balanceKind` rather than a comparison
- * written here, and the same call picks the tint: the colour never travels alone (US-03.4).
- *
- * The grid is the counts row's own, verbatim, so `Zu zahlen` sits on `Erwachsene`'s baseline and the
- * two cards read as one column rhythm.
- *
- * **`Saldo` widens to two tracks below `xl`, and that is about one word**: „ausgeglichen“ needs about
- * 195px of tile, which a quarter of the row only reaches at roughly 1200px of viewport.
- */
-function PaymentRow({
-  amountToPayCents,
-  balanceCents,
-}: {
-  /** `null` for a household already served today: there is no second hand-out to collect for. */
-  amountToPayCents: number | null;
-  balanceCents: number;
-}): React.ReactElement {
-  // Read once and used twice, for the wording and the tile: two calls would be two places the sign
-  // is read on one screen.
-  const kind = balanceKind(balanceCents);
-
-  return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {amountToPayCents === null ? null : (
-        <Stat
-          label={de.customers.derived.amountToPay}
-          value={formatEuros(amountToPayCents)}
-          testId="counter-amount-to-pay"
-        />
-      )}
-      <Stat
-        label={de.customers.derived.balance}
-        value={de.customers.derived.balanceValue(kind, balanceCents)}
-        testId="counter-balance"
-        className={cn("col-span-2 xl:col-span-1", BALANCE_STYLES[kind])}
-        valueClassName="font-medium"
-      />
-    </div>
-  );
 }
 
 /**
@@ -192,7 +140,6 @@ export function ServeControls({
   customerNumber,
   canServe,
   amountToPayCents,
-  balanceCents,
   sessionRecord,
   lookedUpNumber,
 }: {
@@ -205,8 +152,6 @@ export function ServeControls({
   canServe: boolean;
   /** What to collect today, shown and pre-filled only while there is a hand-out still to record. */
   amountToPayCents: number;
-  /** The household's balance as it stands now — today's payment included once one is recorded. */
-  balanceCents: number;
   sessionRecord: SessionRecordProps | null;
   /**
    * What was typed to reach this household, submitted with a removal so the redirect comes back to
@@ -246,11 +191,6 @@ export function ServeControls({
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          {/* No `Zu zahlen` here: this household has collected, and the figure `lookupCustomer`
-              would state is what they would be asked for on a *second* hand-out today, which is not
-              a thing that can happen. The balance stays, because it has just moved. */}
-          <PaymentRow amountToPayCents={null} balanceCents={balanceCents} />
-
           {/* `guardEnter`: this form saves money on a screen a queue is standing at, so Enter in the
               Betrag field must not submit it (`enter-guard.ts`). The counter's *lookup* form is a
               different form and keeps its Enter. */}
@@ -366,7 +306,14 @@ export function ServeControls({
         {/* No header: the payment row, the field and one large green button say what this is, and
             the verdict above has already said it may happen. */}
         <CardContent className="flex flex-col gap-4">
-          <PaymentRow amountToPayCents={amountToPayCents} balanceCents={balanceCents} />
+          {/* The balance this figure is offset by is a tile in the mask above (US-41.5). */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat
+              label={de.customers.derived.amountToPay}
+              value={formatEuros(amountToPayCents)}
+              testId="counter-amount-to-pay"
+            />
+          </div>
           <form action={serve} onKeyDown={guardEnter} className="flex flex-col items-start gap-4">
             <input type="hidden" name="customerId" value={customerId} />
             <input type="hidden" name="kundennummer" value={customerNumber} />

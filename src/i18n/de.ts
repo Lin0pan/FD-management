@@ -1347,8 +1347,18 @@ export const de = {
      * to the one person who has just typed something unreadable.
      */
     counter: {
-      heading: "Kunden nachschlagen",
       label: "Nummer",
+      /** The one card the counter is: lookup, household, tiles (US-41). */
+      mask: {
+        label: "Ausgabemaske",
+        name: "Name",
+        card: "Karte",
+        /** The tiles are a thumb wide; where the age line falls is the record's to say. */
+        grownUps: "Erwachsene",
+        children: "Kinder",
+        /** Said rather than left blank, so an empty corner is not read as a reminder that failed. */
+        noCampaignReminder: "keine Aktionserinnerung",
+      },
       submit: "Nachschlagen",
       /**
        * A verdict is its headline — everything a sentence beneath it could add is already a tile, a

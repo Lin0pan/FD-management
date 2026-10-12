@@ -1,4 +1,4 @@
-import { expect, type Browser, type Page } from "@playwright/test";
+import { expect, type Browser, type Locator, type Page } from "@playwright/test";
 import type { GroupOption } from "@/app/ausgabe/session-options";
 import { hydrated } from "./day";
 
@@ -99,4 +99,15 @@ export async function endSessionInHook({ browser, baseURL }: HookFixtures): Prom
   } finally {
     await page.close();
   }
+}
+
+/**
+ * A household's row in the list under the counter (US-41.8), scoped by number because the
+ * Kundenliste's testids repeat once per row. Since the mask holds no price tile, this row is where the
+ * counter screen states a household's price.
+ */
+export function sessionHousehold(page: Page, customerNumber: number): Locator {
+  return page.locator(
+    `[data-testid="session-household"][data-customer-number="${customerNumber}"]`,
+  );
 }

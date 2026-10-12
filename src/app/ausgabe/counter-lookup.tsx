@@ -9,16 +9,19 @@
 
 import { Check, CircleHelp, TriangleAlert, X, type LucideIcon } from "lucide-react";
 import Link from "next/link";
+import type { CampaignReminderCheckbox } from "@/application/campaign/campaign-reminder-for";
 import type { CounterCustomerView } from "@/application/customers/lookup-customer";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { balanceKind } from "@/domain/distribution/balance";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
-import { formatEuros } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { germanDate } from "@/i18n/format";
-import { GROUP_STYLES } from "../accents";
+import { cn } from "@/lib/utils";
+import { BALANCE_STYLES, GROUP_STYLES } from "../accents";
+import { CampaignReminderField } from "../campaign-reminder-field";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
 import { NotesControls } from "./notes-controls";
@@ -174,133 +177,181 @@ function TableHeadCell({ children }: { children: string }): React.ReactElement {
   );
 }
 
+/** The mask's tile: a `Stat` at the size the row of six has room for (US-41.5). */
+const TILE = "gap-0.5 rounded-lg bg-muted/60 px-3 py-1.5";
+const TILE_VALUE = "text-2xl";
+
+/** A label over a figure at the name's size — the two things the counter reads out and compares. */
+function Headline({
+  label,
+  children,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}): React.ReactElement {
+  return (
+    <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      {children}
+    </div>
+  );
+}
+
 /**
- * Everything the counter decision rests on, on screen at once: no field here costs a further click,
- * because the queue does not wait (FR-2).
+ * The household inside the mask: who they are on one line, what they draw and owe as tiles under it.
  *
- * Ordered by how it is *used* rather than how a record is written: the two numbers lead, because the
- * loop at the table is *call the number, check the card*; then the counts and the price; then the
- * fields read only when something is off.
+ * Ordered as the counter uses it: the name and the card are compared against the person and the card
+ * across the table, so they lead at the largest size; the group and the status decide whether the
+ * rest matters, and wear what they wear everywhere else. The customer number is not repeated — it
+ * stands in the field it was typed into.
  */
-export function CustomerDetails({
+export function HouseholdRows({
   customer,
   customerId,
+  campaignReminder,
 }: {
   customer: CounterCustomerView;
   /** The surrogate id the record lives under. Not on `CounterCustomerView` — it is `CounterLookup`'s. */
   customerId: number;
+  campaignReminder: CampaignReminderCheckbox | null;
 }): React.ReactElement {
+  const words = de.distribution.counter.mask;
+  const kind = balanceKind(customer.balanceCents);
+
   return (
-    <Card data-testid="counter-customer">
-      <CardHeader>
-        <CardTitle className="min-w-0 text-2xl">
-          {/* `min-w-0` because `CardAction` shares this row: a flex item's floor is its content, so
-              without it an unbreakable name pushes the badges out of the card instead of wrapping. */}
-          <h2 data-testid="counter-name" className="break-words">
-            {customer.firstName} {customer.lastName}
-          </h2>
-        </CardTitle>
-        {/* The group and the status, the two facts that decide whether the rest matters at all —
-            wearing what they wear everywhere else in the application.
-
-            Both used to be local tables here. The group was solid `bg-red-600 text-white`, a second
-            copy of a tint that `accents.ts` exists to keep single, so one household's group was
-            painted one way on their record and another at the counter. And the status badged every
-            state including `aktiv`, which is nine records in ten: a pill that says "this one is
-            normal" is texture, not emphasis, and `STATUS_CHROME` is where that judgement is already
-            made. What is left is a mark per exception, the same mark the list and the record make.
-
-            The way onto the whole record rides in the same corner (US-16.5). Everything the counter
-            shows is a slice of it, and the question staff most often have next — who else lives
-            there, what was noted, when did they last collect — is answered there and nowhere here.
-            It belongs beside the household's name rather than below the serve button, because it is
-            a fact about *them* and not a step in serving them; /kunden/[id] hangs the way to the
-            card off its header row for the same reason. `gap-3` rather than `gap-2`: two badges
-            beside each other need less air than a badge beside a control. */}
-        <CardAction className="flex flex-wrap items-center gap-3">
-          <Badge
-            data-testid="counter-group"
-            variant="outline"
-            className={GROUP_STYLES[customer.group]}
-          >
-            {de.customers.groups[customer.group]}
-          </Badge>
-          <StateWord
-            word={de.customers.status[customer.status]}
-            testId="counter-status"
-            chrome={STATUS_CHROME[customer.status]}
-          />
-          <Button variant="ghost" asChild>
-            <Link href={`/kunden/${customerId}`} data-testid="counter-record-link">
-              {de.distribution.counter.recordLink}
-            </Link>
-          </Button>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-6">
-        {/* The two numbers the counter actually runs on, and the reason they lead the card rather
-            than sitting under the name in 14px grey, which is where they were.
-
-            Neither is read silently. The Kundennummer is *called out* to fetch the next household —
-            staff use it in preference to the name, which comes from any of a dozen languages and is
-            not theirs to mispronounce in front of a room. The Kartennummer is compared, glyph by
-            glyph, against the card being held out across the table. Both are read at arm's length
-            and at a glance, which is a size argument, not a layout one: the screen had the name at
-            24px and these two at 14px, and the name is the one thing here nobody says out loud.
-
-            Bigger than the derived figures below them, so six tiles do not read as one undivided
-            grid — the counts answer "how much", these answer "who", and the gap plus the step in
-            size is what separates the questions. No colour: that budget is the verdict's.
-
-            `Stat` because it already holds the label and the value in one `<p>` (a screen reader
-            gets "Kundennummer 6", not two loose facts) and sets `tabular-nums`, which is what makes
-            6k1 and 6k2 differ at a glance. The grid is the counts row's own, verbatim, so the pair
-            takes the first two of the same four columns: identical widths on one baseline is what a
-            comparison needs (`docs/guideline/ui_styling_guide.md` §4), and sharing the track keeps the card to
-            one column rhythm instead of two that miss each other by a pixel. */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat
-            label={de.customers.fields.customerNumber}
-            value={String(customer.customerNumber)}
-            testId="counter-customer-number"
-            valueClassName="text-4xl"
-          />
-          <Stat
-            label={de.customers.fields.cardNumber}
-            value={customer.cardNumber}
-            testId="counter-card-number"
-            valueClassName="text-4xl"
-          />
+    <div data-testid="counter-customer" className="flex flex-col gap-[18px]">
+      <div className="flex flex-col gap-1">
+        <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 border-t pt-4 md:grid-cols-12">
+          <Headline label={words.name} className="md:col-span-6">
+            <h2
+              data-testid="counter-name"
+              className="text-[28px] leading-tight font-semibold break-words"
+            >
+              {customer.lastName}, {customer.firstName}
+            </h2>
+          </Headline>
+          <Headline label={words.card} className="md:col-span-2">
+            <span
+              data-testid="counter-card-number"
+              className="text-[28px] leading-tight font-semibold tabular-nums"
+            >
+              {customer.cardNumber}
+            </span>
+          </Headline>
+          {/* The way onto the whole record rides beside the household rather than below the serve
+              button: it is a fact about *them*, not a step in serving them (US-16.5). */}
+          <div className="flex flex-wrap items-center gap-3 md:col-span-4 md:justify-end">
+            <Badge
+              data-testid="counter-group"
+              variant="outline"
+              className={GROUP_STYLES[customer.group]}
+            >
+              {de.customers.groups[customer.group]}
+            </Badge>
+            <StateWord
+              word={de.customers.status[customer.status]}
+              testId="counter-status"
+              chrome={STATUS_CHROME[customer.status]}
+            />
+            <Button variant="ghost" asChild>
+              <Link href={`/kunden/${customerId}`} data-testid="counter-record-link">
+                {de.distribution.counter.recordLink}
+              </Link>
+            </Button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {/* Quiet on purpose: a card that has fallen behind is never grounds to turn anyone away
+            (US-13.4, FR-5). */}
+        {customer.staleCard === null ? null : (
+          <p data-testid="counter-stale-card" className="text-xs text-muted-foreground">
+            {de.distribution.counter.staleCard(
+              customer.cardNumber,
+              de.customers.derived.countsValue(
+                customer.countsOnCard.grownUps,
+                customer.countsOnCard.children,
+              ),
+            )}
+          </p>
+        )}
+      </div>
+      <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 md:grid-cols-12">
+        <div className="flex gap-3 md:col-span-3">
           <Stat
-            label={de.customers.derived.grownUps}
+            label={words.grownUps}
             value={String(customer.grownUps)}
             testId="counter-grown-ups"
+            className={cn(TILE, "w-24")}
+            valueClassName={TILE_VALUE}
           />
           <Stat
-            label={de.customers.derived.children}
+            label={words.children}
             value={String(customer.children)}
             testId="counter-children"
+            className={cn(TILE, "w-24")}
+            valueClassName={TILE_VALUE}
           />
-          {/* Third, in the slot the portion tile left behind (US-27), so the price stays in the
-              fourth — where a staff member's eye already goes for it. Moving the price is the one
-              change on this screen somebody could act on wrongly, and there was no reason to.
-
-              A plain number, like the two counts beside it: the eggs are handed over, not explained.
-              A household entitled to none reads 0 rather than nothing at all — the counter has to
-              be able to see that the question was answered. */}
+        </div>
+        {/* A household entitled to none reads 0 rather than nothing: the counter has to see that the
+            question was answered (US-27). */}
+        <div className="flex md:col-span-3">
           <Stat
             label={de.customers.derived.eggs}
             value={String(customer.eggs)}
             testId="counter-eggs"
-          />
-          <Stat
-            label={de.customers.derived.price}
-            value={formatEuros(customer.priceCents)}
-            testId="counter-price"
+            className={cn(TILE, "w-24")}
+            valueClassName={TILE_VALUE}
           />
         </div>
+        <div className="flex flex-wrap items-end justify-between gap-3 md:col-span-6">
+          {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
+              (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
+          <Stat
+            label={de.customers.derived.balance}
+            value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
+            testId="counter-balance"
+            className={cn(TILE, "w-[164px]", BALANCE_STYLES[kind])}
+            valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
+          />
+          {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
+            <p
+              data-testid="campaign-reminder-none"
+              className="flex w-40 items-center self-stretch rounded-lg border px-3 text-xs text-muted-foreground"
+            >
+              {words.noCampaignReminder}
+            </p>
+          ) : (
+            // Keyed by customer: the optimistic tick must not survive into the next household.
+            <CampaignReminderField
+              key={`campaign-${customerId}`}
+              reminderId={campaignReminder.reminderId}
+              customerId={customerId}
+              name={campaignReminder.name}
+              received={campaignReminder.received}
+              tile
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What the mask does not hold yet: the certificate, the reminder tally, a no-show run and the note.
+ * Rows 4 and 5 take them over (US-41.6, US-41.7).
+ */
+export function HouseholdFacts({
+  customer,
+  customerId,
+}: {
+  customer: CounterCustomerView;
+  customerId: number;
+}): React.ReactElement {
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-6">
         <Table>
           <TableBody>
             <Field
@@ -313,10 +364,8 @@ export function CustomerDetails({
               value={String(customer.reminderCount)}
               testId="counter-reminder-count"
             />
-            {/* The second archiving trigger (US-10.4), shown only when there is a run to see: a
-                household that has quietly stopped coming is invisible at the counter otherwise. It is
-                a number and nothing more — no threshold, no warning, no action follows from it
-                (PRD §5). */}
+            {/* The second archiving trigger (US-10.4), shown only when there is a run to see. A
+                number and nothing more — no threshold, no warning (PRD §5). */}
             {customer.consecutiveNoShows === 0 ? null : (
               <Field
                 label={de.customers.derived.noShows}
@@ -326,45 +375,10 @@ export function CustomerDetails({
             )}
           </TableBody>
         </Table>
-        {/* No "Standardpreis; am Ausgabetisch nicht anpassbar." here, though the
-            three screens that *can* edit a household still carry it. At the counter it described an
-            absence: there is no control to adjust, so the sentence answered a question the screen
-            had already answered by having no field to type in. */}
-        {/* The stale-card note (US-13.4). Deliberately the smallest, quietest thing on the screen —
-            the same grey as the hint above it, no border, no icon, no colour — because it is neither a
-            verdict nor a warning: the verdict is the banner, and the serve action below is untouched
-            by this. A card that has fallen behind is never grounds to turn anyone away (FR-5). */}
-        {customer.staleCard === null ? null : (
-          <p data-testid="counter-stale-card" className="max-w-prose text-xs text-muted-foreground">
-            {de.distribution.counter.staleCard(
-              customer.cardNumber,
-              de.customers.derived.countsValue(
-                customer.countsOnCard.grownUps,
-                customer.countsOnCard.children,
-              ),
-            )}
-          </p>
-        )}
-        {/* The note, and the way to write one without leaving the screen (US-16.3).
-
-            `record.notesHeading` rather than `fields.notes`: „Bemerkung (optional)" is a *form
-            field's* label, and above a paragraph it told the reader that a note they are looking at
-            was optional to write. The „(optional)" survives on the field inside the fold, where it
-            is the answer to a question somebody is about to ask.
-
-            `whitespace-pre-line` for the same reason the block reason has it: a note is typed into
-            a multi-line field, and the paragraphs a colleague wrote must reach the counter rather
-            than collapse into one run-on line.
-
-            No fold for an archived household — `updateNotes` refuses one, and the record screen
-            already drops to read-only text there. A control that can only ever answer "nein" is
-            worse than no control.
-
-            Keyed by customer: a `<details>` keeps `open` through a soft navigation, and this screen
-            navigates to itself from the group list and the lookup form
-            (`docs/guideline/ui_styling_guide.md` §6). Without the key the next household's card arrives with the
-            fold open and the previous household's text still in the field — which is the one way
-            this control could write a note onto the wrong record. */}
+        {/* `whitespace-pre-line`: a note is typed into a multi-line field, and a colleague's
+            paragraphs must reach the counter. No fold for an archived household — `updateNotes`
+            refuses one. Keyed by customer: a `<details>` keeps `open` through a soft navigation,
+            which could carry one household's text onto the next (`ui_styling_guide.md` §6). */}
         <div className="flex flex-col gap-2 border-t pt-4">
           <span className="text-sm text-muted-foreground">{de.customers.record.notesHeading}</span>
           <p data-testid="counter-notes" className="max-w-prose whitespace-pre-line">
