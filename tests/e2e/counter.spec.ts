@@ -581,7 +581,6 @@ test.describe("Verdikt am Tresen", () => {
 
     // A soft navigation, not a fresh page load — a `<details>` survives one, and so would the text
     // above, which is how a note gets written onto the wrong household.
-    await page.getByTestId("group-progress").click();
     await page.getByTestId(`group-member-${NUMBERS.clear}`).click();
     await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.clear}`));
 

@@ -18,8 +18,9 @@ import { endSessionInHook, startSessionInHook } from "./session";
  * the counter's own screen agrees with what just happened at it. So this spec serves a household
  * through the UI and asserts the figure moved by exactly one.
  *
- * The other half is that **reading is free**: opening and closing the list writes nothing (§FR-9), an
- * absence only visible from outside the app, so the register is snapshotted either side of a fold.
+ * The other half is that **reading is free**: showing the list and looking a household up from it
+ * writes nothing (§FR-9), an absence only visible from outside the app, so the register is
+ * snapshotted either side of it.
  *
  * **Both figures are read out of the database at the moment they are asserted**, never written down
  * here — the specs before this one share `data/e2e.db`, so `34 von 61` is a fact about the register
@@ -200,7 +201,7 @@ function summaryOf(members: ReadonlyArray<Member>): string {
  * Everything about the register a *read* must leave exactly as it found it.
  *
  * The same shape `group-walk.spec.ts` snapshots, for the same reason: a hand-out, a reminder and an
- * audit entry are all rows, and any of them would appear if opening a fold recorded anything.
+ * audit entry are all rows, and any of them would appear if reading the list recorded anything.
  */
 async function snapshotRegister(): Promise<string> {
   const [customers, cards, distributions, reminderLogs, auditEntries] = await Promise.all([
@@ -216,15 +217,11 @@ async function snapshotRegister(): Promise<string> {
   return JSON.stringify({ customers, cards, distributions, reminderLogs, auditEntries });
 }
 
-/** The fold itself, located by the tally it carries — the page holds other disclosures. */
-function disclosure(page: Page): Locator {
-  return page.locator("details").filter({ has: page.getByTestId("group-progress") });
-}
-
-/** Open the list the way a staff member does: by clicking the line stating the tally. */
-async function openList(page: Page): Promise<void> {
-  await page.getByTestId("group-progress").click();
-  await expect(disclosure(page)).toHaveJSProperty("open", true);
+/** One household's row in the list under the counter, by its number. */
+function householdRow(page: Page, customerNumber: number): Locator {
+  return page.locator(
+    `[data-testid="session-household"][data-customer-number="${customerNumber}"]`,
+  );
 }
 
 const RED_GROUP = de.distribution.group(de.distribution.colours.RED);
@@ -256,19 +253,17 @@ test.describe("Gruppenfortschritt", () => {
     await page.goto("/ausgabe");
 
     // The summary *is* the tally (§FR-1): the group in words and the two numbers, in one node, on a
-    // screen nobody has touched.
+    // screen nobody has touched. The list is there too, with nothing to open (US-41.8).
     await expect(page.getByTestId("group-progress")).toHaveText(summaryOf(await sessionGroup()));
-    await expect(disclosure(page)).toHaveJSProperty("open", false);
+    await expect(page.getByTestId("session-households-table")).toBeVisible();
   });
 
   test("lists the group in customer-number order, marking the blocked household", async ({
     page,
   }) => {
     await page.goto("/ausgabe");
-    await openList(page);
 
-    // Each row's link is named the way a staff member would say it out loud, so the number and the
-    // name are one accessible name rather than a bare name beside a loose figure.
+    // Each row's name looks that household up rather than opening its record.
     for (const customerNumber of [NUMBERS.served, NUMBERS.unserved, NUMBERS.blocked]) {
       await expect(page.getByTestId(`group-member-${customerNumber}`)).toHaveAttribute(
         "href",
@@ -286,7 +281,7 @@ test.describe("Gruppenfortschritt", () => {
     expect(rendered).toEqual((await sessionGroup()).map((member) => member.customerNumber));
 
     // The block is said in the words `/kunden` says it in — one meaning, one treatment.
-    await expect(page.getByTestId(`blocked-${NUMBERS.blocked}`)).toHaveText(
+    await expect(householdRow(page, NUMBERS.blocked).getByTestId("customer-row-status")).toHaveText(
       de.customers.status.BLOCKED,
     );
     // Nobody in this block has collected yet, and the unserved carry no mark at all: chrome marks
@@ -308,7 +303,6 @@ test.describe("Gruppenfortschritt", () => {
 
     // Listed — a blocked household still holds its slot and the counter has to state the block —
     // and yet not counted, because a denominator including it could never be reached (§FR-5).
-    await openList(page);
     await expect(page.getByTestId(`group-member-${NUMBERS.blocked}`)).toBeVisible();
     await expect(page.getByTestId("group-progress")).toContainText(
       `von ${walkable - cannotCollect.length} Haushalten`,
@@ -345,7 +339,6 @@ test.describe("Gruppenfortschritt", () => {
 
     // And the list tells the same story as the number above it: the household that collected is
     // marked, the one that did not carries nothing.
-    await openList(page);
     await expect(page.getByTestId(`served-${NUMBERS.served}`)).toHaveText(
       de.distribution.progress.served,
     );
@@ -354,7 +347,6 @@ test.describe("Gruppenfortschritt", () => {
 
   test("looks a household up when their name in the list is clicked", async ({ page }) => {
     await page.goto("/ausgabe");
-    await openList(page);
 
     // Clicking a name is the same act as typing the number (§FR-7): it produces that household's
     // verdict on this screen, and nothing else.
@@ -366,18 +358,21 @@ test.describe("Gruppenfortschritt", () => {
       "data-verdict",
       "CLEAR_TO_SERVE",
     );
-    // Closed again on the new screen: the verdict a staff member just asked for must not arrive
-    // underneath a hundred rows they have to scroll past.
-    await expect(disclosure(page)).toHaveJSProperty("open", false);
+    // The verdict a staff member just asked for must not arrive underneath a hundred rows they have
+    // to scroll past: the list stands below it.
+    const verdict = await page.getByTestId("counter-verdict").boundingBox();
+    const list = await page.getByTestId("session-households").boundingBox();
+    expect(verdict).not.toBeNull();
+    expect(list).not.toBeNull();
+    expect(verdict?.y ?? Infinity).toBeLessThan(list?.y ?? -Infinity);
   });
 
-  test("records nothing when the list is opened and closed", async ({ page }) => {
+  test("records nothing when a household is looked up from the list", async ({ page }) => {
     const before = await snapshotRegister();
 
     await page.goto("/ausgabe");
-    await openList(page);
-    await page.getByTestId("group-progress").click();
-    await expect(disclosure(page)).toHaveJSProperty("open", false);
+    await page.getByTestId(`group-member-${NUMBERS.unserved}`).click();
+    await expect(page.getByTestId("counter-verdict")).toBeVisible();
 
     expect(await snapshotRegister()).toBe(before);
   });

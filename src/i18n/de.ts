@@ -1392,11 +1392,19 @@ export const de = {
        * over both would hide (US-34.6).
        */
       summaries: (perGroup: ReadonlyArray<string>): string => perGroup.join(" · "),
-      open: "Liste anzeigen",
-      close: "Liste ausblenden",
+      /**
+       * The list's heading: „Gruppe Rot", or „Gruppen Rot und Blau" — the heading names the table's
+       * contents, so it counts them, where `groups` names the afternoon (US-41.8).
+       */
+      heading: (colours: ReadonlyArray<string>): string =>
+        `${colours.length === 1 ? "Gruppe" : "Gruppen"} ${colours.join(" und ")}`,
+      count: (households: number): string =>
+        households === 1 ? "1 Haushalt" : `${households} Haushalte`,
+      /** The column the list adds to the Kundenliste's nine. */
+      today: "Heute",
       /** The mark on a household that has collected today. Only these rows are marked. */
       served: "abgeholt",
-      /** An empty group in words, rather than a disclosure that opens onto nothing. */
+      /** An empty group in words, rather than a table with nothing under its heads. */
       empty: (group: string): string => `${group}: zurzeit ist kein Haushalt zugeordnet.`,
     },
     /**

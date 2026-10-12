@@ -23,9 +23,9 @@ import {
   type RunningSession,
 } from "@/application/distribution/read-distribution-session-state";
 import {
-  readGroupRoster,
-  type GroupRosterView,
-} from "@/application/distribution/read-group-roster";
+  readCounterRoster,
+  type CounterRosterView,
+} from "@/application/distribution/read-counter-roster";
 import { readCertificateTypes } from "@/application/settings/read-certificate-types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,6 @@ import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
 import { CustomerDetails, VerdictBanner } from "./counter-lookup";
 import { distributionDeps } from "./deps";
-import { GroupProgressCard } from "./group-progress-card";
 import { RECORD_REMOVED } from "./removed-flag";
 import {
   ReopenSessionControls,
@@ -50,6 +49,7 @@ import {
   StartSessionForm,
 } from "./session-controls";
 import { SessionGroupBadges } from "./session-group-badges";
+import { SessionHouseholds, SessionTally } from "./session-households";
 import { optionFor } from "./session-options";
 import { HANDOUT_RECORDED } from "./served-flag";
 import { ARCHIVED } from "../kunden/archived-flag";
@@ -235,7 +235,7 @@ async function recordedHandout(
 interface CounterReads {
   readonly running: RunningSession;
   readonly counter: CounterResult | null;
-  readonly roster: GroupRosterView;
+  readonly roster: CounterRosterView;
   readonly recorded: RecordedHandout | null;
   readonly certificateTypes: CertificateTypeList;
 }
@@ -278,7 +278,7 @@ export default async function DistributionPage({
       // number is — so it must not be sequenced behind it.
       const [counter, roster, recorded, certificateTypes] = await Promise.all([
         lookUpNumber(nummer),
-        readGroupRoster(distributionDeps),
+        readCounterRoster(distributionDeps),
         recordedHandout(lookingUp ? undefined : params[HANDOUT_RECORDED]),
         readCertificateTypes(distributionDeps),
       ]);
@@ -385,19 +385,9 @@ export default async function DistributionPage({
           <>
             <SessionHeader running={counterReads.running} />
 
-            {/* How far through the group the afternoon is (US-23), between the session header and the
-          counter: it is a fact about the afternoon, like the header, and it must be readable without
-          scrolling past the field staff type into. The group(s) it names are the running
-          session's.
-
-          Keyed by the number looked up, because a `<details>` keeps `open` through any re-render and
-          only a remount closes it (`docs/guideline/ui_styling_guide.md` §6): clicking a name in the list is a
-          soft navigation, so without the key the household's verdict would arrive underneath a
-          hundred rows the staff member has to scroll past. */}
-            <GroupProgressCard
-              key={typeof nummer === "string" ? nummer : ""}
-              roster={counterReads.roster}
-            />
+            {/* How far through the group the afternoon is (US-23), readable without scrolling past the
+                field staff type into. The households themselves are listed at the foot. */}
+            <SessionTally roster={counterReads.roster} />
 
             {/* The counter loop, keyboard only: type the number, press Enter, read the verdict. The form
           navigates, so the input comes back empty and — being autofocused — ready for the next
@@ -565,6 +555,10 @@ export default async function DistributionPage({
                 )}
               </>
             )}
+
+            {/* Last, under everything a lookup shows: a hundred rows above the verdict would push it
+                off the screen (US-41.8). */}
+            <SessionHouseholds roster={counterReads.roster} />
           </>
         )}
       </main>

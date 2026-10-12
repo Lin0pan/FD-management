@@ -106,7 +106,7 @@ export type CustomerListSearch =
  *
  * **The group is deliberately not among them.** A group is the parity of a number (ADR-017), SQLite
  * cannot express `% 2` in a `WHERE`, and a stored parity key would be the second recording US-31
- * removed. `listCustomers` and `readGroupRoster` narrow the returned rows instead — the register is
+ * removed. `listCustomers` and `readCounterRoster` narrow the returned rows instead — the register is
  * bounded by the quota, so the widest scan is `quotaN` rows.
  *
  * `statuses` is never absent: which statuses a list shows is a decision with a default, made by the
