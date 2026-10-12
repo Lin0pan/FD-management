@@ -805,3 +805,34 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
     immune.
   - customer-record's „refused renewal“ flaked again in one full Chromium run.
 ---
+
+## 2026-10-12 - US-009
+- Row 4 in `src/app/ausgabe/certificate-row.tsx` (client): `CertificateProvider` (reminder + renewal
+  action states, keyed by the page on the customer, OUTSIDE `ServeFormProvider`), `CertificateRow`,
+  `useCertificateAnswer()` feeding the status slot (`own ?? certificate ?? answer ?? chip`).
+  `certificate-controls.tsx` deleted. `HouseholdRows` takes `servedAt` (→ „heute, HH:MM Uhr“),
+  `reminderLoggedInSession`, `certificateTypes`. `CERTIFICATE_CHROME` exported from customer-cells.
+- `ReminderState.logged` no longer carries the count (the count beside the chip comes back with the
+  page). de.ts: `mask.lastHandout/noHandout/handoutToday/noShows`, `reminder.logged`,
+  `renewal.open/validUntil/cancel`; `reminder.loggedInSession` and `reminder.confirmed` removed.
+- e2e: reminders.spec migrated (chip instead of a disabled button; `requestSubmit()` now goes through
+  the chip's form; renewal opened via `renewal-open`; after save the form is gone and the new date,
+  type and count 0 show), counter.spec asserts the `abgelaufen` badge, no-shows.spec the mask's text.
+  Both engines 263 passed.
+- **Layout deviation from the PRD's 3/3/3/3:** row 4 is 2/3/3/4 and the renewal form is two lines
+  (fields; buttons + hint). Measured at 1440: reminder cell needs ~316 px of a 242 px quarter; the
+  renewal's four controls ~613 px of 508 px, and a date refusal widens its column further. Squeezing
+  truncated „Wohngeldbescheid“. Canvas still not readable from the session (Docs read → access deny).
+- Driven with playwright-cli (WebKit, 1440 × 800): closed row, renewal open, Sonstiges + native
+  required, past-date refusal (date marked, slot notice), save (row closes, slot confirmation, count
+  0), reminder → chip, already-served household shows „heute, 16:33 Uhr“ and keeps both actions.
+- **Learnings for future iterations:**
+  - **`pkill -f "next start"` kills the Bash tool's own shell** (the pattern is in its command line,
+    exit 144). Kill by `ps aux | grep … | awk '{print $2}' | xargs -r kill`.
+  - Measure before trusting a PRD's column split: `getBoundingClientRect` over the cell's children
+    via `playwright-cli --raw eval` settles „does it fit“ in one call.
+  - Flakes seen this run, each green alone and in a full rerun: certificate-types „Sonstiges saves
+    exactly…“ and reminders „renewal refused for a past date“ (Chromium); one unit run skipped an
+    infrastructure SQLite file (15 skipped).
+  - The dev DB (`data/fd.db`) now has household 1 renewed and household 6 served + reminded today.
+---
