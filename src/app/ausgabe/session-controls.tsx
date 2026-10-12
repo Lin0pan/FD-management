@@ -11,7 +11,6 @@
  * have to be dismissed before the next customer is served, so none of them is a `Dialog`.
  */
 
-import { ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useActionState, useId, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -20,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import type { SessionSummary } from "@/domain/distribution/session";
 import { de } from "@/i18n/de";
-import { ControlSummary } from "../disclosure";
+import { ControlSummary, ControlToggle } from "../disclosure";
 import { Notice } from "../notice";
 import { useNoticeSlot } from "../notice-board";
 import {
@@ -149,23 +148,23 @@ export function RunningSessionControls({
               {de.distribution.pastSessions.heading}
             </Link>
           </Button>
-          <ConfirmToggle
+          <ControlToggle
             testId="session-end-open"
             controls={endId}
             expanded={open === "end"}
             onToggle={() => toggle("end")}
           >
             {de.distribution.session.end.open}
-          </ConfirmToggle>
+          </ControlToggle>
           {canDiscard ? (
-            <ConfirmToggle
+            <ControlToggle
               testId="session-discard-open"
               controls={discardId}
               expanded={open === "discard"}
               onToggle={() => toggle("discard")}
             >
               {de.distribution.session.discard.open}
-            </ConfirmToggle>
+            </ControlToggle>
           ) : null}
         </div>
       </div>
@@ -206,40 +205,6 @@ export function RunningSessionControls({
       <SessionNotice id="session-end" state={endState} />
       <SessionNotice id="session-discard" state={discardState} />
     </div>
-  );
-}
-
-/** `ControlSummary`'s look on a `<button>`: outline, because it opens a write, and a chevron. */
-function ConfirmToggle({
-  testId,
-  controls,
-  expanded,
-  onToggle,
-  children,
-}: {
-  testId: string;
-  controls: string;
-  expanded: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      aria-expanded={expanded}
-      aria-controls={controls}
-      onClick={onToggle}
-      data-testid={testId}
-      className="group"
-    >
-      {children}
-      <ChevronDown
-        aria-hidden="true"
-        data-icon="inline-end"
-        className="size-4 shrink-0 transition-transform group-aria-expanded:rotate-180"
-      />
-    </Button>
   );
 }
 
