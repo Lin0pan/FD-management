@@ -17,7 +17,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Domain only. `ls` and read src/domain/calendarDay.ts BEFORE writing — it already holds several exports (see Codebase Patterns: never `cat >` over an existing file)."
     },
     {

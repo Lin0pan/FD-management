@@ -589,3 +589,20 @@ green. Migrated assertions must still prove the same contract (`ui_styling_guide
 **Two forms in one row.** The lookup stays a GET form; the action button and the „Gezahlt" input
 join the serve/correct form through the HTML `form` attribute. Check it on WebKit.
 
+
+## 2026-10-12 - US-001
+- `isoWeek(day: Date): IsoWeek` (`{ week, year }`) appended to `src/domain/calendarDay.ts`; the
+  ISO 8601 Thursday rule, UTC throughout like the rest of that module. `lastHandoutAt(records)` in
+  `src/domain/distribution/attendance.ts`, typed structurally on `{ readonly date: Date }`.
+- Files changed: `src/domain/calendarDay.ts`, `src/domain/calendarDay.test.ts`,
+  `src/domain/distribution/attendance.ts`, `src/domain/distribution/attendance.test.ts`.
+- **Learnings for future iterations:**
+  - **There is no `CalendarDay` type** — a day is a `Date` at midnight UTC, so `isoWeek` takes a
+    `Date`. A caller holding an *instant* (a session's `startedAt`) must pass it through
+    `startOfUtcDay` — or better the Berlin day — first, or a session started after 23:00 UTC on a
+    Sunday names the next week.
+  - **A distribution record's instant is `date`, not `at`** as the PRD writes. `lastHandoutAt` reads
+    `date`; US-002 should expose it on the lookup under whatever name the PRD asks for the read field.
+  - `npm run format:check` already fails on `main` over `tasks/prd-us-39-cards-to-print.md`. The
+    pre-commit hook only checks staged files, so it does not block; US-012 (docs) can fix it.
+---
