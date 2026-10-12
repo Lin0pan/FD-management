@@ -731,3 +731,52 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - Row 3's cols 7–12 is `justify-between` with Saldo first: US-007 inserts „Gezahlt" before it.
   - A bordered tile beside unbordered ones needs `py-[5px]` to end on the same edge.
 ---
+
+## 2026-10-12 - US-007
+- Row 1 is now `[lookup GET form: Kundennummer + outline Nachschlagen] · ActionButton · StatusSlot`.
+  `src/app/ausgabe/serve-form.tsx` (client, replaces `serve-controls.tsx`): `ServeFormProvider`
+  holds both `useActionState`s and renders the hidden `<form id="counter-serve-form">`;
+  `ActionButton` (green `serve-button` / outline `correct-save` / grey disabled `serve-button`),
+  `PaidTile` („Gezahlt“ + „(von …)“ testid `counter-amount-to-pay` or `correct-asked`, input
+  `serve-amount`/`correct-amount`, disabled+empty+faded when refused, absent with no household),
+  `StatusSlot` (`counter-verdict` + `data-verdict` only while a verdict exists; own answer → server
+  answer → chip), `RemoveEntry` (the removal `<details>`, below the mask until US-010).
+- The page's `serveModeFor(lookup, nummer)` picks none/serve/correct/refused (record first).
+  `SlotAnswer` (server) renders `counter-error` (refusal tone), `serve-recorded-confirmation`,
+  `serve-removed-confirmation`, `archive-saved` into the slot. `VerdictBanner` → `VerdictChip`;
+  clear-to-serve is an sr-only headline. The block reason (`counter-verdict-detail`) sits at the top
+  of `HouseholdFacts` until US-010.
+- Z5: `amountUnreadable` in actions.ts returns `fields: [{ path: "betrag" }]`; `ServeState`/
+  `CorrectState` errors gained optional `fields`; the slot ignores an error with fields and the tile
+  marks itself (`serve-amount-error`, aria-invalid, red ring/label).
+- de.ts: `counter.label` „Kundennummer“; `verdicts.certificateExpired.headline` is now the short
+  „Nachweis abgelaufen“ (changed in place rather than adding a key beside a dead one);
+  `verdicts.alreadyServed.at(time)`; `serve.amount` „Gezahlt“, `serve.asked` „(von 4,00 €)“;
+  `serve.alreadyServed` and `serve.correct.heading` removed; `notClearToServe` no longer says „oben“.
+- `guardEnter` now types `KeyboardEvent<HTMLElement>`; `Notice`/`Confirmation` take `className`;
+  `SLOT_NOTICE` lives in `slot-notice.ts` (no directive, read by server and client).
+- e2e: `toBeVisible()` on serve-button → `toBeEnabled()` everywhere; refusals → `toBeDisabled()`;
+  already-served stays `toHaveCount(0)` (the button there is `correct-save`). `expectServedRecord` in
+  `tests/e2e/session.ts` replaces `already-served-message`. New serve.spec test for Z5. price-cap's
+  `expectQuoted` strips `correct-asked` from the mask text and asserts it separately. Both engines
+  262 passed.
+- Driven with playwright-cli at 1440 × 800 (Main, overpayment, Z5, Leer + confirmation, Z2, Z3,
+  Z6, unreadable number) and 390. Canvas not read (see US-004).
+- **Learnings for future iterations:**
+  - **Keying `ServeFormProvider` on `${customerId}-${mode.kind}` remounts its whole subtree.** It
+    must hold only the mask and the removal: with the block controls inside, an unblock (refused →
+    serve) wiped `block-saved`. US-009/US-010 moving controls *into* the mask must keep their own
+    action state outside the provider or survive the remount (key the provider narrower, or lift
+    the forms' state).
+  - A field joined by `form="…"` sits outside its form's DOM subtree: keydown never reaches the
+    form, so `guardEnter` goes on the field. WebKit submits `form`-attributed buttons correctly.
+  - The overpayment notice + confirm button need a no-wrap flex (`min-w-0 flex-1` + `shrink-0`) or
+    the button drops under the question inside the slot.
+  - A `FieldRejection` under a fixed-width tile must not widen it (`w-max max-w-xs` in a `w-40`
+    column), or the tile row wraps.
+  - My comment-rewrap script mangled single-line `/** … */` comments — rewrap those by hand.
+  - `docs/handout/betriebsanleitung.md` still describes „Betrag“, „Zu zahlen“ and the
+    already-served card — US-012's to rewrite. `ui_styling_guide.md` §12's verdict-tone wording too.
+  - certificate-types.spec flaked once in a full Chromium run (passed alone and in the rerun); it
+    never touches /ausgabe.
+---

@@ -142,7 +142,7 @@
         "Lint passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "The largest story of the batch — keep the restyle and any behaviour change in separate commits. Read the canvas with the Artifact tool (action read, then path project/<file>), NEVER WebFetch: https://claude.ai/artifact/SKRE5hmzii8WrkrNxrvsbP. Where canvas and PRD disagree on LOOK the canvas wins, on BEHAVIOUR the PRD wins."
     },
     {
