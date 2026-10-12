@@ -4,7 +4,7 @@
  *
  * Nothing is computed here — `readDistributionSessionState` and `lookupCustomer` answer, this page
  * lays them out. The lookup is a read (FR-4), so a plain GET form carries the query in the URL, which
- * also means Enter reloads the page with the input empty and focused for the next customer.
+ * also means Enter reloads the page with the query selected in the field, ready to be typed over.
  *
  * **Every counter read is behind the running session**: with none running there is nothing to record
  * against, so the lookup, the tally and the household's controls are not built at all — and the use
@@ -30,7 +30,6 @@ import { readCertificateTypes } from "@/application/settings/read-certificate-ty
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { DomainError } from "@/domain/errors";
@@ -41,6 +40,7 @@ import { BlockControls } from "../kunden/block-controls";
 import { CertificateControls } from "./certificate-controls";
 import { HouseholdFacts, HouseholdRows, VerdictChip } from "./counter-lookup";
 import { distributionDeps } from "./deps";
+import { LookupProvider, NumberField } from "./lookup-field";
 import { RECORD_REMOVED } from "./removed-flag";
 import {
   ReopenSessionControls,
@@ -278,8 +278,10 @@ interface CounterReads {
 /**
  * What the screen came back with, for the status slot (US-41.4, decision 6) — at most one of these
  * can hold at a time, the URL carrying one flag per navigation.
+ *
+ * Called, not rendered: the slot falls back to the chip on `null`, and an element is never `null`.
  */
-function SlotAnswer({
+function slotAnswer({
   counter,
   recorded,
   recordRemoved,
@@ -443,9 +445,8 @@ export default async function DistributionPage({
         ) : (
           <>
             {/* The counter, one card (US-41): every state swaps content inside it, none adds a
-                card. The lookup is a server-rendered GET form with no client component — Radix's
-                label would drag a client boundary onto the counter's critical path for nothing —
-                so Enter reloads the page with the field autofocused for the next customer. */}
+                card. The lookup is a plain GET form, so Enter reloads the page with the field
+                autofocused on what was looked up. */}
             {/* Keyed on the household and the mode, which remounts everything inside it — so only
                 the mask and the removal stand in it, never a control whose answer has to survive a
                 change of mode (an unblock turns a refusal into a hand-out). */}
@@ -457,57 +458,38 @@ export default async function DistributionPage({
                 {/* Row 1: look up, book, and the answer — the button beside the field it follows
                     (US-41.4). The lookup form ends before the button, which joins the serve form by
                     attribute (`serve-form.tsx`). */}
-                <div className="flex flex-wrap items-end gap-3">
-                  <form method="get" className="flex flex-wrap items-end gap-3">
-                    <div className="flex flex-col gap-1.5">
-                      <label htmlFor="counter-input" className="text-sm font-medium">
-                        {de.distribution.counter.label}
-                      </label>
-                      <Input
-                        // Keyed on the hand-out just recorded, and that is what re-focuses the
-                        // field. A `redirect` out of a server action is a *soft* navigation: React
-                        // reconciles an input already in the tree, so `autoFocus` — which only
-                        // fires on mount — would not fire again. The key changes exactly when a
-                        // hand-out lands.
-                        key={recorded === null ? "" : String(recorded.customerNumber)}
-                        // Not `type="number"`: a card number carries a `k`, and a spinner means
-                        // nothing.
-                        type="text"
-                        name="nummer"
-                        id="counter-input"
-                        inputMode="numeric"
-                        autoComplete="off"
-                        autoFocus
-                        data-testid="counter-input"
-                        className="h-12 w-[150px] text-2xl font-semibold tabular-nums md:text-2xl"
-                      />
-                    </div>
-                    <Button type="submit" variant="outline" className="h-12 px-4 text-base">
-                      <Search aria-hidden="true" data-icon="inline-start" />
-                      {de.distribution.counter.submit}
-                    </Button>
-                  </form>
-                  <ActionButton />
-                  <StatusSlot
-                    verdictKind={lookup === null ? null : lookup.verdict.kind}
-                    chip={
-                      lookup === null ? null : (
-                        <VerdictChip
-                          verdict={lookup.verdict}
-                          servedAt={mode.kind === "correct" ? mode.record.time : null}
-                        />
-                      )
-                    }
-                    answer={
-                      <SlotAnswer
-                        counter={counter}
-                        recorded={recorded}
-                        recordRemoved={recordRemoved}
-                        justArchived={justArchived}
-                      />
-                    }
-                  />
-                </div>
+                <LookupProvider
+                  key={`${lookedUpNumber}|${recorded === null ? "" : recorded.customerNumber}`}
+                  query={lookedUpNumber}
+                >
+                  <div className="flex flex-wrap items-end gap-3">
+                    <form method="get" className="flex flex-wrap items-end gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor="counter-input" className="text-sm font-medium">
+                          {de.distribution.counter.label}
+                        </label>
+                        <NumberField />
+                      </div>
+                      <Button type="submit" variant="outline" className="h-12 px-4 text-base">
+                        <Search aria-hidden="true" data-icon="inline-start" />
+                        {de.distribution.counter.submit}
+                      </Button>
+                    </form>
+                    <ActionButton />
+                    <StatusSlot
+                      verdictKind={lookup === null ? null : lookup.verdict.kind}
+                      chip={
+                        lookup === null ? null : (
+                          <VerdictChip
+                            verdict={lookup.verdict}
+                            servedAt={mode.kind === "correct" ? mode.record.time : null}
+                          />
+                        )
+                      }
+                      answer={slotAnswer({ counter, recorded, recordRemoved, justArchived })}
+                    />
+                  </div>
+                </LookupProvider>
 
                 {/* One guard, not two: `customer` and `customerId` are null on exactly the same
                     NOT_FOUND branch (`CounterLookup`). */}

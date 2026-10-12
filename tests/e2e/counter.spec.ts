@@ -488,11 +488,40 @@ test.describe("Verdikt am Tresen", () => {
     await lookUp(page, String(NUMBERS.unassigned));
 
     await expectVerdict(page, "NOT_FOUND", verdicts.notFound.headline);
-    // No household, so nothing to show below the banner — but the screen itself is still there,
-    // with the input ready for the number staff meant to type.
+    // No household, so nothing to show below the chip — but the screen itself is still there,
+    // with the number that was not found ready to be typed over.
     await expect(page.getByTestId("counter-customer")).toHaveCount(0);
-    await expect(page.getByTestId("counter-input")).toHaveValue("");
+    await expect(page.getByTestId("counter-input")).toHaveValue(String(NUMBERS.unassigned));
     await expect(page.getByTestId("counter-input")).toBeFocused();
+  });
+
+  test("greys out the hand-out while the number field names someone not yet looked up", async ({
+    page,
+  }) => {
+    await lookUp(page, String(NUMBERS.clear));
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
+
+    // The query stays in the field, selected: typing the next number replaces it. Selecting is
+    // React's, so a number typed before hydration would be appended instead.
+    const field = page.getByTestId("counter-input");
+    await expect(field).toBeFocused();
+    await expect
+      .poll(() =>
+        field.evaluate((input: HTMLInputElement) => [input.selectionStart, input.selectionEnd]),
+      )
+      .toEqual([0, String(NUMBERS.clear).length]);
+    await page.keyboard.type(String(NUMBERS.certificateExpired));
+    await expect(page.getByTestId("counter-input")).toHaveValue(String(NUMBERS.certificateExpired));
+
+    // Decision 1: the household on screen is still the one looked up, so booking it now would book
+    // the wrong one.
+    await expect(page.getByTestId("serve-button")).toBeDisabled();
+    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.clear]);
+
+    await page.getByTestId("counter-input").press("Enter");
+    await expect(page).toHaveURL(new RegExp(`nummer=${NUMBERS.certificateExpired}`));
+    await expect(page.getByTestId("counter-name")).toHaveText(names[NUMBERS.certificateExpired]);
+    await expect(page.getByTestId("serve-button")).toBeEnabled();
   });
 
   test("records nothing when a household is turned away", async ({ page }) => {

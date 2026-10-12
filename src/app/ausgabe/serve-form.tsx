@@ -22,6 +22,7 @@ import { FoldChevron } from "../disclosure";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
 import { guardEnter } from "../enter-guard";
+import { useLookupEdited } from "./lookup-field";
 import { FieldRejection } from "../field-mark";
 import { marking, problemAt } from "../field-refusal";
 import { Confirmation, Notice } from "../notice";
@@ -145,10 +146,12 @@ function stateOf(context: ServeContext): ServeState | CorrectState {
 /**
  * The button beside the lookup. Green while a hand-out may be recorded, outline „Betrag speichern“
  * while correcting, and otherwise the same button greyed out — it stays in its place so the row
- * does not shift between households. The use case re-checks before writing (FR-8).
+ * does not shift between households — greyed too while the number field names someone else
+ * (`lookup-field.tsx`). The use case re-checks before writing (FR-8).
  */
 export function ActionButton(): React.ReactElement {
   const { mode, pending } = useServe();
+  const edited = useLookupEdited();
 
   if (mode.kind === "correct") {
     return (
@@ -158,7 +161,7 @@ export function ActionButton(): React.ReactElement {
         name="action"
         value="SET_PAYMENT"
         variant="outline"
-        disabled={pending}
+        disabled={pending || edited}
         data-testid="correct-save"
         className="h-12 px-[22px] text-lg font-semibold"
       >
@@ -167,7 +170,7 @@ export function ActionButton(): React.ReactElement {
     );
   }
 
-  const enabled = mode.kind === "serve";
+  const enabled = mode.kind === "serve" && !edited;
   return (
     <Button
       type="submit"
