@@ -55,8 +55,8 @@ selbst versuchen.
 
 Neben den Lebensmitteln erhält jeder Haushalt Eier. Wie viele, hängt davon ab, **wie viele Personen**
 zum Haushalt gehören — Kinder und Babys zählen mit, ein Geburtstag ändert daran nichts. Unter
-**Ausgabe** steht die Zahl neben Erwachsenen, Kindern und Preis, und zwar auch dann, wenn es keine
-Eier gibt: dann steht dort **0**. Beim Kunden selbst finden Sie dieselbe Zahl. Auf der Kundenkarte
+**Ausgabe** steht die Zahl neben Erwachsenen und Kindern, und zwar auch dann, wenn es keine Eier
+gibt: dann steht dort **0**. Beim Kunden selbst finden Sie dieselbe Zahl. Auf der Kundenkarte
 steht sie nicht — die Eier werden an der Ausgabe übergeben.
 
 Ändern können Sie die Regel unter **Einstellungen**, Abschnitt **Eier**: eine Zeile je Stufe — ab wie
@@ -142,6 +142,58 @@ erforderlich, der protokolliert wird. Danach sind ihre Einträge wieder zu korri
 mit ihren Zahlen. Eine Kundennummer lässt sich dann nicht nachschlagen — Kunden anlegen, sperren,
 ändern und Karten ausstellen geht wie immer.
 
+## Der Ausgabe-Bildschirm
+
+Während eine Ausgabe läuft, passt alles, was Sie an der Theke brauchen, auf **einen Bildschirm** —
+ohne zu scrollen. Von oben nach unten:
+
+**Die Kopfzeile.** Datum und Kalenderwoche der Ausgabe, die Gruppe(n) und wie viele Haushalte schon
+abgeholt haben („2 von 100 Haushalten abgeholt"; bei Rot und Blau je Gruppe eine Zahl). Rechts
+führt **Ausgabetermine** zu den früheren Ausgaben, daneben stehen **Ausgabe beenden** und, solange
+noch niemand erfasst ist, **Ausgabe verwerfen**. Das Datum ist der Tag, an dem die Ausgabe begonnen
+hat — auch nach Mitternacht.
+
+**Die Ausgabemaske.** Ein einziger Kasten. Was sich ändert, ändert sich **an seinem festen Platz**;
+es kommt nie ein weiterer Kasten hinzu.
+
+- **Oben:** **Kundennummer** eintippen, **Eingabetaste** (oder **Nachschlagen**). Daneben steht die
+  Schaltfläche **Ausgabe erfassen**. Ist sie **grün**, darf der Haushalt abholen — ein
+  zusätzlicher Hinweis erscheint dann nicht. Nur wenn etwas **anders** ist, steht rechts neben der
+  Schaltfläche ein Hinweis:
+
+  | Hinweis                                                                    | Bedeutung                                                         |
+  | -------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+  | **Nachweis abgelaufen** (gelb)                                             | Der Haushalt bekommt trotzdem etwas; die Schaltfläche bleibt grün |
+  | **Bereits ausgegeben · Uhrzeit** (grau)                                    | Heute schon erfasst — siehe **Einen Fehler berichtigen**          |
+  | **Gesperrt**, **Falsche Gruppe**, **Karte ungültig**, **Archiviert** (rot) | Keine Ausgabe; die Schaltfläche ist grau                          |
+  | **Nummer nicht gefunden** (grau)                                           | Unter dieser Nummer gibt es keinen Haushalt                       |
+
+  An derselben Stelle erscheinen auch die Antworten der Software: die Bestätigung nach dem Erfassen,
+  die Rückfrage bei einem zu hohen Betrag oder eine Fehlermeldung.
+
+- **Nach dem Nachschlagen** bleibt die Nummer im Feld stehen und ist markiert — tippen Sie einfach
+  die nächste darüber. **Solange Sie eine neue Nummer getippt, aber noch nicht nachgeschlagen
+  haben, ist Ausgabe erfassen grau.** So kann nichts beim falschen Haushalt gebucht werden, auch
+  wenn noch der vorige zu sehen ist. Eingabetaste drücken, und die Schaltfläche gilt wieder.
+
+- **Darunter** Name, Karte, Gruppe und Status, und rechts **Zur Kundenübersicht**. Dann die Felder
+  **Erwachsene**, **Kinder**, **Eier**, **Gezahlt**, **Saldo** und — solange eine
+  Aktionserinnerung läuft — ihr Kästchen.
+
+- **Danach** die letzte Ausgabe des Haushalts, die Art des Nachweises, bis wann er gilt und wie oft
+  schon an ihn erinnert wurde. Ist der Nachweis abgelaufen, stehen dort **Erinnerung erfassen** und
+  **Neuer Nachweis**; der neue Nachweis wird gleich in dieser Zeile eingetragen.
+
+- **Ganz unten** die Bemerkung mit **Bemerkung bearbeiten** — ebenfalls an Ort und Stelle — und bei
+  einem gesperrten Haushalt darüber der **Sperrgrund**. Rechts, deutlich abgesetzt, die seltenen
+  Schritte: **Eintrag entfernen** (nur wenn heute schon erfasst), **Sperren** bzw. **Sperre
+  aufheben** und **Archivieren**. Jeder fragt vorher nach.
+
+**Die Haushalte dieser Ausgabe.** Unter der Maske steht die ganze Gruppe mit denselben Spalten wie
+unter **Kunden verwalten** und zusätzlich **Heute**: wer schon abgeholt hat, ist dort mit
+**abgeholt** markiert. Gesperrte Haushalte stehen mit in der Liste, archivierte nicht. Ein Klick auf
+einen Namen schlägt den Haushalt in der Maske nach.
+
 ## Übersichten und „Zu erledigen"
 
 **Übersichten.** Der Reiter **Übersichten** sammelt die Listen, in denen man etwas nachschlägt —
@@ -208,9 +260,9 @@ abgehakt") und wann die Erinnerung erstellt wurde.
 ## Frühere Ausgaben nachschlagen
 
 **Wo die Liste steht.** Unter **Übersichten** führt **Ausgabetermine** zu einer Liste aller
-Ausgaben, die neueste zuoberst. Schneller geht es vom Bildschirm **Ausgabe** aus über **Alle
-Ausgabetermine** — dieser Weg steht sowohl bei der laufenden Ausgabe als auch bei der zuletzt
-beendeten.
+Ausgaben, die neueste zuoberst. Schneller geht es vom Bildschirm **Ausgabe** aus: bei der
+laufenden Ausgabe über **Ausgabetermine** in der Kopfzeile, bei der zuletzt beendeten über **Alle
+Ausgabetermine**.
 
 **Was eine Zeile sagt.** Datum, Gruppe(n), wie viele Haushalte abgeholt haben und wie viel
 eingenommen wurde. Läuft gerade eine Ausgabe, steht sie oben und ist mit **Läuft** gekennzeichnet;
@@ -250,7 +302,7 @@ mancher gibt mehr, damit er es sich bis zur nächsten Woche nicht merken muss. B
 handschriftlich in der Excel-Liste; die Software rechnet es jetzt selbst mit und nennt das Ergebnis
 **Saldo**.
 
-Der Saldo steht unter **Ausgabe** neben Erwachsenen, Kindern und Preis, und beim Kunden selbst über
+Der Saldo steht unter **Ausgabe** neben **Gezahlt**, und beim Kunden selbst über
 der Liste **Bisherige Ausgaben**. Ein Vorzeichen sagt, wie der Haushalt dasteht:
 
 | Anzeige          | Bedeutung                                                                  |
@@ -271,14 +323,15 @@ Hinweis ist zusätzlich rot, blau oder grün hinterlegt — auch hier nur als Wi
 schon dasteht. **Gefordert** ist dabei der Betrag, der an jenem Tag verlangt wurde (der Preis, um den
 damaligen Saldo verschoben), **Preis** die reinen Kosten der Woche.
 
-**Zu zahlen** ist der Betrag, den Sie heute kassieren: der Preis dieser Woche, um den Saldo erhöht
+Der **geforderte Betrag** ist der, den Sie heute kassieren — unter **Ausgabe** steht er neben
+**Gezahlt** in Klammern („von 4,00 €"): der Preis dieser Woche, um den Saldo erhöht
 oder verringert. Er kann höher sein als der Preis — dann zahlt der Haushalt eine alte Schuld mit ab —
 oder niedriger bis hinunter auf **0,00 €**, wenn ein Guthaben die ganze Woche deckt. Ausgezahlt wird
 ein Guthaben nie; es bleibt stehen und wird bei den nächsten Ausgaben verbraucht.
 
 ### Beim Erfassen
 
-Das Feld **Betrag** ist bereits mit dem geforderten Betrag ausgefüllt. **Im Normalfall bestätigen Sie
+Das Feld **Gezahlt** ist bereits mit dem geforderten Betrag ausgefüllt. **Im Normalfall bestätigen Sie
 es einfach** mit **Ausgabe erfassen** — Sie müssen nichts rechnen und nichts eintippen.
 
 Gibt der Haushalt weniger, tragen Sie den tatsächlich erhaltenen Betrag ein; der Rest steht ab sofort
@@ -291,21 +344,21 @@ Wer heute nichts zahlt, bekommt trotzdem Lebensmittel: tragen Sie **0** ein. Der
 festgehalten, mehr passiert nicht — was mit einer Schuld geschieht, entscheiden weiterhin Sie und
 nicht das Programm.
 
-**Nach dem Erfassen ist der Bildschirm wieder leer.** Der Haushalt, die Beträge und die Schaltflächen
-verschwinden, das Nummernfeld steht leer und bereit für den nächsten. Ganz oben steht eine Zeile, die
-sagt, was gebucht wurde: Kundennummer, Name, Betrag und Uhrzeit. Daneben führt **Korrigieren** mit
-einem Klick zurück zu genau diesem Haushalt. Die Zeile bleibt stehen, bis Sie die nächste Nummer
-eingeben.
+**Nach dem Erfassen ist die Maske wieder leer.** Der Haushalt und die Beträge verschwinden, das
+Nummernfeld steht leer und bereit für den nächsten. Neben **Ausgabe erfassen** steht eine grüne
+Zeile, die sagt, was gebucht wurde: Kundennummer, Name, Betrag und Uhrzeit. Darin führt
+**Korrigieren** mit einem Klick zurück zu genau diesem Haushalt. Die Zeile bleibt stehen, bis Sie
+die nächste Nummer nachschlagen.
 
 ### Einen Fehler berichtigen
 
 **Solange die Ausgabe läuft** können Sie einen Eintrag ändern. Zwei Wege führen zum Haushalt zurück:
 die Nummer unter **Ausgabe** noch einmal eingeben — oder, solange die Bestätigungszeile der eben
-erfassten Ausgabe oben steht, dort auf **Korrigieren** klicken. Statt der Schaltfläche zum Erfassen
-steht dann dort, was bei dieser Ausgabe schon gebucht wurde, und darunter **Eintrag korrigieren** —
-den richtigen Betrag eintragen und **Betrag speichern**. Mit **Eintrag entfernen** verschwindet die
-Buchung ganz; der Saldo steht danach wieder so wie vorher, und die Rückfrage nennt Ihnen diesen
-Stand, bevor Sie bestätigen.
+erfassten Ausgabe zu sehen ist, dort auf **Korrigieren** klicken. Neben der Schaltfläche steht
+dann **Bereits ausgegeben** mit der Uhrzeit, **Gezahlt** zeigt den gebuchten Betrag, und die
+Schaltfläche heißt **Betrag speichern** — den richtigen Betrag eintragen und speichern. Mit
+**Eintrag entfernen** unten rechts verschwindet die Buchung ganz; der Saldo steht danach wieder so
+wie vorher, und die Rückfrage nennt Ihnen diesen Stand, bevor Sie bestätigen.
 
 **Ist die Ausgabe beendet, geht das nicht mehr** — festgeschriebene Einträge sind das Protokoll
 dessen, was tatsächlich geschehen ist, und werden nicht nachträglich verändert. Fällt der Fehler
