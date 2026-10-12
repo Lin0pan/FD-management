@@ -16,7 +16,7 @@ import { endSession, endSessionInHook, startSession } from "./session";
  * The campaign reminder through the screens (`tasks/prd-us-40-campaign-reminder.md` §US-40.8):
  * switched on in the settings, ticked at the counter and in the record, renamed, switched off.
  *
- * **It owns a register** (`ISOLATED_SPECS`): „x von y erhalten" is a claim about the whole of one.
+ * **It owns a register** (`ISOLATED_SPECS`): „x von y abgehakt" is a claim about the whole of one.
  *
  * „At any time" (D3) is proved in the record: the counter builds no lookup at all between
  * afternoons, so the box is ticked there with none running, and at the counter during one.
@@ -213,9 +213,7 @@ test.describe("Aktionserinnerung", () => {
 
     await page.goto(`/kunden/${ids.first}`);
     await expect(page.getByRole("checkbox", { name: "Weihnachtstüte" })).not.toBeChecked();
-    await expect(page.getByTestId("campaign-reminder-outstanding")).toHaveText(
-      de.campaignReminder.outstanding,
-    );
+    await expect(page.getByTestId("campaign-reminder-outstanding")).toBeVisible();
 
     await setBox(page, true);
     await expect(page.getByTestId("campaign-reminder-outstanding")).toHaveCount(0);

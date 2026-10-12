@@ -7,9 +7,8 @@
  */
 
 import { useActionState, useId, useOptimistic } from "react";
-import { Gift } from "lucide-react";
+import { BellRing } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { CAMPAIGN_OUTSTANDING_ACCENT } from "./accents";
 import { setCampaignReminderReceivedAction } from "./kunden/[id]/actions";
@@ -36,7 +35,6 @@ export function CampaignReminderField({
   );
   const [shown, setShown] = useOptimistic(received);
   const fieldId = useId();
-  const wordId = useId();
   // Only a refusal claims the board: the box itself is the receipt, and a successful tick should not
   // clear the hand-out's „Ausgabe erfasst.“ off the counter.
   const showing = useNoticeSlot("campaign-reminder", state.status === "error" ? state : null);
@@ -64,7 +62,6 @@ export function CampaignReminderField({
               data-testid="campaign-reminder-received"
               checked={shown}
               disabled={pending}
-              aria-describedby={wordId}
               // React resets the form after its action, restoring a checkbox from `defaultChecked`
               // (`card-printed-field.tsx`): kept equal to what is shown, the reset changes nothing.
               ref={(node) => {
@@ -78,21 +75,14 @@ export function CampaignReminderField({
             <label htmlFor={fieldId} className="text-lg font-semibold">
               {name}
             </label>
+            {shown ? null : (
+              <BellRing
+                aria-hidden="true"
+                data-testid="campaign-reminder-outstanding"
+                className="size-5"
+              />
+            )}
           </div>
-          {shown ? (
-            <span id={wordId} className="text-sm text-muted-foreground">
-              {de.campaignReminder.received}
-            </span>
-          ) : (
-            <span
-              id={wordId}
-              data-testid="campaign-reminder-outstanding"
-              className="flex items-center gap-1.5 font-medium"
-            >
-              <Gift aria-hidden="true" className="size-4" />
-              {de.campaignReminder.outstanding}
-            </span>
-          )}
         </form>
         {showing && state.status === "error" ? (
           <Notice tone={state.tier} text={state.message} testId="campaign-reminder-error" />

@@ -180,29 +180,30 @@ Wann eine Karte gedruckt wurde, steht in der Kartenansicht des Kunden bei jeder 
 
 ## Aktionserinnerung
 
-Für eine Aktion, bei der jeder Haushalt einmal etwas bekommt — etwa eine Weihnachtstüte —, merkt
-sich die Software, wer es schon hat.
+Für eine Aktion, bei der jeder Haushalt einmal etwas bekommt — etwa eine Weihnachtstüte —, oder für
+alles andere, das Sie bei jedem Haushalt einmal abhaken möchten, merkt sich die Software, wer schon
+abgehakt ist.
 
-**Einschalten.** Unter **Einstellungen**, Abschnitt **Aktionserinnerung**, geben Sie der Aktion
-einen Namen (z. B. „Weihnachtstüte") und klicken **Einschalten**. Ab dann hat jeder aktive und jeder
-gesperrte Haushalt sie **noch nicht erhalten** — auch wer während der Aktion neu aufgenommen wird.
-Es kann immer nur eine Erinnerung eingeschaltet sein. Den Namen können Sie dort jederzeit ändern;
-die Häkchen bleiben dabei erhalten.
+**Erstellen.** Unter **Einstellungen**, Abschnitt **Aktionserinnerung**, geben Sie der Erinnerung
+einen Namen (z. B. „Weihnachtstüte") und klicken **Erstellen**. Ab dann ist jeder aktive und jeder
+gesperrte Haushalt **noch nicht abgehakt** — auch wer während der Aktion neu aufgenommen wird. Es
+gibt immer nur eine Erinnerung. Den Namen können Sie dort jederzeit ändern; die Häkchen bleiben dabei
+erhalten.
 
 **Abhaken.** An der **Ausgabe** (nach dem Nachschlagen) und beim Kunden selbst steht ein Kästchen
-mit dem Namen der Aktion. Solange es leer ist, steht daneben deutlich **noch nicht erhalten**. Ein
-Klick hakt ab und ist sofort gespeichert; ein zweiter Klick nimmt das Häkchen wieder weg. Beim
-Kunden geht das jederzeit, auch ohne laufende Ausgabe.
+mit dem Namen der Erinnerung. Solange es leer ist, ist es farbig hervorgehoben und trägt eine
+Glocke. Ein Klick hakt ab und ist sofort gespeichert; ein zweiter Klick nimmt das Häkchen wieder
+weg. Beim Kunden geht das jederzeit, auch ohne laufende Ausgabe.
 
 > **Das Erfassen der Ausgabe hakt nichts ab.** Geben Sie die Tüte mit, setzen Sie das Häkchen
 > selbst. Umgekehrt hält ein leeres Kästchen niemanden auf.
 
-**Fortschritt.** In den Einstellungen steht, wie viele Haushalte die Aktion schon erhalten haben
-(„38 von 240 erhalten") und seit wann die Erinnerung eingeschaltet ist.
+**Fortschritt.** In den Einstellungen steht, wie viele Haushalte schon abgehakt sind („38 von 240
+abgehakt") und wann die Erinnerung erstellt wurde.
 
-> **Ausschalten löscht alle Häkchen.** Die Software fragt vorher nach und nennt die Zahl. Danach
-> verschwindet das Kästchen überall; schalten Sie wieder ein, beginnt jeder Haushalt bei **noch
-> nicht erhalten**. Die Erinnerung schaltet sich nie von selbst aus.
+> **Löschen löscht alle Häkchen.** Die Software fragt vorher nach und nennt die Zahl. Danach
+> verschwindet das Kästchen überall; erstellen Sie eine neue Erinnerung, beginnt jeder Haushalt
+> wieder bei **noch nicht abgehakt**. Die Erinnerung löscht sich nie von selbst.
 
 ## Frühere Ausgaben nachschlagen
 

@@ -5,6 +5,14 @@
 > #1–#14) is cited below as **D1–D14**, the numbered points of §"The requirement in my own words" as
 > **R1–R8**.
 
+> **Amended 12.10.2026 after DF's review (wording only, behaviour unchanged).** The reminder is
+> general-purpose (D14), so nothing on screen may say anyone _received_ anything: „noch nicht
+> erhalten" and „erhalten" beside the box are dropped — the box's own state carries the meaning, the
+> accent and a `BellRing` icon (not `Gift`) its prominence — and the progress reads „x von y
+> abgehakt". The settings say **„Erstellen"** / **„Löschen"** for switching on and off, since
+> switching off deletes every tick and is not a pause. Where the text below says otherwise, this
+> note wins. The section keeps the name „Aktionserinnerung".
+
 ## Introduction
 
 DF occasionally run **special campaigns**: every household gets something once, on top of the

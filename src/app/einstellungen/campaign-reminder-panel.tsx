@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * The campaign reminder on the settings screen (US-40): switched on with a name, renamed, read as
- * „x von y erhalten", switched off. Its own forms, outside the policy form — nothing here appends a
+ * The campaign reminder on the settings screen (US-40): created with a name, renamed, read as
+ * „x von y abgehakt", deleted. Its own forms, outside the policy form — nothing here appends a
  * `SettingsVersion`. No rules: which names are legal and what switching off deletes are the use
  * cases'.
  */
