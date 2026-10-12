@@ -1014,10 +1014,8 @@ export const de = {
    * labelled with DF's own name for it, so nothing here names the campaign.
    */
   campaignReminder: {
-    received: "erhalten",
-    outstanding: "noch nicht erhalten",
     errors: {
-      notActive: "Diese Erinnerung ist nicht mehr eingeschaltet. Bitte die Seite neu laden.",
+      notActive: "Diese Erinnerung gibt es nicht mehr. Bitte die Seite neu laden.",
       archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
       unknown: "Das Häkchen konnte nicht gespeichert werden.",
     },
@@ -1663,26 +1661,26 @@ export const de = {
       heading: "Aktionserinnerung",
       name: "Name",
       namePlaceholder: "z. B. Weihnachtstüte",
-      start: "Einschalten",
-      starting: "Wird eingeschaltet …",
+      start: "Erstellen",
+      starting: "Wird erstellt …",
       rename: "Umbenennen",
       renaming: "Wird umbenannt …",
       renamed: "Umbenannt.",
-      progress: (received: number, total: number): string => `${received} von ${total} erhalten`,
-      since: (day: string): string => `eingeschaltet am ${day}`,
-      end: "Ausschalten",
+      progress: (received: number, total: number): string => `${received} von ${total} abgehakt`,
+      since: (day: string): string => `erstellt am ${day}`,
+      end: "Löschen",
       /** The tick count is the progress's own `received`, so the two cannot disagree. */
       endWarning: (name: string, ticks: number): string =>
-        `Erinnerung ‚${name}‘ ausschalten? ` +
-        (ticks === 1 ? "1 Häkchen wird gelöscht." : `${ticks} Häkchen werden gelöscht.`),
-      endConfirm: "Erinnerung ausschalten",
-      ending: "Wird ausgeschaltet …",
+        `Erinnerung ‚${name}‘ löschen? ` +
+        (ticks === 1 ? "1 Häkchen geht verloren." : `${ticks} Häkchen gehen verloren.`),
+      endConfirm: "Erinnerung löschen",
+      ending: "Wird gelöscht …",
       errors: {
         tooLong: (length: number, maxLength: number): string =>
           `Der Name ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
           `möglich.`,
-        alreadyActive: "Es ist bereits eine Erinnerung eingeschaltet. Bitte die Seite neu laden.",
-        notActive: "Diese Erinnerung ist nicht mehr eingeschaltet. Bitte die Seite neu laden.",
+        alreadyActive: "Es gibt bereits eine Erinnerung. Bitte die Seite neu laden.",
+        notActive: "Diese Erinnerung gibt es nicht mehr. Bitte die Seite neu laden.",
         unknown: "Die Erinnerung konnte nicht geändert werden.",
       },
     },

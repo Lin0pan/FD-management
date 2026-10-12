@@ -1,6 +1,6 @@
 /**
  * The campaign reminder switched on and how far the campaign has got (US-40) — what the settings
- * show as „x von y erhalten".
+ * show as „x von y abgehakt".
  */
 
 import { campaignProgress, type CampaignProgress } from "@/domain/campaign/campaignReminder";

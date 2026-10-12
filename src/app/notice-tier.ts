@@ -90,8 +90,8 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   NoDistributionSessionRunning: "error",
   DistributionSessionAlreadyRunning: "error",
   DistributionSessionNotReopenable: "error",
-  // The settings offer „Einschalten" only while none is on, and every tick names the reminder the
-  // screen was read under — so either one means another workstation switched it meanwhile.
+  // The settings offer „Erstellen" only while none exists, and every tick names the reminder the
+  // screen was read under — so either one means another workstation changed it meanwhile.
   CampaignReminderAlreadyActive: "error",
   CampaignReminderNotActive: "error",
 };
