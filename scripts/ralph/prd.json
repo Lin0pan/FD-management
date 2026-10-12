@@ -161,7 +161,7 @@
         "Lint passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Behaviour change — its own commit (feat), separate from any restyle."
     },
     {

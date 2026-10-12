@@ -780,3 +780,28 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - certificate-types.spec flaked once in a full Chromium run (passed alone and in the rerun); it
     never touches /ausgabe.
 ---
+
+## 2026-10-12 - US-008
+- `src/app/ausgabe/lookup-field.tsx` (client): `LookupProvider` (query + typed state, keyed by the
+  page on `${query}|${recorded}` — the key-remount refocus moved from the input onto it),
+  `NumberField` (uncontrolled, `defaultValue={query}`, selects on mount, reads the DOM value once on
+  mount so pre-hydration typing counts), `useLookupEdited()`. `ActionButton` disables both
+  `serve-button` (grey Leer look) and `correct-save` while edited.
+- page.tsx: Row 1 wrapped in `LookupProvider`; `SlotAnswer` became `slotAnswer(...)`, called.
+- e2e: counter.spec NOT_FOUND now expects the field to hold the unfound number; new test „greys out
+  the hand-out while the number field names someone not yet looked up“. Both engines 263 passed.
+- Driven with playwright-cli (WebKit, 1440 × 800): query selected after lookup, typing replaces,
+  button disabled with the chip unchanged, Enter re-enables. No canvas artboard for decision 1;
+  the disabled look is Leer's.
+- **Learnings for future iterations:**
+  - **A server-component element passed as a prop is never `null` on the client**, so
+    `answer ?? chip` in a client component stops falling back once the element travels through
+    another client boundary (it arrives as a lazy reference). Call a sync server helper as a
+    function when the receiver branches on null.
+  - Playwright `npm run start` serves the **last build** — `npm run build` before any e2e run, or
+    the suite tests old code (it silently passed half of counter.spec against HEAD~).
+  - Typing straight into the counter field after `lookUp` races hydration (the select is React's);
+    poll `selectionStart/End` before `keyboard.type`. Every existing spec uses `fill`, which is
+    immune.
+  - customer-record's „refused renewal“ flaked again in one full Chromium run.
+---
