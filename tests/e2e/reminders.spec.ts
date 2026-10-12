@@ -2,7 +2,7 @@ import { rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { de } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
@@ -190,6 +190,13 @@ async function lookUp(page: Page): Promise<void> {
   await expect(page).toHaveURL(new RegExp(`nummer=${CUSTOMER_NUMBER}`));
 }
 
+/** This household's row in the list under the counter's mask. */
+function householdListRow(page: Page): Locator {
+  return page.locator(
+    `[data-testid="session-household"][data-customer-number="${CUSTOMER_NUMBER}"]`,
+  );
+}
+
 /**
  * Record the afternoon's hand-out — the household is *served* on every visit, reminders or not — and
  * come back to them.
@@ -264,6 +271,8 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     await expect(page.getByTestId("reminder-confirmation")).toHaveText(words.reminder.logged);
     await expect(page.getByTestId("reminder-button")).toHaveCount(0);
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("1");
+    // The list under the mask counts it too, in the same page load (CLAUDE.md, Testing).
+    await expect(householdListRow(page).getByTestId("customer-row-reminders")).toHaveText("1");
 
     // The spent state comes from the store, not client memory: a fresh lookup re-reads it.
     await lookUp(page);
@@ -415,6 +424,16 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
     );
     await expect(page.getByTestId("counter-certificate-type")).toHaveText("Wohngeldbescheid");
     await expect(page.getByTestId("counter-reminder-count")).toHaveText("0");
+    const listed = householdListRow(page);
+    await expect(listed.getByTestId("customer-row-certificate")).toHaveText(
+      typedDay(RENEWED_CERTIFICATE),
+    );
+    await expect(listed.getByTestId("customer-row-certificate-state")).toHaveText(
+      de.customerList.certificateStates.VALID,
+    );
+    await expect(listed.getByTestId("customer-row-reminders")).toHaveText(
+      de.customerList.table.noReminders,
+    );
 
     // A fresh lookup: the prompt is gone with the reminder action, and the count reads 0. The
     // verdict is still the afternoon's — this household was served earlier in the spec and US-32

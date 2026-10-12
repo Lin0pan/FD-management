@@ -258,6 +258,13 @@ test.describe("Kunde sperren und entsperren", () => {
   }) => {
     const before = await prisma.auditEntry.count();
     await lookUp(page, CUSTOMER_NUMBER);
+    // The list under the mask shows the same household, so each write is proved there too, without
+    // navigating (CLAUDE.md, Testing): a blocked household that has not collected leaves the tally.
+    const row = page.locator(
+      `[data-testid="session-household"][data-customer-number="${CUSTOMER_NUMBER}"]`,
+    );
+    const tally = await page.getByTestId("group-progress").textContent();
+    await expect(row.getByTestId("customer-row-status")).toHaveText(de.customers.status.ACTIVE);
 
     // One heavy step at a time: opening the archive closes the block, and the other way round.
     await page.getByTestId("block-open").click();
@@ -276,6 +283,8 @@ test.describe("Kunde sperren und entsperren", () => {
     await expect(page.getByTestId("counter-verdict")).toHaveAttribute("data-verdict", "BLOCKED");
     await expect(page.getByTestId("counter-verdict-detail")).toHaveText(BLOCK_REASON);
     await expect(page.getByTestId("serve-button")).toBeDisabled();
+    await expect(row.getByTestId("customer-row-status")).toHaveText(de.customers.status.BLOCKED);
+    await expect(page.getByTestId("group-progress")).not.toHaveText(tally ?? "");
 
     await page.getByTestId("unblock-open").click();
     await page.getByTestId("unblock-submit").click();
@@ -286,6 +295,8 @@ test.describe("Kunde sperren und entsperren", () => {
     );
     await expect(page.getByTestId("counter-verdict-detail")).toHaveCount(0);
     await expect(page.getByTestId("serve-button")).toBeEnabled();
+    await expect(row.getByTestId("customer-row-status")).toHaveText(de.customers.status.ACTIVE);
+    await expect(page.getByTestId("group-progress")).toHaveText(tally ?? "");
 
     // The footer is a second door onto the same two writes, so each still leaves its entry.
     expect(await prisma.auditEntry.count()).toBe(before + 2);
