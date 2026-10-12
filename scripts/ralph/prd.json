@@ -51,7 +51,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "No UI yet. Check src/application/CLAUDE.md for the use-case conventions before starting."
     },
     {

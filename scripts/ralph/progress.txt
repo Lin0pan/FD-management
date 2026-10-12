@@ -620,3 +620,26 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
     is not a wide break; `counter-lookup.tsx` only reads it.
   - No architecture chapter lists the view's fields, so a field addition needs no doc change.
 ---
+
+## 2026-10-12 - US-003
+- `readCounterRoster(deps)` in `src/application/distribution/read-counter-roster.ts`: running session
+  → `listCustomers(deps, {})` (archived excluded by its default) narrowed with `servesGroup`, each row
+  `CustomerListRow & { servedInSession }`, plus `groups`, `isEmpty` and per-group `tallies`. Also
+  exports `GroupTally`, `CounterRosterRow`, `CounterRosterView` and the `servedInSession(records,
+  sessionId)` helper, which `readGroupRoster` now imports instead of its own copy.
+- No deps.ts change: `distributionDeps` already carries customers, settings, records, sessions, clock.
+- Building-block view's `distribution/` row names the new read.
+- Files: src/application/distribution/read-counter-roster.ts (+ .test.ts), read-group-roster.ts,
+  docs/architecture/05-building-block-view.md
+- **Learnings for future iterations:**
+  - **US-004 deletes `read-group-roster.ts`**: move nothing — `GroupTally` and `servedInSession`
+    already live in `read-counter-roster.ts`. Delete its test file with it; the roster tests that
+    still matter (surrogate-id join, blocked-but-collected, one query) exist in the new suite or in
+    `groupProgress`'s.
+  - The PRD's two `lastHandoutAt` tests for the roster are **not** in prd.json and `CustomerListRow`
+    carries no last hand-out; the list's columns (§US-41.8) do not show one, so none was added.
+  - The narrowing is by `row.group` after `listCustomers`, not via its `group` input, so a merged
+    afternoon needs no special case. A fixture household is the customer alone: one adult = 200 cents.
+  - Chapter 5's heading „57 use cases" is already stale (`grep -cE "^export (async )?function "`
+    sums to 63 with this story's two exports) — left for US-012 to recount.
+---
