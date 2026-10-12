@@ -21,7 +21,7 @@
 
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { groupOf, type Group } from "@/domain/customer/group";
-import { groupProgress, type Progress } from "@/domain/distribution/groupProgress";
+import { groupProgress } from "@/domain/distribution/groupProgress";
 import { servesGroup, type SessionGroups } from "@/domain/distribution/session";
 import { NoDistributionSessionRunning } from "@/domain/errors";
 import type {
@@ -29,6 +29,7 @@ import type {
   DistributionRecordRepository,
   DistributionSessionRepository,
 } from "../ports";
+import { servedInSession, type GroupTally } from "./read-counter-roster";
 
 export interface ReadGroupRosterDeps {
   readonly customers: CustomerRepository;
@@ -57,12 +58,6 @@ export interface GroupRosterMember {
   readonly blocked: boolean;
   /** Whether a hand-out was recorded for this household in the running session (US-05, US-34). */
   readonly servedInSession: boolean;
-}
-
-/** One served group's fraction, counted over that group's members alone. */
-export interface GroupTally {
-  readonly group: Group;
-  readonly progress: Progress;
 }
 
 /** The session's groups, the households in them, and how far through them the afternoon is. */
@@ -101,11 +96,7 @@ export async function readGroupRoster(deps: ReadGroupRosterDeps): Promise<GroupR
   const households = rostered.filter((customer) =>
     servesGroup(session.groups, groupOf(customer.customerNumber)),
   );
-  // The whole afternoon in one query, joined in memory: a session is ~120 households and a merged
-  // one ~240, and a query apiece would make the counter's screen the slowest in the app (§FR-4).
-  const servedIds = new Set(
-    (await deps.records.listForSession(session.id)).map((record) => record.customerId),
-  );
+  const servedIds = await servedInSession(deps.records, session.id);
   const members: ReadonlyArray<GroupRosterMember> = households.map((customer) => ({
     customerId: customer.id,
     customerNumber: customer.customerNumber,
