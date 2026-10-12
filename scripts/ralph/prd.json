@@ -220,7 +220,7 @@
         "Lint passes"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "If the fit fails only on WebKit, the markup is what is wrong — never branch on browserName."
     },
     {

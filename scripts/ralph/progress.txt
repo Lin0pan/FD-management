@@ -869,3 +869,28 @@ join the serve/correct form through the HTML `form` attribute. Check it on WebKi
   - Tab order follows the DOM, not `order`: an opened footer panel is reached right after its toggle,
     which is what a keyboard user wants.
 ---
+
+## 2026-10-12 - US-011
+- `tests/e2e/counter-fit.spec.ts` (isolated register — the campaign reminder is register-wide):
+  1440 × 800, three households seeded through Prisma (two grown-ups + a child, printed card, the same
+  two-line note), lookups by typing + Enter, then `section[aria-label="Ausgabemaske"]` bottom ≤ 800
+  and `scrollY === 0`. Order matters (serial): Main, then Z3 **before anything is served** (asserts
+  `session-discard-open` visible — „Ausgabe verwerfen" wraps the header line onto a second row, the
+  tallest header), then Z2 served + removal confirmation open (the tallest footer).
+- Measured, identical on both engines: Main 686, Z3 750, Z2 closed 642 / removal open 736 px. No
+  spacing tightened. `registers.ts` lists the spec in `ISOLATED_SPECS`.
+- Driven with playwright-cli (WebKit, 1440 × 800) against a copy of the isolated e2e DB served by
+  `next start --port 3200`: accessibility snapshot of the mask for Main (all rows present, campaign
+  checkbox named „Weihnachtstüte"), screenshots of Main, Z3, Z2. Canvas still not readable.
+- Both engines 267 passed (WebKit needed two reruns: a „WebKit encountered an internal error" on
+  `page.goto` in eggs.spec + a navigation.spec timeout, then the known reminders renewal flake —
+  each green alone and in a full rerun).
+- **Learnings for future iterations:**
+  - The header line is one row only after the first hand-out: until then „Ausgabe verwerfen" pushes
+    the controls to a second line (+40 px). Any height budget on /ausgabe must be measured in that
+    state, not after a serve.
+  - „n Ausgaben in Folge verpasst" under „Letzte Ausgabe" wraps to two lines in its 2/12 column and
+    adds ~16 px; a register with past afternoons gives it, a fresh one does not.
+  - A quick margin readout without touching the spec permanently: `sed` a `console.log` into the
+    measuring helper, run, restore from a `/tmp` copy.
+---
