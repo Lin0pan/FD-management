@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 40**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 41**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -119,6 +119,7 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 38  | `38-us-38-overviews-and-to-dos.json`            | 6       | `ralph/us-38-overviews-and-to-dos`            |
 | 39  | `39-us-39-cards-to-print.json`                  | 10      | `ralph/us-39-cards-to-print`                  |
 | 40  | `40-us-40-campaign-reminder.json`               | 10      | `ralph/us-40-campaign-reminder`               |
+| 41  | `41-us-41-counter-screen-redesign.json`         | 12      | `ralph/us-41-counter-screen-redesign`         |
 
 245 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
