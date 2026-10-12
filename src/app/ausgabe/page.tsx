@@ -101,14 +101,7 @@ function serveModeFor(lookup: CounterLookup | null, nummer: string): ServeMode {
 /** A session is started and ended on another workstation too, so never cache this screen. */
 export const dynamic = "force-dynamic";
 
-/**
- * The header line (US-41.3): the day the afternoon started and its week, the group or groups it
- * serves — a badge each, wearing what the Kundenliste and a customer's record wear — and how far
- * through them the counter is. No card: the afternoon's state is a line, not a panel.
- *
- * The groups cannot be changed while it runs, and nothing here says so: a control that is not on the
- * screen needs no sentence explaining its absence (`ui_styling_guide.md` §8).
- */
+/** The header line (US-41.3): a line, not a card. */
 function SessionHeader({
   running,
   roster,

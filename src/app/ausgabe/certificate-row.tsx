@@ -1,15 +1,9 @@
 "use client";
 
 /**
- * The mask's row 4 (US-41.6): when the household last collected, their certificate and how often they
- * were reminded — and, while it is expired, logging today's reminder and recording the renewal right
- * there (`tasks/prd-us-06-certificate-reminder.md` §US-06.4). The renewal opens **in place** of the
- * certificate's two facts; nothing adds a card.
- *
- * The action states live in `CertificateProvider`, above the status slot their answers go to
- * (`useCertificateAnswer`) — row 4 itself stands below it. No
- * rules here — the reminder chip repeats what the store knows through `reminderLoggedInSession`
- * rather than being the guard (FR-5).
+ * The mask's row 4 (US-41.6, US-06.4). The action states live in `CertificateProvider`, above the
+ * status slot their answers go to; the reminder chip repeats `reminderLoggedInSession`, it is not
+ * the guard (FR-5).
  */
 
 import { Check, ChevronDown } from "lucide-react";

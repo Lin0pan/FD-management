@@ -205,11 +205,8 @@ export function ActionButton(): React.ReactElement {
 }
 
 /**
- * „Gezahlt (von 4,00 €)“, the amount handed over, among the tiles (US-41.5).
- *
- * Pre-filled, because confirming the stated figure is the ordinary case with a queue waiting, and
- * selected on focus so typing a different amount costs no deletion. `guardEnter` on the field
- * itself: it joins its form by attribute, so the form never sees its keydown.
+ * „Gezahlt“ among the tiles (US-41.5). `guardEnter` sits on the field: it joins its form by
+ * attribute, so the form never sees its keydown.
  *
  * **Keyed on the cents it opens with, and that is load-bearing.** React resets a form once its
  * action resolves, so after a refused overpayment the field would snap back to the amount asked for
