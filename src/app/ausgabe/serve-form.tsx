@@ -22,6 +22,7 @@ import { FoldChevron } from "../disclosure";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
 import { guardEnter } from "../enter-guard";
+import { useCertificateAnswer } from "./certificate-row";
 import { useLookupEdited } from "./lookup-field";
 import { FieldRejection } from "../field-mark";
 import { marking, problemAt } from "../field-refusal";
@@ -291,7 +292,8 @@ export function PaidTile(): React.ReactElement | null {
 }
 
 /**
- * The status slot beside the button (US-41.4, decision 6): the answer to the last write, or else
+ * The status slot beside the button (US-41.4, decision 6): the answer to the last write — this form's
+ * or row 4's (`certificate-row.tsx`) — or else
  * what the screen came back with, or else the verdict's chip. One answer at a time — a refused
  * amount is the exception and marks its tile instead.
  */
@@ -308,13 +310,14 @@ export function StatusSlot({
 }): React.ReactElement {
   const context = useServe();
   const own = context.showing ? <OwnAnswer context={context} /> : null;
+  const certificate = useCertificateAnswer();
   return (
     <div
       data-testid={verdictKind === null ? undefined : "counter-verdict"}
       data-verdict={verdictKind ?? undefined}
       className="flex min-h-12 min-w-64 flex-1 items-center"
     >
-      {own ?? answer ?? chip}
+      {own ?? certificate ?? answer ?? chip}
     </div>
   );
 }

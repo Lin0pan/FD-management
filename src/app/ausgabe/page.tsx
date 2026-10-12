@@ -37,7 +37,7 @@ import { de } from "@/i18n/de";
 import { germanDateTime, germanSessionDay, germanTime } from "@/i18n/format";
 import { ArchiveControls } from "../kunden/archive-controls";
 import { BlockControls } from "../kunden/block-controls";
-import { CertificateControls } from "./certificate-controls";
+import { CertificateProvider } from "./certificate-row";
 import { HouseholdFacts, HouseholdRows, VerdictChip } from "./counter-lookup";
 import { distributionDeps } from "./deps";
 import { LookupProvider, NumberField } from "./lookup-field";
@@ -450,62 +450,69 @@ export default async function DistributionPage({
             {/* Keyed on the household and the mode, which remounts everything inside it — so only
                 the mask and the removal stand in it, never a control whose answer has to survive a
                 change of mode (an unblock turns a refusal into a hand-out). */}
-            <ServeFormProvider key={`${lookup?.customerId ?? ""}-${mode.kind}`} mode={mode}>
-              <section
-                aria-label={de.distribution.counter.mask.label}
-                className="flex flex-col gap-[18px] rounded-xl bg-card px-6 py-5 text-card-foreground ring-1 ring-foreground/10"
-              >
-                {/* Row 1: look up, book, and the answer — the button beside the field it follows
+            {/* Outside it, keyed on the household alone: row 4's answers must outlive a change of
+                mode, and must not outlive the household (`certificate-row.tsx`). */}
+            <CertificateProvider key={lookup?.customerId ?? ""}>
+              <ServeFormProvider key={`${lookup?.customerId ?? ""}-${mode.kind}`} mode={mode}>
+                <section
+                  aria-label={de.distribution.counter.mask.label}
+                  className="flex flex-col gap-[18px] rounded-xl bg-card px-6 py-5 text-card-foreground ring-1 ring-foreground/10"
+                >
+                  {/* Row 1: look up, book, and the answer — the button beside the field it follows
                     (US-41.4). The lookup form ends before the button, which joins the serve form by
                     attribute (`serve-form.tsx`). */}
-                <LookupProvider
-                  key={`${lookedUpNumber}|${recorded === null ? "" : recorded.customerNumber}`}
-                  query={lookedUpNumber}
-                >
-                  <div className="flex flex-wrap items-end gap-3">
-                    <form method="get" className="flex flex-wrap items-end gap-3">
-                      <div className="flex flex-col gap-1.5">
-                        <label htmlFor="counter-input" className="text-sm font-medium">
-                          {de.distribution.counter.label}
-                        </label>
-                        <NumberField />
-                      </div>
-                      <Button type="submit" variant="outline" className="h-12 px-4 text-base">
-                        <Search aria-hidden="true" data-icon="inline-start" />
-                        {de.distribution.counter.submit}
-                      </Button>
-                    </form>
-                    <ActionButton />
-                    <StatusSlot
-                      verdictKind={lookup === null ? null : lookup.verdict.kind}
-                      chip={
-                        lookup === null ? null : (
-                          <VerdictChip
-                            verdict={lookup.verdict}
-                            servedAt={mode.kind === "correct" ? mode.record.time : null}
-                          />
-                        )
-                      }
-                      answer={slotAnswer({ counter, recorded, recordRemoved, justArchived })}
-                    />
-                  </div>
-                </LookupProvider>
+                  <LookupProvider
+                    key={`${lookedUpNumber}|${recorded === null ? "" : recorded.customerNumber}`}
+                    query={lookedUpNumber}
+                  >
+                    <div className="flex flex-wrap items-end gap-3">
+                      <form method="get" className="flex flex-wrap items-end gap-3">
+                        <div className="flex flex-col gap-1.5">
+                          <label htmlFor="counter-input" className="text-sm font-medium">
+                            {de.distribution.counter.label}
+                          </label>
+                          <NumberField />
+                        </div>
+                        <Button type="submit" variant="outline" className="h-12 px-4 text-base">
+                          <Search aria-hidden="true" data-icon="inline-start" />
+                          {de.distribution.counter.submit}
+                        </Button>
+                      </form>
+                      <ActionButton />
+                      <StatusSlot
+                        verdictKind={lookup === null ? null : lookup.verdict.kind}
+                        chip={
+                          lookup === null ? null : (
+                            <VerdictChip
+                              verdict={lookup.verdict}
+                              servedAt={mode.kind === "correct" ? mode.record.time : null}
+                            />
+                          )
+                        }
+                        answer={slotAnswer({ counter, recorded, recordRemoved, justArchived })}
+                      />
+                    </div>
+                  </LookupProvider>
 
-                {/* One guard, not two: `customer` and `customerId` are null on exactly the same
+                  {/* One guard, not two: `customer` and `customerId` are null on exactly the same
                     NOT_FOUND branch (`CounterLookup`). */}
-                {lookup === null ||
-                lookup.customer === null ||
-                lookup.customerId === null ? null : (
-                  <HouseholdRows
-                    customer={lookup.customer}
-                    customerId={lookup.customerId}
-                    campaignReminder={lookup.campaignReminder}
-                  />
-                )}
-              </section>
+                  {lookup === null ||
+                  lookup.customer === null ||
+                  lookup.customerId === null ? null : (
+                    <HouseholdRows
+                      customer={lookup.customer}
+                      customerId={lookup.customerId}
+                      campaignReminder={lookup.campaignReminder}
+                      servedAt={mode.kind === "correct" ? mode.record.time : null}
+                      reminderLoggedInSession={lookup.reminderLoggedInSession}
+                      certificateTypes={counterReads.certificateTypes}
+                    />
+                  )}
+                </section>
 
-              <RemoveEntry />
-            </ServeFormProvider>
+                <RemoveEntry />
+              </ServeFormProvider>
+            </CertificateProvider>
 
             {lookup === null || lookup.customer === null || lookup.customerId === null ? null : (
               <>
@@ -513,22 +520,6 @@ export default async function DistributionPage({
                   customer={lookup.customer}
                   customerId={lookup.customerId}
                   verdict={lookup.verdict}
-                />
-                {/* Keyed by customer so a confirmation from one lookup cannot survive into the
-                      next customer's screen; within one customer the state rides out revalidation,
-                      which is what keeps the renewal confirmation visible once the certificate
-                      reads as valid again. */}
-                {/* `customer.certificateExpired`, and deliberately not the verdict kind: an
-                      already-collected household answers ALREADY_SERVED, which outranks
-                      CLEAR_TO_SERVE_CERTIFICATE_EXPIRED — so reading the reminder controls off the
-                      verdict would make them vanish on the very re-lookup a staff member does to
-                      correct the record (US-32). */}
-                <CertificateControls
-                  key={lookup.customerId}
-                  customerId={lookup.customerId}
-                  expired={lookup.customer.certificateExpired}
-                  reminderLoggedInSession={lookup.reminderLoggedInSession}
-                  certificateTypes={counterReads.certificateTypes}
                 />
                 {/* Blocking and archiving are offered here because the reasons for both show up
                       at the counter (US-16.5). Closed disclosures, never a prompt: the queue must

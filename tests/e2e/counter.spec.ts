@@ -407,6 +407,9 @@ test.describe("Verdikt am Tresen", () => {
     // The date and the count the headline no longer spells out, in the record it sends staff to.
     // This is what makes dropping the banner's sentence safe rather than a loss of information.
     await expect(page.getByTestId("counter-certificate-valid-until")).toHaveText("31.12.2025");
+    await expect(page.getByTestId("counter-certificate-state")).toHaveText(
+      de.customerList.certificateStates.EXPIRED,
+    );
     await expect(page.getByTestId("counter-reminder-count")).toHaveText(String(REMINDERS_SENT));
   });
 

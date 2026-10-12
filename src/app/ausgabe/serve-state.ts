@@ -53,13 +53,10 @@ export type CorrectState =
 
 export const initialCorrectState: CorrectState = { status: "idle" };
 
-/**
- * What the reminder action shows after a submission. `logged` carries the resulting count so the
- * confirmation can state it immediately, before the revalidated page catches up (US-06.4).
- */
+/** What the reminder action shows after a submission; the count comes back with the page. */
 export type ReminderState =
   | { readonly status: "idle" }
-  | { readonly status: "logged"; readonly count: number }
+  | { readonly status: "logged" }
   | { readonly status: "error"; readonly message: string; readonly tier: NoticeTier };
 
 export const initialReminderState: ReminderState = { status: "idle" };

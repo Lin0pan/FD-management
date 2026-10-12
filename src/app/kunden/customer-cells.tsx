@@ -16,7 +16,7 @@ import { GROUP_STYLES } from "../accents";
 import { STATUS_CHROME, StateWord, type Chrome } from "./state-word";
 
 /** The chrome for a certificate state — `null` for the one that is simply normal. */
-const CERTIFICATE_CHROME: Record<CertificateState, Chrome | null> = {
+export const CERTIFICATE_CHROME: Record<CertificateState, Chrome | null> = {
   VALID: null,
   EXPIRING_SOON: { variant: "outline", className: "border-amber-500/40 bg-amber-500/10" },
   EXPIRED: { variant: "outline", className: "border-red-500/40 bg-red-500/10" },

@@ -123,7 +123,7 @@ async function seedHousehold(customerNumber: number): Promise<number> {
   return customer.id;
 }
 
-/** What both screens say about a household that has missed `count` of its own afternoons. */
+/** What the record says about a household that has missed `count` of its own afternoons. */
 function missed(count: number): string {
   return de.customers.derived.noShowsValue(count);
 }
@@ -210,6 +210,8 @@ test.describe("Verpasste Ausgaben", () => {
     // The same figure at the counter, which is where DF reads it while the household stands there:
     // an afternoon they are at cannot be one they have missed.
     await lookUp(page, NUMBERS.absent);
-    await expect(page.getByTestId("counter-no-shows")).toHaveText(missed(RED_AFTERNOONS.length));
+    await expect(page.getByTestId("counter-no-shows")).toHaveText(
+      de.distribution.counter.mask.noShows(RED_AFTERNOONS.length),
+    );
   });
 });

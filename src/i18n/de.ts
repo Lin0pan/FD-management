@@ -1358,6 +1358,12 @@ export const de = {
         children: "Kinder",
         /** Said rather than left blank, so an empty corner is not read as a reminder that failed. */
         noCampaignReminder: "keine Aktionserinnerung",
+        lastHandout: "Letzte Ausgabe",
+        noHandout: "noch keine",
+        /** At the running afternoon the time is what says so — the date would be today's anyway. */
+        handoutToday: (time: string): string => `heute, ${time} Uhr`,
+        noShows: (count: number): string =>
+          `${count === 1 ? "1 Ausgabe" : `${count} Ausgaben`} in Folge verpasst`,
       },
       submit: "Nachschlagen",
       /**
@@ -1523,14 +1529,12 @@ export const de = {
      * mean, that judgement being deliberately the staff's (FR-6).
      */
     certificate: {
-      /** Names the pair of actions as one thing on the counter screen; the renewal keeps its own. */
+      /** The mask's label over the household's Nachweis-Art. */
       heading: "Bedarfsnachweis",
       reminder: {
         submit: "Erinnerung erfassen",
-        /** The explanatory label the disabled button carries for the rest of the session (FR-5). */
-        loggedInSession: "Erinnerung bereits erfasst",
-        confirmed: (count: number): string =>
-          `Erinnerung erfasst. Bisherige Erinnerungen: ${count}.`,
+        /** The chip the button turns into for the rest of the session (FR-5); the count beside it. */
+        logged: "Erinnerung erfasst",
         errors: {
           alreadyLogged:
             "Für diesen Haushalt ist bei dieser Ausgabe bereits eine Erinnerung erfasst.",
@@ -1539,7 +1543,11 @@ export const de = {
         },
       },
       renewal: {
+        /** The form's accessible name; it opens in place of the certificate's two facts. */
         heading: "Neuen Bedarfsnachweis erfassen",
+        open: "Neuer Nachweis",
+        validUntil: "gültig bis",
+        cancel: "Abbrechen",
         /** The side effect — the only part of this form the form itself does not show. */
         hint: "Erinnerungen werden dabei auf 0 zurückgesetzt.",
         submit: "Nachweis speichern",

@@ -14,16 +14,17 @@ import type { CounterCustomerView } from "@/application/customers/lookup-custome
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { balanceKind } from "@/domain/distribution/balance";
 import type { Verdict } from "@/domain/distribution/counterVerdict";
 import { de } from "@/i18n/de";
-import { germanDate } from "@/i18n/format";
+import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
+import { germanDate, germanDayOf } from "@/i18n/format";
 import { cn } from "@/lib/utils";
 import { BALANCE_STYLES, GROUP_STYLES } from "../accents";
 import { CampaignReminderField } from "../campaign-reminder-field";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Stat } from "../stat";
+import { CertificateRow } from "./certificate-row";
 import { NotesControls } from "./notes-controls";
 import { PaidTile } from "./serve-form";
 
@@ -135,35 +136,6 @@ export function VerdictChip({
   );
 }
 
-/** A field that is read only when it matters: the certificate, the reminder tally, a no-show run. */
-function Field({
-  label,
-  value,
-  testId,
-}: {
-  label: string;
-  value: string;
-  testId: string;
-}): React.ReactElement {
-  return (
-    <TableRow>
-      <TableHeadCell>{label}</TableHeadCell>
-      <TableCell className="font-medium tabular-nums">
-        <span data-testid={testId}>{value}</span>
-      </TableCell>
-    </TableRow>
-  );
-}
-
-/** The label column. A `<th>` in a key/value table, so the value's row header is announced with it. */
-function TableHeadCell({ children }: { children: string }): React.ReactElement {
-  return (
-    <th scope="row" className="w-72 p-2 text-left align-middle font-normal text-muted-foreground">
-      {children}
-    </th>
-  );
-}
-
 /** The mask's tile: a `Stat` at the size the row of six has room for (US-41.5). */
 const TILE = "gap-0.5 rounded-lg bg-muted/60 px-3 py-1.5";
 const TILE_VALUE = "text-2xl";
@@ -198,11 +170,18 @@ export function HouseholdRows({
   customer,
   customerId,
   campaignReminder,
+  servedAt,
+  reminderLoggedInSession,
+  certificateTypes,
 }: {
   customer: CounterCustomerView;
   /** The surrogate id the record lives under. Not on `CounterCustomerView` — it is `CounterLookup`'s. */
   customerId: number;
   campaignReminder: CampaignReminderCheckbox | null;
+  /** The time of today's record, which is the last hand-out when there is one. */
+  servedAt: string | null;
+  reminderLoggedInSession: boolean;
+  certificateTypes: CertificateTypeList;
 }): React.ReactElement {
   const words = de.distribution.counter.mask;
   const kind = balanceKind(customer.balanceCents);
@@ -324,14 +303,29 @@ export function HouseholdRows({
           )}
         </div>
       </div>
+      <CertificateRow
+        customerId={customerId}
+        lastHandout={
+          servedAt !== null
+            ? words.handoutToday(servedAt)
+            : customer.lastHandoutAt === null
+              ? words.noHandout
+              : germanDayOf(customer.lastHandoutAt)
+        }
+        consecutiveNoShows={customer.consecutiveNoShows}
+        certificateType={customer.certificateType}
+        certificateValidUntil={germanDate(customer.certificateValidUntil)}
+        certificateState={customer.certificateState}
+        expired={customer.certificateExpired}
+        reminderCount={customer.reminderCount}
+        reminderLoggedInSession={reminderLoggedInSession}
+        certificateTypes={certificateTypes}
+      />
     </div>
   );
 }
 
-/**
- * What the mask does not hold yet: the certificate, the reminder tally, a no-show run and the note.
- * Rows 4 and 5 take them over (US-41.6, US-41.7).
- */
+/** What the mask does not hold yet: the block reason and the note. Row 5 takes them over (US-41.7). */
 export function HouseholdFacts({
   customer,
   customerId,
@@ -354,34 +348,11 @@ export function HouseholdFacts({
             {verdict.reason ?? de.distribution.counter.verdicts.blocked.noReason}
           </p>
         ) : null}
-        <Table>
-          <TableBody>
-            <Field
-              label={de.customers.fields.certificateValidUntil}
-              value={germanDate(customer.certificateValidUntil)}
-              testId="counter-certificate-valid-until"
-            />
-            <Field
-              label={de.distribution.counter.details.reminderCount}
-              value={String(customer.reminderCount)}
-              testId="counter-reminder-count"
-            />
-            {/* The second archiving trigger (US-10.4), shown only when there is a run to see. A
-                number and nothing more — no threshold, no warning (PRD §5). */}
-            {customer.consecutiveNoShows === 0 ? null : (
-              <Field
-                label={de.customers.derived.noShows}
-                value={de.customers.derived.noShowsValue(customer.consecutiveNoShows)}
-                testId="counter-no-shows"
-              />
-            )}
-          </TableBody>
-        </Table>
         {/* `whitespace-pre-line`: a note is typed into a multi-line field, and a colleague's
             paragraphs must reach the counter. No fold for an archived household — `updateNotes`
             refuses one. Keyed by customer: a `<details>` keeps `open` through a soft navigation,
             which could carry one household's text onto the next (`ui_styling_guide.md` §6). */}
-        <div className="flex flex-col gap-2 border-t pt-4">
+        <div className="flex flex-col gap-2">
           <span className="text-sm text-muted-foreground">{de.customers.record.notesHeading}</span>
           <p data-testid="counter-notes" className="max-w-prose whitespace-pre-line">
             {customer.notes === "" ? de.distribution.counter.details.noNotes : customer.notes}

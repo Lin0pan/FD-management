@@ -297,8 +297,8 @@ function renewalRefusal(error: unknown, selected: string): RenewalState & { stat
 
 /**
  * Log today's certificate reminder. The rules live in `recordReminder` and in the database's unique
- * day constraint; this only relays the resulting count or the refusal. The page revalidates, so the
- * count and the button's disabled state come back from the store, not from client memory.
+ * day constraint; this only relays that it was logged, or the refusal. The page revalidates, so the
+ * count and the spent reminder come back from the store, not from client memory.
  */
 export async function logReminder(
   _previous: ReminderState,
@@ -314,9 +314,9 @@ export async function logReminder(
   }
 
   try {
-    const count = await recordReminder(counterActionDeps, { customerId: customerId.data });
+    await recordReminder(counterActionDeps, { customerId: customerId.data });
     revalidatePath("/ausgabe");
-    return { status: "logged", count };
+    return { status: "logged" };
   } catch (error: unknown) {
     return { status: "error", message: reminderMessage(error), tier: tierOf(error) };
   }
