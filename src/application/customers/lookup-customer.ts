@@ -18,10 +18,11 @@
 
 import { formatCardNumber, parseCounterQuery } from "@/domain/card/cardNumber";
 import { staleCardReason, type StaleCardReason } from "@/domain/card/staleCard";
+import { certificateState, type CertificateState } from "@/domain/customer/certificate";
 import type { CustomerStatus } from "@/domain/customer/customer";
 import { groupOf, type Group } from "@/domain/customer/group";
 import type { HouseholdComposition } from "@/domain/customer/householdComposition";
-import { recordForSession } from "@/domain/distribution/attendance";
+import { lastHandoutAt, recordForSession } from "@/domain/distribution/attendance";
 import { amountToPay, askedForRecord, balanceOf } from "@/domain/distribution/balance";
 import {
   certificateExpired,
@@ -81,6 +82,12 @@ export interface CounterCustomerView {
    * `ALREADY_SERVED` (US-32.4) and the lapsed certificate is still true of them.
    */
   readonly certificateExpired: boolean;
+  /** The Bedarfsnachweis as recorded on the household. */
+  readonly certificateType: string;
+  /** Judged at the same instant as {@link certificateExpired}, so the two cannot disagree. */
+  readonly certificateState: CertificateState;
+  /** The household's latest hand-out, today's included, or `null` before their first. */
+  readonly lastHandoutAt: Date | null;
   readonly status: CustomerStatus;
   /**
    * Why this household is paused, or `null` (US-08). Repeated from the verdict because the counter
@@ -277,6 +284,9 @@ export async function lookupCustomer(
       eggs: allowance.eggs,
       certificateValidUntil: customer.details.certificate.validUntil,
       certificateExpired: certificateExpired(customer.details.certificate.validUntil, today),
+      certificateType: customer.details.certificate.type,
+      certificateState: certificateState(customer.details.certificate, today),
+      lastHandoutAt: lastHandoutAt(recordsForCustomer),
       status: customer.status,
       blockReason: customer.blockReason,
       reminderCount: customer.reminderCount,
