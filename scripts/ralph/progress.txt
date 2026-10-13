@@ -662,3 +662,27 @@ to a German literal.
   - playwright-cli refs gain a frame-like prefix after navigation (`f4e215`), so a helper that greps
     `ref=e[0-9]*` silently returns nothing — grep `ref=[a-z0-9]*`.
 ---
+
+## 2026-10-13 - US-005
+- The 20 refusals of PRD §US-42.5 read the „New" column. `distribution.errors.noSettings` is a
+  getter returning `de.settings.errors.noSettings` (the settings block sits *after* distribution in
+  the literal, so a plain property cannot reach it; a getter is read lazily). The three „zu lang"
+  strings share a module-level `tooLong(subject, length, maxLength)`; `eggsNotIncreasing` opens with
+  `capitalised(fromPersons(…))` so it still inflects „1 Person" / „1 Ei". Two comments near
+  `settingsFormFieldLabel` quoted „nichts gespeichert" and now name `settings.errors.unknown`.
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating. The
+  handout's egg paragraph says „sonst wird nichts gespeichert" as behaviour, not a quote; it stays.
+- Both engines green (268 passed, 1 skipped each). Browser-checked (production build,
+  FD_FIXED_NOW_FILE=2026-10-15): counter invalid lookup „abc", invalid amount „vier" on #3, past
+  „gültig bis" on #1's renewal (then discarded the session); settings quota 1, duplicate egg tier,
+  non-increasing tier with 1 and 6 eggs, duplicate and 120-char Nachweis-Art. Nothing saved
+  (one settings version, four types).
+- **Learnings for future iterations:**
+  - The counter's renewal form has a client-side mark under the date („Liegt in der
+    Vergangenheit.", `customers.errors.dateInPast`) *and* the server notice in its slot
+    (`data-testid=renewal-error`). The playwright-cli `find` output can cut off before the slot;
+    read it with `eval` on the test id. The date field is text in `TT.MM.JJJJ`, and the type select
+    must be chosen or the refusal is a missing field instead.
+  - A de.ts key that has to be written in terms of a key further *down* the literal needs a getter
+    (`get x(): string { return de.….; }`); a function entry does it for free since it is called late.
+---
