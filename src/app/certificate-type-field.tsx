@@ -131,7 +131,13 @@ export function CertificateTypeField({
   const showingOther = selected === CERTIFICATE_TYPE_OTHER;
 
   return (
-    <div className={cn(inline ? "flex items-start gap-3" : "flex flex-col gap-3", className)}>
+    <div
+      className={cn(
+        inline ? "flex items-start gap-3" : "flex flex-col gap-3",
+        inline && showingOther && "flex-1",
+        className,
+      )}
+    >
       <div className={cn("flex flex-col gap-1.5", inline && "w-44 shrink-0")}>
         <Label htmlFor={id} className={typeProblem === null ? undefined : "text-destructive"}>
           {de.customers.fields.certificateType}

@@ -252,23 +252,23 @@ export function CertificateRow(props: CertificateRowProps): React.ReactElement {
           </Fact>
         </>
       )}
-      {/* Five columns while closed, so both buttons stand side by side; the open renewal takes two of
-          them back, its free text needing the room more than the buttons need one line. */}
+      {/* Five columns while closed, so both buttons stand side by side under the count; the open
+          renewal takes two of them back, its free text needing the room more than the buttons. */}
       <Fact
         label={de.distribution.counter.details.reminderCount}
         className={open ? "md:col-span-3" : "md:col-span-5"}
       >
-        <span className="flex flex-wrap items-center gap-2">
-          <span data-testid="counter-reminder-count" className={VALUE}>
-            {props.reminderCount}
-          </span>
-          {props.expired ? (
+        <span data-testid="counter-reminder-count" className={VALUE}>
+          {props.reminderCount}
+        </span>
+        {props.expired ? (
+          <span className="mt-1.5 flex flex-wrap items-center gap-2">
             <ReminderActions
               customerId={props.customerId}
               loggedInSession={props.reminderLoggedInSession}
             />
-          ) : null}
-        </span>
+          </span>
+        ) : null}
       </Fact>
     </div>
   );
@@ -379,7 +379,7 @@ function RenewalForm({
           types={certificateTypes}
           id="renewal-type"
           inline
-          className="min-w-0 flex-1"
+          className="min-w-0"
           typeProblem={typeProblem}
           otherProblem={otherProblem}
           errorTestId="counter-field-error"
