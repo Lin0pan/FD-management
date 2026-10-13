@@ -617,3 +617,27 @@ to a German literal.
   - `playwright-cli` prints a „skill does not match the tool version" banner on stderr/stdout on
     every call; filter `^[║╔╚]` lines rather than reinstalling the skill mid-batch.
 ---
+
+## 2026-10-13 - US-003
+- The 15 banners, notices and empty states of PRD §US-42.3 read the „New" column.
+  `certificateExpiredHint` starts lower-case and got a one-line comment saying why; the comment on
+  `bannerReadOnly` no longer names the „frei" fact the text dropped.
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating.
+- Chromium green (268 passed, 1 skipped). WebKit: one run failed `number-group.spec.ts` „the list's
+  week filter …" (touches no changed string), and the next full run was green (268 passed).
+- Browser-checked on the demo register: archived record id 1, Kundenkarte of id 6, archive search
+  with no match / too many / prefill, /kunden?suche=Zzzqx, and with FD_FIXED_NOW_FILE=2027-03-20
+  the free-slot banner, the promotion of an applicant whose certificate had expired, and an
+  emptied waiting list. Demo re-seeded with `npm run db:demo -- --reset` afterwards.
+- **Learnings for future iterations:**
+  - `certificateExpiredHint` is also the waiting-list row badge's `title` (warteliste/page.tsx:88),
+    so its tooltip and accessible name are now the lower-case fragment „vor der Aufnahme wird ein
+    neuer benötigt." The PRD only names the banner; left as is because markup is out of scope.
+  - The archive search's „too many" state needs 21+ archived matches, more than the demo has.
+    `local_only/us42/many-archived.ts` clones archived customer 1 with its members, certificate and
+    a card (index 100+i, to stay clear of the unique slot index), and `… clean` removes the clones.
+    A clone without a card or certificate makes the search fail with „Die Suche im Archiv ist
+    fehlgeschlagen.", not with fewer results.
+  - Demo waiting-list certificates run to 12.12.2026 and 12.03.2027; pin the clock after the later
+    one to see both rows expired.
+---
