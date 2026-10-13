@@ -596,3 +596,24 @@ to a German literal.
   - The handout's „Kundennummer ändern" paragraph says the old card „darf an der Ausgabe nicht mehr
     angenommen werden" in its own words — it is guidance, not a quote of `reissue.saved`, so it stays.
 ---
+
+## 2026-10-13 - US-002
+- The six confirmations of PRD §US-42.2 read the „New" column: archive.confirm, unblockConfirm,
+  waitingList.remove.confirm, session.end.confirm (still `servedAndTook(...) + "."`),
+  session.discard.confirm, serve.correct.removeConfirm. The doc comments on end and discard no
+  longer claim the confirmation names a closing window / the nothing-is-recorded fact.
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating.
+- Both engines green (268 passed, 1 skipped each). Browser-checked on the demo register with
+  FD_FIXED_NOW_FILE=2026-10-15 (a Thursday): unblock id 7, archive id 6 (reason `required`),
+  waiting-list removal (reason `required`), discard a session, serve #3 → Korrigieren → Eintrag
+  entfernen („Saldo danach: ausgeglichen."), serve #9 → end („1 Haushalt versorgt, 4,00 €
+  eingenommen."). Each completed with its confirming button.
+- **Learnings for future iterations:**
+  - `unblockConfirm` renders „„…Mitarbeitenden.“." when the stored reason ends with a full stop —
+    the doubled stop predates US-42 and the PRD fixes the text, so it was left.
+  - On the counter with „Rot und Blau" chosen, `#3` and `#9` of the demo register are clear to
+    serve on 2026-10-15; the session table's rows come back in one
+    `--raw eval` over `tbody tr` innerText, which is cheaper than a snapshot for picking a number.
+  - `playwright-cli` prints a „skill does not match the tool version" banner on stderr/stdout on
+    every call; filter `^[║╔╚]` lines rather than reinstalling the skill mid-batch.
+---
