@@ -1,0 +1,133 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-42-shorter-messages",
+  "description": "US-42 — SHORTER MESSAGES, TEXT ONLY. About 75 of the ~150 UI messages in src/i18n/de.ts get the shorter wording DF's developer agreed in a review: success messages name the result and stop; confirmations name what changes and stop; „Es wurde nichts gespeichert.\" and „Bitte erneut versuchen.\" go (the box colour says it, the button is still there); „Bitte die Seite neu laden.\" stays only where the screen is out of date; no rule rationale on screen; two hints dropped. EVERY exact new string is in the tables of tasks/prd-us-42-shorter-messages.md — copy them from there, character for character. NOTHING ELSE CHANGES: every button, link, confirmation step, reason field, tone, tier, data-testid and display condition stays as it is (PRD §„What must not change\"); the only code edits are call sites of the three strings whose signature changes and the two hint <p>s removed. Out of scope: a „Neu laden\" button in red notices. Both e2e engines stay green.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Success messages say the result and stop",
+      "description": "As a staff member, I want a success message to name what happened in a few words, so I can read it at a glance and carry on. Source: tasks/prd-us-42-shorter-messages.md §US-42.1",
+      "acceptanceCriteria": [
+        "Every key in the §US-42.1 table in src/i18n/de.ts reads EXACTLY the „New\" column (punctuation and typographic quotes included); no other key's text changes",
+        "customers.archive.saved becomes a plain string with no parameter; call sites in src/app/kunden/[id]/page.tsx and src/app/ausgabe/page.tsx and every spec updated",
+        "customers.numberChange.saved drops its unused `from` parameter; src/app/kunden/[id]/number-control.tsx and specs updated",
+        "customers.reissue.saved returns ReadonlyArray<Segment> with the card number strong; both call sites (kunden/[id]/reissue-controls.tsx, karten-neuausstellung/page.tsx) render it bold; specs compare with plain(…)",
+        "„Rückgängig\" still sits inside the Karten-drucken confirmation and still takes the tick back; „Korrigieren\" still sits inside the counter's recorded confirmation; distribution.serve.recorded is unchanged",
+        "Doc comments above the changed keys in de.ts describe the new strings (e.g. archive.saved no longer claims to name the freed number)",
+        "NOTHING BUT TEXT CHANGES: every button/link/disclosure/reason field/confirmation step beside a changed message keeps its label, position and behaviour; notice-tier.ts is untouched; no tone, data-testid or data-tier changes; no condition for when a message shows changes (PRD §„What must not change\")",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first). A spec broken by this story is migrated IN THIS STORY by comparing against the new de.* value (plain(…) for segments) — never by deleting or weakening an assertion",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): block → unblock, archive (record and counter footer), reissue (record and Karten neu ausstellen), number change, Karten drucken + Rückgängig, settings save",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Text only. Specs that call archive.saved / reissue.saved / numberChange.saved: archive, customer-record, card-number, reissue, cards-to-print, session-detail (grep tests/e2e)."
+    },
+    {
+      "id": "US-002",
+      "title": "Confirmations name what changes and stop",
+      "description": "As a staff member, I want a confirmation to state what is about to happen in one line, so I actually read it before I click. Source: tasks/prd-us-42-shorter-messages.md §US-42.2",
+      "acceptanceCriteria": [
+        "Every key in the §US-42.2 table reads EXACTLY the „New\" column; session.end.confirm keeps its parameters and still builds its clause with servedAndTook",
+        "Every shortened confirmation still appears in the same box (same tone, same data-testid) and still requires its confirming button: „Jetzt archivieren\", „Sperre jetzt aufheben\", „Von der Warteliste nehmen\", „Ja, Ausgabe beenden\", „Ja, verwerfen\", „Ja, entfernen\"",
+        "The archive and waiting-list-removal reason fields are still required",
+        "Confirmations NOT in the table (number change, reissue, reopen, overpayment, campaign-reminder deletion) are byte-for-byte unchanged",
+        "NOTHING BUT TEXT CHANGES: every button/link/disclosure/reason field/confirmation step beside a changed message keeps its label, position and behaviour; notice-tier.ts is untouched; no tone, data-testid or data-tier changes; no condition for when a message shows changes (PRD §„What must not change\")",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first). A spec broken by this story is migrated IN THIS STORY by comparing against the new de.* value (plain(…) for segments) — never by deleting or weakening an assertion",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): open each of the six confirmations, read it, and complete each action once",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Banners, notices and empty states say only what the screen does not",
+      "description": "As a staff member, I want standing notices and empty lists to say the one thing I need, so the screen stays calm. Source: tasks/prd-us-42-shorter-messages.md §US-42.3",
+      "acceptanceCriteria": [
+        "Every key in the §US-42.3 table reads EXACTLY the „New\" column",
+        "waitingList.certificateExpiredHint starts lower-case so free-slot-banner.tsx renders „Nachweis abgelaufen — vor der Aufnahme wird ein neuer benötigt.\" with its markup unchanged",
+        "Unchanged: customers.archive.bannerHeading „Archiviert\" above bannerDetail, bannerNoReason, the prefill heading and „Übernahme verwerfen und leer beginnen\", „Verstanden, jetzt aufnehmen\", „Jetzt registrieren\" and „Warteliste öffnen\"",
+        "NOTHING BUT TEXT CHANGES: every button/link/disclosure/reason field/confirmation step beside a changed message keeps its label, position and behaviour; notice-tier.ts is untouched; no tone, data-testid or data-tier changes; no condition for when a message shows changes (PRD §„What must not change\")",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first). A spec broken by this story is migrated IN THIS STORY by comparing against the new de.* value (plain(…) for segments) — never by deleting or weakening an assertion",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): an archived record, registration pre-filled from the archive, archive search with no match and with too many matches, the waiting list empty and with a free slot, a promotion with an expired certificate, the customer list filtered to no result",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Refusals and errors — customers, cards, waiting list",
+      "description": "As a staff member, I want a refusal to say what is wrong and, only where I could not guess it, what to do. Source: tasks/prd-us-42-shorter-messages.md §US-42.4",
+      "acceptanceCriteria": [
+        "Every key in the §US-42.4 table reads EXACTLY the „New\" column: „Es wurde nichts gespeichert.\" and „Es wurde nichts geändert\" are gone from these keys; „Bitte die Seite neu laden.\" stays only where the table keeps it",
+        "The tier (amber/red) of every error code is unchanged — src/app/notice-tier.ts is not edited",
+        "The full-register box on /kunden/neu still shows „Stattdessen auf die Warteliste setzen\"",
+        "Doc comments on the changed keys in de.ts match the new text (e.g. cardNumberTaken's comment trimmed to what still applies)",
+        "NOTHING BUT TEXT CHANGES: every button/link/disclosure/reason field/confirmation step beside a changed message keeps its label, position and behaviour; notice-tier.ts is untouched; no tone, data-testid or data-tier changes; no condition for when a message shows changes (PRD §„What must not change\")",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first). A spec broken by this story is migrated IN THIS STORY by comparing against the new de.* value (plain(…) for segments) — never by deleting or weakening an assertion",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): register with an empty household and with a future birthdate, block and archive without a reason, archive search with no criteria",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Refusals and errors — distribution and settings",
+      "description": "As a staff member at the counter or in the settings, I want refusals as short as the ones elsewhere. Source: tasks/prd-us-42-shorter-messages.md §US-42.5",
+      "acceptanceCriteria": [
+        "Every key in the §US-42.5 table reads EXACTLY the „New\" column",
+        "distribution.errors.noSettings is written in terms of de.settings.errors.noSettings (one fact, one wording); the counter's red box keeps its tone and data-testid",
+        "eggsNotIncreasing keeps its four parameters and still inflects through fromPersons/eggCount („1 Ei\" / „6 Eier\")",
+        "The three „zu lang\" strings (customers.errors.notesTooLong from US-004, settings.certificateTypes.errors.tooLong, settings.campaignReminder.errors.tooLong) share the shape „… ist zu lang ({len} Zeichen, höchstens {max}).\" — a module-level helper in de.ts only if it makes them read alike",
+        "After this story `grep -n \"nichts gespeichert\\|erneut versuchen\" src/i18n/de.ts` returns nothing (also check for strings split across concatenated lines)",
+        "The overpayment question and „Ja, Betrag so buchen\" are unchanged and still required for an overpayment",
+        "NOTHING BUT TEXT CHANGES: every button/link/disclosure/reason field/confirmation step beside a changed message keeps its label, position and behaviour; notice-tier.ts is untouched; no tone, data-testid or data-tier changes; no condition for when a message shows changes (PRD §„What must not change\")",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first). A spec broken by this story is migrated IN THIS STORY by comparing against the new de.* value (plain(…) for segments) — never by deleting or weakening an assertion",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): on the counter an invalid lookup, an invalid amount and a past „gültig bis\"; in the settings a quota below the active households, a duplicate egg tier, a non-increasing egg tier, a duplicate Nachweis-Art",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Hints trimmed; styling guide follows",
+      "description": "As a staff member, I want the record and the settings to carry no hint that restates the screen; as the next maintainer, I want the styling guide to cite only strings that exist. Source: tasks/prd-us-42-shorter-messages.md §US-42.6",
+      "acceptanceCriteria": [
+        "customers.record.detailsHint and customers.record.dangerHint are deleted from de.ts together with their <p> (kunden/[id]/details-editor.tsx, kunden/[id]/page.tsx); nothing references them; the „Person und Anschrift\" form and the „Aktionen mit Folgen\" section are otherwise unchanged",
+        "householdHint, waitingList.add.contactNoteHint and settings.reasonHint read EXACTLY the „New\" column; notesHint, groupBalanceHint, distribution.certificate.renewal.hint, settings.intro and archiveSearch.result.formerNumberHint are unchanged",
+        "docs/guideline/ui_styling_guide.md §8 cites no string that no longer exists in de.ts: the archive quote becomes „Rückgängig machen nicht möglich\"; the two removed examples („Nach dem Beenden sind die Einträge nicht mehr korrigierbar\", „Die Liste lässt sich nicht umsortieren\") are replaced by a surviving string of the same kind or the bullet is dropped with one line saying DF chose terseness (US-42)",
+        "§8 gains one short bullet: an amber/red box already means nothing was saved, so no message says „Es wurde nichts gespeichert.\"; „Bitte die Seite neu laden.\" only where the screen is out of date",
+        "grep docs/handout/betriebsanleitung.md for every sentence changed in batch 42; adjust any prose describing a removed sentence (German, handout rules in docs/handout/README.md)",
+        "python3 arc42.py check (or the CI equivalent) passes",
+        "tasks/prd-us-42-shorter-messages.md is NOT edited",
+        "NOTHING BUT TEXT CHANGES: every button/link/disclosure/reason field/confirmation step beside a changed message keeps its label, position and behaviour; notice-tier.ts is untouched; no tone, data-testid or data-tier changes; no condition for when a message shows changes (PRD §„What must not change\")",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first). A spec broken by this story is migrated IN THIS STORY by comparing against the new de.* value (plain(…) for segments) — never by deleting or weakening an assertion",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): the customer record (details form, household form, danger section) and the waiting-list add form",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
