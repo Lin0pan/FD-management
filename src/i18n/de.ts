@@ -500,16 +500,14 @@ export const de = {
       saved: "Haushalt archiviert.",
       /** The banner an archived record carries — the reason and the day, on every screen it shows on. */
       bannerHeading: "Archiviert",
-      bannerDetail: (date: string, reason: string): string =>
-        `Archiviert am ${date}. Grund: „${reason}“`,
+      bannerDetail: (date: string, reason: string): string => `Am ${date}. Grund: „${reason}“`,
       bannerNoReason: "Zu dieser Archivierung ist kein Grund hinterlegt.",
       /**
-       * „frei“ and „gehört bereits jemand anderem“ are two facts, and the second is the one acted on
-       * wrongly: the number is still printed on this record with nothing to say it has moved on.
+       * The second sentence is the one acted on wrongly: the number is still printed on this record
+       * with nothing to say it has moved on.
        */
       bannerReadOnly:
-        "Der Datensatz kann nicht mehr geändert werden. Die Kundennummer ist wieder frei und " +
-        "gehört möglicherweise bereits einem anderen Haushalt.",
+        "Nicht mehr änderbar. Die Kundennummer kann inzwischen einem anderen Haushalt gehören.",
       errors: {
         missingReason: "Bitte einen Grund für die Archivierung angeben.",
         notArchivable: "Dieser Haushalt ist bereits archiviert. Bitte die Seite neu laden.",
@@ -534,16 +532,13 @@ export const de = {
         count === 1
           ? "1 archivierter Haushalt gefunden"
           : `${count} archivierte Haushalte gefunden`,
-      noMatches:
-        "Kein archivierter Haushalt gefunden. Bitte die Schreibweise prüfen — oder die Aufnahme " +
-        "einfach leer ausfüllen.",
+      noMatches: "Kein archivierter Haushalt gefunden.",
       /**
        * What is shown instead of a twenty-first result — there is no paging, and the message names
        * the fields that would narrow the search rather than only saying there were too many.
        */
       tooMany: (shown: number): string =>
-        `Es werden ${shown} Treffer angezeigt; es gibt weitere. Bitte die Suche eingrenzen — mit ` +
-        `dem Vornamen oder dem Geburtsdatum.`,
+        `Mehr als ${shown} Treffer. Bitte mit Vorname oder Geburtsdatum eingrenzen.`,
       /** The refusal when staff press Search with every field empty. */
       noCriteria: "Bitte mindestens ein Feld ausfüllen: Nachname, Vorname oder Geburtsdatum.",
       /** The labels on one result row — enough to tell two people of the same name apart. */
@@ -583,9 +578,8 @@ export const de = {
       prefilled: {
         heading: "Daten aus dem Archiv übernommen",
         detail: (name: string, formerNumber: number, archivedOn: string): string =>
-          `Übernommen von „${name}“, archiviert am ${archivedOn} unter der Kundennummer ` +
-          `${formerNumber}. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und ` +
-          `einer neuen Karte angelegt.`,
+          `Von „${name}“ (archiviert am ${archivedOn}, frühere Nr. ${formerNumber}). Der Haushalt ` +
+          `erhält eine neue Kundennummer und eine neue Karte.`,
         clear: "Übernahme verwerfen und leer beginnen",
       },
       errors: {
@@ -615,7 +609,7 @@ export const de = {
       printed: "Gedruckt",
       notYetPrinted: "noch nicht",
       supersededHeading: "Ersetzte Kartennummern",
-      supersededNone: "Diese Karte ist die erste des Haushalts und ersetzt keine frühere.",
+      supersededNone: "Keine früheren Karten.",
       // The reason belongs to the card named here — why *it* was handed over, not why it was
       // replaced — so it reads as a note on that line.
       supersededEntry: (
@@ -958,9 +952,7 @@ export const de = {
      */
     empty: {
       unfiltered: "Es ist noch niemand aufgenommen.",
-      filtered: (filters: string): string =>
-        `Kein Haushalt entspricht den gewählten Filtern (${filters}). Bitte die Suche oder die ` +
-        `Filter ändern.`,
+      filtered: (filters: string): string => `Kein Haushalt entspricht den Filtern (${filters}).`,
     },
   },
   /**
@@ -980,7 +972,7 @@ export const de = {
     listTitle: "Karten",
     // That a stale card turns nobody away is said where it could be got wrong — at the counter
     // ({@link distribution.counter.staleCard}), not in a caption over this list.
-    empty: "Zurzeit ist keine Karte neu auszustellen.",
+    empty: "Keine Karte neu auszustellen.",
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
     /** Why the card and the record differ — the two cases `StaleCardReason` names. */
@@ -1057,8 +1049,8 @@ export const de = {
     waitingCount: (count: number): string =>
       count === 0 ? "niemand wartet" : count === 1 ? "1 Wartende:r" : `${count} Wartende`,
     /** The list's own description, because it is the rule the list exists to keep. */
-    orderRule: "Wer am längsten wartet, steht oben. Die Liste lässt sich nicht umsortieren.",
-    empty: "Zurzeit steht niemand auf der Warteliste.",
+    orderRule: "Wer am längsten wartet, steht oben.",
+    empty: "Niemand auf der Warteliste.",
     position: "Platz",
     addedOn: "Angemeldet am",
     waited: "Wartet",
@@ -1072,8 +1064,8 @@ export const de = {
     },
     /** The badge on a row whose certificate lapsed while the applicant waited (FR-5). */
     certificateExpired: "Nachweis abgelaufen",
-    certificateExpiredHint:
-      "Der Platz auf der Liste bleibt bestehen. Vor der Aufnahme wird ein neuer Nachweis benötigt.",
+    /** Lower-case: it follows {@link certificateExpired} after a dash in the free-slot banner. */
+    certificateExpiredHint: "vor der Aufnahme wird ein neuer benötigt.",
     /**
      * The "a slot is free" banner — the feature's whole value (PRD §6). It names one applicant and
      * one number, because a banner that only said "es ist etwas frei" would leave the decision it
@@ -1126,16 +1118,14 @@ export const de = {
       heading: "Von der Warteliste aufnehmen",
       intro: (applicant: string, customerNumber: number): string =>
         `${applicant} steht am längsten auf der Warteliste und erhält die Kundennummer ` +
-        `${customerNumber}. Die Angaben von der Warteliste sind vorausgefüllt und lassen sich hier ` +
-        `noch ändern.`,
+        `${customerNumber}.`,
       /**
        * Shown *before* the form when the certificate lapsed during the wait — a step, not a dialog.
        * The applicant is never sent away: DF has not decided how such a case is handled (PRD §9).
        */
       expiredHeading: "Der Bedarfsnachweis ist abgelaufen",
       expiredDetail: (validUntil: string): string =>
-        `Der vorgelegte Nachweis galt bis zum ${validUntil}. Für die Aufnahme wird ein aktueller ` +
-        `Nachweis benötigt.`,
+        `Gültig bis ${validUntil}. Für die Aufnahme wird ein aktueller Nachweis benötigt.`,
       expiredContinue: "Verstanden, jetzt aufnehmen",
       backToList: "Zurück zur Warteliste",
     },
@@ -1317,9 +1307,7 @@ export const de = {
          * (US-35): it says what the table cannot, that these figures are today's rather than that
          * afternoon's.
          */
-        live:
-          "Diese Ausgabe wurde beendet, bevor der Stand festgehalten wurde — die Tabelle zeigt " +
-          "die Haushalte, wie sie heute im Register stehen.",
+        live: "Kein festgehaltener Stand — die Tabelle zeigt die Haushalte, wie sie heute sind.",
       },
     },
     /**
@@ -1366,7 +1354,7 @@ export const de = {
         archived: { headline: "Archiviert" },
         blocked: {
           headline: "Gesperrt",
-          noReason: "Es ist kein Grund hinterlegt. Bitte in der Kundenakte nachsehen.",
+          noReason: "Kein Grund hinterlegt.",
         },
         wrongGroup: { headline: "Falsche Gruppe" },
         outdatedCard: { headline: "Karte ungültig" },
