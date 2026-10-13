@@ -576,3 +576,23 @@ Most specs compare against `de.*`, so they follow the dictionary by themselves. 
 where a signature changed or a removed key was referenced; migrate it to the new `de.*` value, never
 to a German literal.
 
+
+## 2026-10-13 - US-001
+- The 13 success messages of PRD §US-42.1 now read the „New" column. `archive.saved` is a plain
+  string; `numberChange.saved` lost `from`; `reissue.saved` returns segments with the card number
+  bold (both call sites already render `Confirmation`, which takes segments — no markup change).
+- Since nothing reads `from` any more, `NumberChangeState`'s `from` field and the action line that
+  set it went too — a field carried only for a sentence that no longer exists.
+- Files: src/i18n/de.ts, src/app/kunden/[id]/{page.tsx,number-control.tsx,number-change-state.ts,
+  actions.ts}, src/app/ausgabe/page.tsx, tests/e2e/{archive,card-number,customer-record,
+  number-change,number-group,reissue,session-detail}.spec.ts
+- Both engines green (268 passed, 1 skipped each). Browser-checked on the demo register: block →
+  unblock, reissue on the record (6k2 bold) and on /karten-neuausstellung, number change, archive on
+  the record and in the counter footer, Karten drucken + Rückgängig, settings save.
+- **Learnings for future iterations:**
+  - `number-group.spec.ts` also calls `numberChange.saved` (as `words.saved`) — the PRD's list of
+    specs missed it; `grep -rn "words.saved"` finds it.
+  - `playwright-cli` must run from the repo root: started from `/tmp` it crashes on launch.
+  - The handout's „Kundennummer ändern" paragraph says the old card „darf an der Ausgabe nicht mehr
+    angenommen werden" in its own words — it is guidance, not a quote of `reissue.saved`, so it stays.
+---

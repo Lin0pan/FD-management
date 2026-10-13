@@ -389,17 +389,9 @@ test.describe("Die Nummer entscheidet die Gruppe", () => {
     await page.getByTestId("number-change-submit").click();
     await expect(page.getByTestId("number-change-error")).toHaveCount(0);
 
-    // The same three values afterwards, plus the slot that was freed — the one fact the revalidated
-    // record above cannot state, because every field on it now says 6.
+    // The same three values afterwards.
     await expect(page.getByTestId("number-change-saved")).toHaveText(
-      plain(
-        words.saved(
-          NUMBERS.mover,
-          NUMBERS.moveTo,
-          groupWord(NUMBERS.moveTo),
-          card(NUMBERS.moveTo, 2),
-        ),
-      ),
+      plain(words.saved(NUMBERS.moveTo, groupWord(NUMBERS.moveTo), card(NUMBERS.moveTo, 2))),
     );
 
     // Nothing was set to make this household BLUE: the badge, the card and the two sizes all read

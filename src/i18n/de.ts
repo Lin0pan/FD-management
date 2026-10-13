@@ -246,7 +246,7 @@ export const de = {
        * redirects. One sentence and only the fact: the button that prints the card is in the header,
        * a hand's width above this line.
        */
-      saved: "Kunde erfolgreich hinzugefügt.",
+      saved: "Kunde aufgenommen.",
       /**
        * The way out of a full register (US-12.4), beside the "alle Nummern sind vergeben" message,
        * which is otherwise a dead end.
@@ -471,8 +471,8 @@ export const de = {
        * swap places after the write, so a sentence about the click would sit next to a control
        * saying the opposite.
        */
-      blocked: "Der Kunde ist jetzt gesperrt und erhält an der Ausgabe nichts.",
-      unblocked: "Die Sperre ist aufgehoben. Der Kunde ist wieder bezugsberechtigt.",
+      blocked: "Kunde gesperrt.",
+      unblocked: "Sperre aufgehoben.",
       errors: {
         missingReason: "Bitte einen Grund für die Sperre angeben.",
         notBlockable: "Dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
@@ -498,12 +498,8 @@ export const de = {
         `Archivierung nicht.`,
       submit: "Jetzt archivieren",
       submitting: "Wird archiviert …",
-      /**
-       * The receipt, read above the standing banner. It says what the banner does not — that *this
-       * click* did it — and names the freed number, because somebody on the waiting list can have it.
-       */
-      saved: (customerNumber: number): string =>
-        `Der Haushalt ist archiviert. Die Kundennummer ${customerNumber} ist wieder frei.`,
+      /** The receipt above the standing banner: it says what the banner does not — *this click*. */
+      saved: "Haushalt archiviert.",
       /** The banner an archived record carries — the reason and the day, on every screen it shows on. */
       bannerHeading: "Archiviert",
       bannerDetail: (date: string, reason: string): string =>
@@ -789,26 +785,18 @@ export const de = {
       submit: "Kundennummer jetzt ändern",
       submitting: "Wird geändert …",
       /**
-       * The receipt: the confirmation's three values plus the slot that was freed. It names the old
-       * number because the record above now says the new one everywhere, and this is the only thing
-       * left saying which slot came free.
-       *
-       * The weight is on what is *acted on* — the slot, the week and the card number, which are what
-       * gets copied onto the card in the household's hand.
+       * The receipt: the confirmation's three values, with the weight on what is *acted on* — the
+       * slot, the week and the card number, which are what gets copied onto the card in the
+       * household's hand.
        */
-      saved: (
-        from: number,
-        to: number,
-        group: string,
-        cardNumber: string,
-      ): ReadonlyArray<Segment> => [
-        { text: `Kundennummer geändert ${from} → ` },
+      saved: (to: number, group: string, cardNumber: string): ReadonlyArray<Segment> => [
+        { text: "Neue Kundennummer " },
         { text: String(to), strong: true },
-        { text: "; Gruppe " },
+        { text: ", Gruppe " },
         { text: group, strong: true },
-        { text: "; neue Karte " },
+        { text: ", neue Karte " },
         { text: cardNumber, strong: true },
-        { text: " ausgestellt." },
+        { text: "." },
       ],
     },
     /**
@@ -829,11 +817,14 @@ export const de = {
       /**
        * The number again after the write — deliberately repeated from `confirm`, because this is a
        * receipt rather than a warning and on `/karten-neuausstellung` the row it was read from is
-       * gone by the time this is read.
+       * gone by the time this is read. Bold, as in {@link numberChange.saved}: it is copied onto
+       * the card.
        */
-      saved: (next: string): string =>
-        `Die neue Karte ${next} ist ausgestellt. Die alte Karte ist ungültig und darf an der ` +
-        `Ausgabe nicht mehr angenommen werden.`,
+      saved: (next: string): ReadonlyArray<Segment> => [
+        { text: "Neue Karte " },
+        { text: next, strong: true },
+        { text: " ist ausgestellt." },
+      ],
       errors: {
         archived:
           "Dieser Kunde ist archiviert und erhält keine neue Karte. Bitte die Seite neu laden.",
@@ -1025,7 +1016,7 @@ export const de = {
     /** Read after „Gedruckt“ by a screen reader only, so the button says which card it ticks off. */
     submitCard: (cardNumber: string): string => ` (Karte ${cardNumber})`,
     done: (cardNumber: string, name: string): string =>
-      `Karte ${cardNumber} von ${name} ist als gedruckt abgehakt.`,
+      `Karte ${cardNumber} (${name}) als gedruckt abgehakt.`,
     undo: "Rückgängig",
     undoing: "Wird zurückgenommen …",
     /** The opt-in on every card issued by hand (D2); unticked, the card lands on the list. */
@@ -1130,9 +1121,9 @@ export const de = {
       /**
        * Read on the list after the row is gone. **It names nobody**: a name here would have to travel
        * through the URL the removal redirects via, and a browser history is the one place DF's data
-       * must not end up. What is left to say is that the entry was kept.
+       * must not end up.
        */
-      saved: "Der Eintrag ist von der Warteliste genommen.",
+      saved: "Von der Warteliste genommen.",
     },
     /** Registering the applicant a freed slot belongs to. */
     promote: {
@@ -1503,7 +1494,7 @@ export const de = {
       },
       correct: {
         save: "Betrag speichern",
-        saved: "Eintrag aktualisiert.",
+        saved: "Betrag gespeichert.",
         remove: "Eintrag entfernen",
         /**
          * The one consequence of a removal that „entfernen“ does not already say: the balance returns
@@ -1514,7 +1505,7 @@ export const de = {
           `Diesen Eintrag wirklich entfernen? Der Saldo steht danach wieder bei: ` +
           `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
-        removed: "Eintrag entfernt. Der Haushalt kann erneut erfasst werden.",
+        removed: "Eintrag entfernt.",
       },
       errors: {
         notClearToServe: "Ausgabe nicht möglich. Bitte die Nummer erneut nachschlagen.",
@@ -1538,7 +1529,7 @@ export const de = {
       reminder: {
         submit: "Erinnerung erfassen",
         /** The chip the button turns into for the rest of the session (FR-5); the count beside it. */
-        logged: "Erinnerung erfasst",
+        logged: "Erinnerung erfasst.",
         errors: {
           alreadyLogged:
             "Für diesen Haushalt ist bei dieser Ausgabe bereits eine Erinnerung erfasst.",
@@ -1555,7 +1546,7 @@ export const de = {
         /** The side effect — the only part of this form the form itself does not show. */
         hint: "Erinnerungen werden dabei auf 0 zurückgesetzt.",
         submit: "Nachweis speichern",
-        saved: "Nachweis gespeichert. Erinnerungen zurückgesetzt: 0.",
+        saved: "Nachweis gespeichert.",
         errors: {
           validUntilInPast:
             "Das Datum „gültig bis“ liegt in der Vergangenheit. Bitte das Datum prüfen.",
@@ -1744,7 +1735,7 @@ export const de = {
     reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
     save: "Speichern",
     saving: "Wird gespeichert …",
-    saved: "Gespeichert. Die neuen Werte gelten ab sofort.",
+    saved: "Gespeichert.",
     /**
      * The version history, folded away and written as a diff: each superseded version states only
      * what moved. The labels are `fields` above, so a change is named in the same words as the

@@ -411,7 +411,6 @@ export async function changeCustomerNumberAction(
   revalidateCardsToPrint();
   return {
     status: "saved",
-    from: customer.customerNumber,
     to: card.customerNumber,
     cardNumber: formatCardNumber(card.customerNumber, card.index),
   };

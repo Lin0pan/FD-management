@@ -431,10 +431,8 @@ test.describe("Kundennummer eines Haushalts ändern", () => {
     // move and the card were one act rather than two.
     await expect(page.getByTestId("customer-number")).toHaveText(String(TARGET));
     await expect(page.getByTestId("card-number")).toHaveText(card(TARGET, 6));
-    // The receipt names the slot that was freed as well, which is the one fact the revalidated
-    // record above it cannot state: the row it was read from now says 223 everywhere.
     await expect(page.getByTestId("number-change-saved")).toHaveText(
-      plain(words.saved(START, TARGET, de.customers.groups[groupOf(TARGET)], card(TARGET, 6))),
+      plain(words.saved(TARGET, de.customers.groups[groupOf(TARGET)], card(TARGET, 6))),
     );
 
     // And the control comes back on the number just saved, with the vacated slot now among the

@@ -206,7 +206,7 @@ test.describe("Kartennummern werden nie doppelt vergeben", () => {
     await page.getByTestId("archive-reason").fill(ARCHIVE_REASON);
     await page.getByTestId("archive-submit").click();
 
-    await expect(page.getByTestId("archive-saved")).toHaveText(de.customers.archive.saved(SLOT));
+    await expect(page.getByTestId("archive-saved")).toHaveText(de.customers.archive.saved);
     await expect(page.getByTestId("customer-status")).toHaveText(de.customers.status.ARCHIVED);
 
     // The card itself is untouched by the archive: it is still on the record, and — this being the

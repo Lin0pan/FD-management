@@ -291,9 +291,7 @@ test.describe("Kunde archivieren", () => {
     // the browser is already on leaves the scroll where it was — measured, that left the archived
     // banner 356px *above* the viewport, stating the outcome to nobody.
     await expect(page).toHaveURL(new RegExp(`/kunden/${household.id}\\?archiviert=1$`));
-    await expect(page.getByTestId("archive-saved")).toHaveText(
-      de.customers.archive.saved(Number(household.customerNumber)),
-    );
+    await expect(page.getByTestId("archive-saved")).toHaveText(de.customers.archive.saved);
 
     // The action revalidates the record in place: the status flips and the banner takes the top of
     // the page, carrying the day and the reason.

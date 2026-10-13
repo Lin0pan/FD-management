@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Page } from "@playwright/test";
-import { de } from "@/i18n/de";
+import { de, plain } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { SHARED } from "./registers";
 import { releaseNumbers } from "./seeding";
@@ -197,7 +197,9 @@ async function reissue(page: Page, path: string, current: string, next: string):
   // the card; the reissue used to do the first and not the second, and a number changing further
   // down the page is something you have to go and check.
   await expect(page.getByTestId("card-number")).toHaveText(next);
-  await expect(page.getByTestId("reissue-saved")).toHaveText(de.customers.reissue.saved(next));
+  await expect(page.getByTestId("reissue-saved")).toHaveText(
+    plain(de.customers.reissue.saved(next)),
+  );
   await expect(page.getByTestId("reissue-error")).toHaveCount(0);
 }
 

@@ -22,7 +22,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Text only. Specs that call archive.saved / reissue.saved / numberChange.saved: archive, customer-record, card-number, reissue, cards-to-print, session-detail (grep tests/e2e)."
     },
     {

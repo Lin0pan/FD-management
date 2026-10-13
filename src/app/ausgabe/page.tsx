@@ -323,7 +323,7 @@ function slotAnswer({
   if (justArchived && customer !== null) {
     return (
       <Confirmation
-        text={de.customers.archive.saved(customer.customerNumber)}
+        text={de.customers.archive.saved}
         testId="archive-saved"
         className={SLOT_NOTICE}
       />

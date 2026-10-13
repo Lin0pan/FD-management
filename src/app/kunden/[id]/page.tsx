@@ -432,10 +432,7 @@ function CustomerRecord({
             asked is 2 200px below both, which is why the archive navigates rather than confirming in
             place (`archived-flag.ts`). */}
         {justArchived ? (
-          <Confirmation
-            text={de.customers.archive.saved(customer.customerNumber)}
-            testId="archive-saved"
-          />
+          <Confirmation text={de.customers.archive.saved} testId="archive-saved" />
         ) : null}
 
         {/* Who this household is, in a card of its own — the counter's customer card and the printed

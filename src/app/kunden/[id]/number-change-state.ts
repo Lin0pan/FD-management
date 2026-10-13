@@ -3,8 +3,8 @@
  * because a `"use server"` module may export nothing but async functions.
  *
  * A union of its own rather than the `RecordFormState` the five editors share: those report *that* a
- * save went through and let the revalidated record show the rest, where a move has to name three
- * figures — one of which, the slot just vacated, is nowhere on the revalidated page.
+ * save went through and let the revalidated record show the rest, where a move names the figures
+ * copied onto the card.
  */
 
 import type { NumberChoice } from "@/application/customers/list-number-choices";
@@ -14,11 +14,6 @@ export type NumberChangeState =
   | { readonly status: "idle" }
   | {
       readonly status: "saved";
-      /**
-       * The slot the household held before the move, carried rather than looked up afterwards: after
-       * the write that row says the *new* number, so the receipt is the last place it is named.
-       */
-      readonly from: number;
       /** The slot they hold now, as the register stored it — not as the form asked for it. */
       readonly to: number;
       /** The card the move printed, e.g. `23k6`, formatted from the row the store wrote. */
