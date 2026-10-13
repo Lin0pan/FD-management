@@ -346,20 +346,16 @@ export const de = {
     } as Record<string, string | undefined>,
     errors: {
       missingField: (field: string): string => `Bitte das Feld „${field}“ ausfüllen.`,
-      emptyHousehold:
-        "Der Haushalt hat kein Mitglied. Die aufgenommene Person zählt selbst dazu — bitte " +
-        "mindestens eine Zeile ausfüllen.",
+      emptyHousehold: "Der Haushalt ist leer. Bitte mindestens die aufgenommene Person eintragen.",
       /**
        * Names the person the household is missing rather than the rule it broke: the customer's row is
        * locked on the record, so a household without them predates the rule and has to be typed back.
        */
       customerNotInHousehold: (name: string): string =>
-        `${name} zählt selbst zum Haushalt und fehlt in der Liste. Bitte eine Zeile mit Namen ` +
-        `und Geburtsdatum ergänzen.`,
-      birthDateInFuture: "Ein Geburtsdatum liegt in der Zukunft. Bitte das Datum prüfen.",
+        `${name} fehlt in der Haushaltsliste. Bitte eine Zeile ergänzen.`,
+      birthDateInFuture: "Ein Geburtsdatum liegt in der Zukunft.",
       noFreeCustomerNumber: (quotaN: number): string =>
-        `Alle ${quotaN} Kundennummern sind vergeben. Bitte einen Haushalt archivieren oder die ` +
-        `Höchstzahl in den Einstellungen erhöhen. Es wurde nichts gespeichert.`,
+        `Alle ${quotaN} Kundennummern sind vergeben.`,
       /**
        * One sentence for both `CustomerNumberTaken` and `CustomerNumberOutOfRange` (US-24): staff act
        * the same on either — they pick another number. The two codes stay apart because the program
@@ -369,8 +365,7 @@ export const de = {
        * identically however often it is re-submitted.
        */
       customerNumberUnavailable: (customerNumber: number): string =>
-        `Die Kundennummer ${customerNumber} ist nicht mehr verfügbar. Bitte eine andere Nummer ` +
-        `wählen.`,
+        `Kundennummer ${customerNumber} ist nicht mehr frei. Bitte eine andere wählen.`,
       /**
        * Two answers, not one: a blank field and an unreadable one are different mistakes (ADR-013).
        * Both short — they sit under the field, beside a placeholder that already shows the format.
@@ -389,40 +384,32 @@ export const de = {
       /** The mark for a `gültig bis` that has already passed — {@link fieldRequired}'s register. */
       dateInPast: "Liegt in der Vergangenheit.",
       notesTooLong: (maxLength: number, length: number): string =>
-        `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
-        `möglich — bitte kürzen.`,
+        `Die Notiz ist zu lang (${length} Zeichen, höchstens ${maxLength}).`,
       /**
        * The number a household is moved to is the one they already hold (US-30) — refused, because it
        * would print a fresh card for a move that never happened.
        *
        * The control does not offer the step that produces this (the confirmation appears only once
-       * another number is picked), so it is read when the record was moved in a second tab — which is
-       * why it ends by asking for another number rather than for the same one again.
+       * another number is picked), so it is read when the record was moved in a second tab.
        */
       customerNumberUnchanged: (customerNumber: number): string =>
-        `Der Haushalt hat bereits die Kundennummer ${customerNumber}. Es wurde nichts geändert; ` +
-        `bitte eine andere Nummer wählen.`,
+        `Der Haushalt hat bereits die Kundennummer ${customerNumber}.`,
       /**
        * `cardNumberTaken` is the *slot's* run read stale (US-25): the number was printed on that slot
        * already, and a card number is never printed twice — so the answer is to reload, not retype,
        * which is why it is red in `notice-tier.ts`.
        *
-       * A *Nummer* is „vergeben“ and a *Karte* „ausgestellt“; a spent card number is both at once,
-       * and swapping the verbs makes staff read the sentence twice.
-       *
        * It takes the number **already formatted** — writing `50k3` is `formatCardNumber`'s job, and
        * this module owns no second spelling of it.
        */
       cardNumberTaken: (cardNumber: string): string =>
-        `Die Kartennummer ${cardNumber} ist bereits vergeben und wird kein zweites Mal ` +
-        `ausgestellt. Es wurde nichts gespeichert. Bitte die Seite neu laden.`,
+        `Kartennummer ${cardNumber} ist bereits vergeben. Bitte die Seite neu laden.`,
       /**
        * `cardIndexTaken` is the *record's* run read stale: the household was issued another card
        * while this one was being decided — a second tab, or the colleague at the next chair, since
-       * DF share one machine. So the answer is to read the record again, and the sentence points at
-       * the household rather than at a number. It does **not** guess which of the two happened:
-       * naming a second window would send somebody hunting through their own tabs for a card a
-       * colleague issued.
+       * DF share one machine. So the answer is to read the record again. It does **not** guess
+       * which of the two happened: naming a second window would send somebody hunting through their
+       * own tabs for a card a colleague issued.
        *
        * It names **no** card number, and deliberately so. The error carries a `customerId` and an
        * index — no slot — and the card that took the index may well have been printed under the
@@ -430,9 +417,7 @@ export const de = {
        * one from the slot in hand would quote a card that was never printed. A staff member sent to
        * look for it would be looking for nothing.
        */
-      cardIndexTaken:
-        "Für diesen Haushalt wurde inzwischen eine neue Karte ausgestellt. Es wurde nichts " +
-        "gespeichert. Bitte die Seite neu laden.",
+      cardIndexTaken: "Inzwischen wurde eine neue Karte ausgestellt. Bitte die Seite neu laden.",
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Dieser Kunde wurde nicht gefunden.",
     },
@@ -473,7 +458,7 @@ export const de = {
       blocked: "Kunde gesperrt.",
       unblocked: "Sperre aufgehoben.",
       errors: {
-        missingReason: "Bitte einen Grund für die Sperre angeben.",
+        missingReason: "Bitte einen Grund angeben.",
         notBlockable: "Dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
         notBlocked: "Dieser Kunde ist nicht gesperrt. Bitte die Seite neu laden.",
         unknown: "Die Änderung konnte nicht gespeichert werden.",
@@ -509,7 +494,7 @@ export const de = {
       bannerReadOnly:
         "Nicht mehr änderbar. Die Kundennummer kann inzwischen einem anderen Haushalt gehören.",
       errors: {
-        missingReason: "Bitte einen Grund für die Archivierung angeben.",
+        missingReason: "Bitte einen Grund angeben.",
         notArchivable: "Dieser Haushalt ist bereits archiviert. Bitte die Seite neu laden.",
         unknown: "Die Archivierung konnte nicht gespeichert werden.",
       },
@@ -540,7 +525,7 @@ export const de = {
       tooMany: (shown: number): string =>
         `Mehr als ${shown} Treffer. Bitte mit Vorname oder Geburtsdatum eingrenzen.`,
       /** The refusal when staff press Search with every field empty. */
-      noCriteria: "Bitte mindestens ein Feld ausfüllen: Nachname, Vorname oder Geburtsdatum.",
+      noCriteria: "Bitte Nachname, Vorname oder Geburtsdatum eingeben.",
       /** The labels on one result row — enough to tell two people of the same name apart. */
       result: {
         householdSize: (size: number): string =>
@@ -583,11 +568,8 @@ export const de = {
         clear: "Übernahme verwerfen und leer beginnen",
       },
       errors: {
-        notFound:
-          "Dieser archivierte Datensatz wurde nicht gefunden. Bitte die Suche erneut ausführen.",
-        notArchived:
-          "Dieser Haushalt ist nicht archiviert und kann nicht übernommen werden. Bitte die " +
-          "Seite neu laden.",
+        notFound: "Datensatz nicht gefunden. Bitte erneut suchen.",
+        notArchived: "Dieser Haushalt ist nicht archiviert. Bitte die Seite neu laden.",
         unknown: "Die Suche im Archiv ist fehlgeschlagen.",
         prefillFailed: "Die Daten konnten nicht übernommen werden.",
       },
@@ -727,9 +709,7 @@ export const de = {
       saved: "Gespeichert.",
       errors: {
         unknown: "Die Änderung konnte nicht gespeichert werden.",
-        archived:
-          "Dieser Haushalt ist archiviert; sein Datensatz kann nicht mehr geändert werden. Bitte " +
-          "die Seite neu laden.",
+        archived: "Dieser Haushalt ist archiviert. Bitte die Seite neu laden.",
       },
     },
     /**
@@ -818,8 +798,7 @@ export const de = {
         { text: " ist ausgestellt." },
       ],
       errors: {
-        archived:
-          "Dieser Kunde ist archiviert und erhält keine neue Karte. Bitte die Seite neu laden.",
+        archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
         unknown: "Die neue Karte konnte nicht ausgestellt werden.",
       },
     },
@@ -1012,8 +991,7 @@ export const de = {
     /** The opt-in on every card issued by hand (D2); unticked, the card lands on the list. */
     alreadyPrinted: "Karte ist bereits gedruckt",
     errors: {
-      superseded:
-        "Diese Karte ist inzwischen durch eine neue ersetzt worden. Bitte die Seite neu laden.",
+      superseded: "Diese Karte wurde inzwischen ersetzt. Bitte die Seite neu laden.",
       alreadyPrinted: "Diese Karte ist bereits als gedruckt abgehakt. Bitte die Seite neu laden.",
       notPrinted: "Diese Karte ist nicht als gedruckt abgehakt. Bitte die Seite neu laden.",
       archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
@@ -1131,12 +1109,11 @@ export const de = {
     },
     errors: {
       certificateExpired: (validUntil: string): string =>
-        `Der Bedarfsnachweis ist am ${validUntil} abgelaufen. Für die Warteliste wird — wie für ` +
-        `die Aufnahme — ein gültiger Nachweis benötigt.`,
+        `Der Bedarfsnachweis ist am ${validUntil} abgelaufen. Für die Warteliste ist ein ` +
+        `gültiger Nachweis nötig.`,
       missingReason: "Bitte einen Grund angeben.",
       notFound: "Dieser Eintrag steht nicht mehr auf der Warteliste. Bitte die Seite neu laden.",
-      noFreeCustomerNumber:
-        "Zurzeit ist keine Kundennummer frei. Es kann niemand von der Warteliste aufgenommen werden.",
+      noFreeCustomerNumber: "Zurzeit ist keine Kundennummer frei.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",
     },
   },
