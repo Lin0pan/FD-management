@@ -686,3 +686,19 @@ to a German literal.
   - A de.ts key that has to be written in terms of a key further *down* the literal needs a getter
     (`get x(): string { return de.….; }`); a function entry does it for free since it is called late.
 ---
+
+## 2026-10-13 - US-006
+- Deleted `customers.record.detailsHint` / `dangerHint` and their `<p>`s (details-editor.tsx,
+  kunden/[id]/page.tsx); `householdHint`, `waitingList.add.contactNoteHint`, `settings.reasonHint`
+  read the PRD's „New“ text; their doc comments follow. Styling guide §8: archive quote updated, the
+  two removed examples dropped with one line naming US-42's choice, and a bullet for the
+  „nichts gespeichert“ / „neu laden“ rules. Handout grep: nothing quotes a changed sentence.
+- Files: src/i18n/de.ts, src/app/kunden/[id]/details-editor.tsx, src/app/kunden/[id]/page.tsx,
+  docs/guideline/ui_styling_guide.md
+- Gates: lint, typecheck, coverage, build, arc42 check, both e2e engines green (WebKit
+  `age-13.spec.ts` reissue test failed once, passed alone and on a full re-run — flake, untouched).
+  playwright-cli on record 101, /warteliste, /einstellungen.
+- **Learnings for future iterations:**
+  - The demo register's ids are not stable across re-seeds without `--reset`; `/kunden/6` can be a
+    „nicht gefunden“. Take an id off the `/kunden` snapshot's `/url:` lines instead.
+---
