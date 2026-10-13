@@ -230,7 +230,7 @@ export function CertificateRow(props: CertificateRowProps): React.ReactElement {
         <RenewalForm customerId={props.customerId} certificateTypes={props.certificateTypes} />
       ) : (
         <>
-          <Fact label={de.distribution.certificate.heading} className="md:col-span-3">
+          <Fact label={de.distribution.certificate.heading} className="md:col-span-2">
             <span data-testid="counter-certificate-type" className={cn(VALUE, "break-words")}>
               {props.certificateType}
             </span>
@@ -252,7 +252,12 @@ export function CertificateRow(props: CertificateRowProps): React.ReactElement {
           </Fact>
         </>
       )}
-      <Fact label={de.distribution.counter.details.reminderCount} className="md:col-span-4">
+      {/* Five columns while closed, so both buttons stand side by side; the open renewal takes two of
+          them back, its free text needing the room more than the buttons need one line. */}
+      <Fact
+        label={de.distribution.counter.details.reminderCount}
+        className={open ? "md:col-span-3" : "md:col-span-5"}
+      >
         <span className="flex flex-wrap items-center gap-2">
           <span data-testid="counter-reminder-count" className={VALUE}>
             {props.reminderCount}
@@ -362,7 +367,7 @@ function RenewalForm({
       action={renew}
       aria-label={words.heading}
       data-testid="renewal-form"
-      className="flex flex-col gap-1.5 md:col-span-6"
+      className="flex flex-col gap-1.5 md:col-span-7"
     >
       <input type="hidden" name="customerId" value={customerId} />
       {/* Two lines on purpose, fields over buttons: a date's refusal widens its column, so wrapping
