@@ -627,21 +627,12 @@ export const de = {
      */
     record: {
       detailsHeading: "Person und Anschrift",
-      /**
-       * About the boxes above it and nothing else: a form that says where a *different* form lives is
-       * how a screen cross-references itself, and one that narrates its own effect describes what the
-       * next scroll already shows.
-       */
-      detailsHint: "Korrekturen an Name, Geburtsdatum und Anschrift.",
       detailsSubmit: "Person und Anschrift speichern",
       /**
        * The one thing saving a household does that this screen cannot show: the card in their hand
-       * still names the old counts. The only place on the record where a save leaves that to be done
-       * by hand.
+       * still names the old counts, and its reissue waits on another screen.
        */
-      householdHint:
-        "Ändert sich die Zahl der Köpfe, muss die Karte unter „Karten neu ausstellen“ neu " +
-        "ausgestellt werden.",
+      householdHint: "Ändert sich die Kopfzahl, erscheint die Karte unter „Karten neu ausstellen“.",
       householdSubmit: "Haushalt speichern",
       notesHeading: "Bemerkung",
       /** Where the note is read — the one thing about it this screen cannot show. */
@@ -713,8 +704,6 @@ export const de = {
        * irreversible action sits a stray click from the household editor (PRD §6).
        */
       dangerHeading: "Aktionen mit Folgen",
-      /** The one-way door is stated in {@link archive.confirm}, beside the button that opens it. */
-      dangerHint: "Diese Aktionen wirken sofort und werden einzeln bestätigt.",
       saving: "Wird gespeichert …",
       saved: "Gespeichert.",
       errors: {
@@ -1074,14 +1063,11 @@ export const de = {
       /**
        * The example does the work — it is what makes „Freitext“ mean more than an empty box. The
        * second sentence is a deliberate decision about DF's data, stated nowhere else on any screen.
-       *
-       * Phrased as what the software does rather than as an instruction: „Keine Telefonnummern und
-       * E-Mail-Adressen“ would put one „keine“ in front of two nouns and read as forbidding only the
-       * pair. „bewusst“ is the word that makes it a decision rather than an order.
+       * „oder“, not „und“: one „keine“ in front of „und“ would read as forbidding only the pair.
        */
       contactNoteHint:
-        "Freitext, z. B. „über die Nachbarin, dienstags vormittags“. Telefonnummern und " +
-        "E-Mail-Adressen werden bewusst nicht erfasst.",
+        "Freitext, z. B. „über die Nachbarin, dienstags vormittags“. Bitte keine Telefonnummern " +
+        "oder E-Mail-Adressen.",
       submit: "Auf die Warteliste setzen",
       submitting: "Wird gespeichert …",
       saved: (applicant: string): string => `${applicant} steht jetzt auf der Warteliste.`,
@@ -1693,7 +1679,7 @@ export const de = {
       },
     },
     reason: "Grund der Änderung (optional)",
-    reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
+    reasonHint: "Wird im Änderungsprotokoll festgehalten.",
     save: "Speichern",
     saving: "Wird gespeichert …",
     saved: "Gespeichert.",

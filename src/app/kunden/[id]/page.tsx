@@ -701,8 +701,6 @@ function CustomerRecord({
           way back out of ARCHIVED, they hold no slot and they are issued no card. */}
         {archived ? null : (
           <Section heading={words.dangerHeading}>
-            <p className="max-w-prose text-sm text-muted-foreground">{words.dangerHint}</p>
-
             {/* One card holds the section already, so the inner frame goes: it was one more bordered
               box on a screen whose only bordered things were 22 hairlines. The three `<h3>`s stay —
               they are what says which control is which. */}
