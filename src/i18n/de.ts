@@ -462,8 +462,7 @@ export const de = {
       submit: "Sperren",
       submitting: "Wird gesperrt …",
       unblock: "Sperre aufheben",
-      unblockConfirm: (reason: string): string =>
-        `Diese Sperre wird aufgehoben: „${reason}“. Der Kunde ist danach wieder bezugsberechtigt.`,
+      unblockConfirm: (reason: string): string => `Sperre wird aufgehoben: „${reason}“.`,
       unblockSubmit: "Sperre jetzt aufheben",
       unblocking: "Wird aufgehoben …",
       /**
@@ -494,8 +493,7 @@ export const de = {
       compactAction: "Archivieren",
       reasonLabel: "Grund der Archivierung",
       confirm: (customerNumber: number): string =>
-        `Die Kundennummer ${customerNumber} wird frei. Rückgängig machen lässt sich die ` +
-        `Archivierung nicht.`,
+        `Kundennummer ${customerNumber} wird frei. Rückgängig machen nicht möglich.`,
       submit: "Jetzt archivieren",
       submitting: "Wird archiviert …",
       /** The receipt above the standing banner: it says what the banner does not — *this click*. */
@@ -1111,9 +1109,7 @@ export const de = {
     /** Taking somebody off the list before they were ever registered (FR-6). */
     remove: {
       action: "Von der Warteliste nehmen",
-      confirm: (applicant: string): string =>
-        `${applicant} wird von der Warteliste genommen. Der Eintrag bleibt mit dem Grund ` +
-        `erhalten, damit die Reihenfolge nachvollziehbar bleibt.`,
+      confirm: (applicant: string): string => `${applicant} wird von der Warteliste genommen.`,
       reasonLabel: "Grund",
       reasonHint: "Zum Beispiel: zurückgezogen, umgezogen, nicht mehr erreichbar.",
       submit: "Von der Warteliste nehmen",
@@ -1207,12 +1203,11 @@ export const de = {
           unknown: "Die Ausgabe konnte nicht gestartet werden. Bitte erneut versuchen.",
         },
       },
-      /** Ending is the freeze (FR-14), so the confirmation names the window that closes with it. */
+      /** Ending is the freeze (FR-14); the confirmation names the afternoon's totals that it fixes. */
       end: {
         open: "Ausgabe beenden",
         confirm: (households: number, totalPaidCents: number): string =>
-          `${servedAndTook(households, totalPaidCents)}. ` +
-          `Nach dem Beenden sind die Einträge nicht mehr korrigierbar.`,
+          `${servedAndTook(households, totalPaidCents)}.`,
         submit: "Ja, Ausgabe beenden",
         submitting: "Wird beendet …",
         errors: {
@@ -1220,13 +1215,10 @@ export const de = {
           unknown: "Die Ausgabe konnte nicht beendet werden. Bitte erneut versuchen.",
         },
       },
-      /**
-       * Throwing away a session started by mistake. The confirmation states the one thing the screen
-       * cannot show: nothing is written down about it (FR-7).
-       */
+      /** Throwing away a session started by mistake; nothing is written down about it (FR-7). */
       discard: {
         open: "Ausgabe verwerfen",
-        confirm: "Diese Ausgabe wird verworfen. Es wird nichts darüber festgehalten.",
+        confirm: "Diese Ausgabe wird verworfen.",
         submit: "Ja, verwerfen",
         submitting: "Wird verworfen …",
         errors: {
@@ -1502,7 +1494,7 @@ export const de = {
          * removal moves invisibly.
          */
         removeConfirm: (balanceWithoutRecordCents: number): string =>
-          `Diesen Eintrag wirklich entfernen? Der Saldo steht danach wieder bei: ` +
+          `Eintrag entfernen? Saldo danach: ` +
           `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
         removed: "Eintrag entfernt.",
