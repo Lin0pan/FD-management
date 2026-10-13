@@ -439,7 +439,7 @@ export default async function DistributionPage({
               <ServeFormProvider key={lookup?.customerId ?? ""} mode={mode}>
                 <section
                   aria-label={de.distribution.counter.mask.label}
-                  className="flex flex-col gap-[18px] rounded-xl bg-card px-6 py-5 text-card-foreground ring-1 ring-foreground/10"
+                  className="flex flex-col gap-3 rounded-[14px] border bg-card px-6 py-4 text-card-foreground shadow-[0_1px_2px_rgb(24_24_27/0.06)]"
                 >
                   {/* Row 1: look up, book, and the answer — the button beside the field it follows
                     (US-41.4). The lookup form ends before the button, which joins the serve form by
@@ -451,7 +451,10 @@ export default async function DistributionPage({
                     <div className="flex flex-wrap items-end gap-3">
                       <form method="get" className="flex flex-wrap items-end gap-3">
                         <div className="flex flex-col gap-1.5">
-                          <label htmlFor="counter-input" className="text-sm font-medium">
+                          <label
+                            htmlFor="counter-input"
+                            className="text-[15px] leading-5 font-semibold"
+                          >
                             {de.distribution.counter.label}
                           </label>
                           <NumberField />

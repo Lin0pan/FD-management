@@ -141,7 +141,7 @@ export function VerdictChip({
 }
 
 /** The mask's tile: a `Stat` at the size the row of six has room for (US-41.5). */
-const TILE = "gap-0.5 rounded-lg bg-muted/60 px-3 py-1.5";
+const TILE = "min-w-0 gap-0.5 px-3 py-1.5";
 const TILE_VALUE = "text-2xl";
 
 /** A label over a figure at the name's size — the two things the counter reads out and compares. */
@@ -196,7 +196,7 @@ export function HouseholdRows({
   const kind = balanceKind(customer.balanceCents);
 
   return (
-    <div data-testid="counter-customer" className="flex flex-col gap-[18px]">
+    <div data-testid="counter-customer" className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 border-t pt-4 md:grid-cols-12">
           <Headline label={words.name} className="md:col-span-6">
@@ -251,66 +251,59 @@ export function HouseholdRows({
           </p>
         )}
       </div>
-      <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-12">
-        <div className="flex gap-3 md:col-span-3">
-          <Stat
-            label={words.grownUps}
-            value={String(customer.grownUps)}
-            testId="counter-grown-ups"
-            className={cn(TILE, "w-24")}
-            valueClassName={TILE_VALUE}
-          />
-          <Stat
-            label={words.children}
-            value={String(customer.children)}
-            testId="counter-children"
-            className={cn(TILE, "w-24")}
-            valueClassName={TILE_VALUE}
-          />
-        </div>
+      {/* Six tiles of one width, the row the Kontrast-Theme draws (US-41.5). */}
+      <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-6">
+        <Stat
+          label={words.grownUps}
+          value={String(customer.grownUps)}
+          testId="counter-grown-ups"
+          className={TILE}
+          valueClassName={TILE_VALUE}
+        />
+        <Stat
+          label={words.children}
+          value={String(customer.children)}
+          testId="counter-children"
+          className={TILE}
+          valueClassName={TILE_VALUE}
+        />
         {/* A household entitled to none reads 0 rather than nothing: the counter has to see that the
             question was answered (US-27). */}
-        <div className="flex md:col-span-3">
-          <Stat
-            label={de.customers.derived.eggs}
-            value={String(customer.eggs)}
-            testId="counter-eggs"
-            className={cn(TILE, "w-24")}
-            valueClassName={TILE_VALUE}
+        <Stat
+          label={de.customers.derived.eggs}
+          value={String(customer.eggs)}
+          testId="counter-eggs"
+          className={TILE}
+          valueClassName={TILE_VALUE}
+        />
+        <PaidTile />
+        {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
+            (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
+        <Stat
+          label={de.customers.derived.balance}
+          value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
+          testId="counter-balance"
+          className={cn(TILE, BALANCE_STYLES[kind])}
+          valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
+        />
+        {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
+          <p
+            data-testid="campaign-reminder-none"
+            className="flex items-center self-stretch rounded-[10px] border px-3 text-sm text-muted-foreground"
+          >
+            {words.noCampaignReminder}
+          </p>
+        ) : (
+          // Keyed by customer: the optimistic tick must not survive into the next household.
+          <CampaignReminderField
+            key={`campaign-${customerId}`}
+            reminderId={campaignReminder.reminderId}
+            customerId={customerId}
+            name={campaignReminder.name}
+            received={campaignReminder.received}
+            tile
           />
-        </div>
-        <div className="flex flex-wrap items-start justify-between gap-3 md:col-span-6">
-          <div className="flex flex-wrap items-start gap-3">
-            <PaidTile />
-            {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
-                (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
-            <Stat
-              label={de.customers.derived.balance}
-              value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
-              testId="counter-balance"
-              className={cn(TILE, "w-[164px]", BALANCE_STYLES[kind])}
-              valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
-            />
-          </div>
-          {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
-            <p
-              data-testid="campaign-reminder-none"
-              className="flex w-40 items-center self-stretch rounded-lg border px-3 text-sm text-muted-foreground"
-            >
-              {words.noCampaignReminder}
-            </p>
-          ) : (
-            // Keyed by customer: the optimistic tick must not survive into the next household.
-            <CampaignReminderField
-              key={`campaign-${customerId}`}
-              reminderId={campaignReminder.reminderId}
-              customerId={customerId}
-              name={campaignReminder.name}
-              received={campaignReminder.received}
-              tile
-            />
-          )}
-        </div>
+        )}
       </div>
       <CertificateRow
         customerId={customerId}

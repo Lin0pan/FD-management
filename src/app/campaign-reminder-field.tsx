@@ -86,14 +86,14 @@ export function CampaignReminderField({
 
   if (tile) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2">
         <form
           action={save}
           data-testid="campaign-reminder"
           className={cn(
-            "flex w-40 flex-col gap-1 rounded-lg px-3 py-1.5",
-            // One pixel less padding where the border takes one, so the tile ends on the tiles' edge.
-            shown ? "bg-muted/60" : cn("border py-[5px]", CAMPAIGN_OUTSTANDING_ACCENT),
+            "flex flex-col gap-1 rounded-[10px] border px-3 py-1.5",
+            // The border every tile wears, so the tiles end on one edge.
+            shown ? "border-zinc-200 bg-muted" : CAMPAIGN_OUTSTANDING_ACCENT,
           )}
         >
           {hidden}
@@ -107,7 +107,7 @@ export function CampaignReminderField({
           </label>
           {/* The figures beside it are `text-2xl`; this row is their line height, so the tiles end
               on one edge. */}
-          <span className="flex h-10 items-center">{box}</span>
+          <span className="flex h-8 items-center">{box}</span>
         </form>
         {error}
       </div>

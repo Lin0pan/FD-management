@@ -56,21 +56,20 @@ export function CustomerCells({
       <TableCell data-testid="customer-row-number" className="text-right tabular-nums">
         {row.customerNumber}
       </TableCell>
-      {/* `min-w-64` and not `min-w-56`: when a column was dropped from this table (US-27), the
-          width it paid back came here rather than being spread evenly over the rest. This is the
-          column staff scan, and the only one holding text long enough to need a ceiling as well as
-          a floor — the same `64`, so the column is a fixed width and the table cannot be widened by
+      {/* `min-w-48`: the widest this column can be while nine columns at the theme's cell size
+          still fit a 1100px window (`tests/e2e/layout.ts`). This is the column staff scan, and the only one holding text long enough to need a ceiling as well as
+          a floor — the same `48`, so the column is a fixed width and the table cannot be widened by
           what a household happens to be called (`docs/guideline/ui_styling_guide.md` §3). The cap is
           on the link rather than the cell: in an auto-layout table it is the inner box's max-width
           that clamps the column's min-content contribution. */}
-      <TableCell className="min-w-64">
+      <TableCell className="min-w-48">
         {/* Underlined on hover rather than always: 240 permanent underlines is 240 pieces of noise,
             and the whole row lights up under the cursor anyway. */}
         <Link
           href={link.href}
           data-testid={link.testId}
           title={`${row.lastName}, ${row.firstName}`}
-          className="block max-w-64 truncate font-medium underline-offset-4 hover:underline"
+          className="block max-w-48 truncate font-semibold underline-offset-4 hover:underline"
         >
           {row.lastName}, {row.firstName}
         </Link>

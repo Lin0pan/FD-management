@@ -273,7 +273,7 @@ function History({
         containerClassName="max-h-[60vh] overflow-y-auto print:max-h-none print:overflow-visible"
         containerProps={{ tabIndex: 0, role: "region", "aria-label": words.historyRegionLabel }}
       >
-        {/* `top-0`, not the `top-12` /kunden uses: there the scrollport is the window and the sticky
+        {/* `top-0`, not the `top-[52px]` /kunden uses: there the scrollport is the window and the sticky
             nav has to be cleared, here it is the container above and there is nothing to clear.
             `bg-card` and opaque, or the rows read through the header. */}
         <TableHeader className="sticky top-0 z-10 bg-card">

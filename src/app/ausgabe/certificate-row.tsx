@@ -365,15 +365,16 @@ function RenewalForm({
       className="flex flex-col gap-1.5 md:col-span-6"
     >
       <input type="hidden" name="customerId" value={customerId} />
-      {/* Two lines on purpose: at 1440 px the four controls overrun six columns by a few pixels, and a
-          date's refusal widens its column — wrapping would decide the layout per state. The hint
-          rides beside the date: a third line pushes `Z1` with „Sonstiges“ open past 800 px (FR-9).
-          `items-start`, so a mark rides under its own field rather than pushing the row apart. */}
+      {/* Two lines on purpose, fields over buttons: a date's refusal widens its column, so wrapping
+          would decide the layout per state. „Sonstiges“ opens beside the select and the hint rides
+          beside the buttons, because a third line pushes `Z1` past 800 px (FR-9). `items-start`, so
+          a mark rides under its own field rather than pushing the row apart. */}
       <div className="flex items-start gap-3">
         <CertificateTypeField
           types={certificateTypes}
           id="renewal-type"
-          className="w-52"
+          inline
+          className="min-w-0 flex-1"
           typeProblem={typeProblem}
           otherProblem={otherProblem}
           errorTestId="counter-field-error"
@@ -404,15 +405,21 @@ function RenewalForm({
             />
           )}
         </div>
-        <p className="mt-5 min-w-0 flex-1 text-sm text-muted-foreground">{words.hint}</p>
       </div>
-      <div className="mt-1 flex gap-2">
-        <Button type="submit" disabled={renewing} data-testid="renewal-save">
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" disabled={renewing} data-testid="renewal-save">
           {words.submit}
         </Button>
-        <Button type="button" variant="ghost" onClick={toggleRenewal} data-testid="renewal-cancel">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={toggleRenewal}
+          data-testid="renewal-cancel"
+        >
           {words.cancel}
         </Button>
+        <p className="ml-2 min-w-0 flex-1 text-sm leading-5 text-muted-foreground">{words.hint}</p>
       </div>
     </form>
   );

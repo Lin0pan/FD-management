@@ -240,10 +240,10 @@ export function PaidTile(): React.ReactElement | null {
   return (
     // The message under a refused amount runs on under „Saldo“ rather than widening the tile, which
     // would wrap the row.
-    <div className="flex w-40 flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       <div
         className={cn(
-          "flex w-40 flex-col gap-0.5 rounded-lg bg-background px-3 py-1.5 ring-1 ring-input focus-within:ring-2 focus-within:ring-ring",
+          "flex flex-col gap-0.5 rounded-[10px] border border-input bg-card px-3 py-1.5 focus-within:ring-2 focus-within:ring-ring",
           problem !== null && "ring-2 ring-destructive focus-within:ring-destructive",
           refused && "opacity-50",
         )}

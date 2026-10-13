@@ -13,8 +13,9 @@ import { createContext, useContext, useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ControlToggle } from "./disclosure";
 
-/** The footer's red text, which a ghost button's hover would otherwise turn back to the foreground. */
-export const FOOTER_RED = "text-red-700 hover:text-red-700 aria-expanded:text-red-700";
+/** The footer's red outline, which a ghost button's hover would otherwise turn back to the foreground. */
+export const FOOTER_RED =
+  "border-red-300 bg-card text-red-700 shadow-xs hover:bg-red-50 hover:text-red-700 aria-expanded:bg-red-50 aria-expanded:text-red-700";
 
 interface FoldRowContext {
   readonly open: string | null;

@@ -362,14 +362,14 @@ function Overview({
  * nine columns need about 1000px, which a `lg` content box does not have.
  *
  * **The stickiness carries the same `xl:` as the overflow, and has to.** A sticky offset is measured
- * from the scrollport, and which element that is changes at this breakpoint. `top-12` against a
- * container whose scroll top is 0 pushes the header 48px *down*, opaque, exactly over the first row —
+ * from the scrollport, and which element that is changes at this breakpoint. `top-[52px]` against a
+ * container whose scroll top is 0 pushes the header 52px *down*, opaque, exactly over the first row —
  * which reads as a customer missing from the register, and flips on a resize or a zoom step.
  */
 function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactElement {
   return (
     <Table data-testid="customer-table" containerClassName="overflow-x-auto xl:overflow-x-visible">
-      <TableHeader className="z-10 bg-card xl:sticky xl:top-12">
+      <TableHeader className="z-10 bg-card xl:sticky xl:top-[52px]">
         <TableRow className="hover:bg-transparent">
           <CustomerHeads />
         </TableRow>

@@ -143,13 +143,14 @@ export function RunningSessionControls({
           {/* A shortcut to the afternoons already held, whose home is Übersichten (US-38.3), named
               as that screen names itself. Borderless: it navigates, and it must not read as a third
               thing to do to the afternoon under way. */}
-          <Button variant="ghost" asChild>
+          <Button variant="ghost" size="sm" asChild>
             <Link href="/ausgabetermine" data-testid="session-past-link">
               {de.distribution.pastSessions.heading}
             </Link>
           </Button>
           <ControlToggle
             testId="session-end-open"
+            className="h-9 px-3 text-sm"
             controls={endId}
             expanded={open === "end"}
             onToggle={() => toggle("end")}
@@ -159,6 +160,7 @@ export function RunningSessionControls({
           {canDiscard ? (
             <ControlToggle
               testId="session-discard-open"
+              className="h-9 px-3 text-sm"
               controls={discardId}
               expanded={open === "discard"}
               onToggle={() => toggle("discard")}
