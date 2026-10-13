@@ -303,10 +303,13 @@ function Overview({
           <h2>{de.customerList.overviewTitle}</h2>
         </CardTitle>
         <CardAction data-testid="customer-actions" className="flex flex-wrap items-center gap-1">
-          <Button variant="ghost" size="lg" asChild>
+          {/* The word underlined, not the badge: a link's underline reaches every flex item in it. */}
+          <Button variant="ghost" className="[a&]:no-underline" asChild>
             <Link href="/warteliste" data-testid="hub-waiting-list">
               <Users aria-hidden="true" data-icon="inline-start" />
-              {de.customerList.actions.waitingList}
+              <span className="underline underline-offset-4">
+                {de.customerList.actions.waitingList}
+              </span>
               {/* The state is on the element as data, not only in its colour, so a spec asserts what
                   the badge means rather than what shade it happens to be painted. */}
               <Badge
@@ -319,12 +322,14 @@ function Overview({
               </Badge>
             </Link>
           </Button>
-          <Button variant="ghost" size="lg" asChild>
+          <Button variant="ghost" className="[a&]:no-underline" asChild>
             <Link href="/karten-neuausstellung" data-testid="hub-cards-due">
               {/* The card glyph the reissue controls wear, so the hub link and the action it
                   leads to read as one thing across three screens. */}
               <IdCard aria-hidden="true" data-icon="inline-start" />
-              {de.customerList.actions.cardsDue}
+              <span className="underline underline-offset-4">
+                {de.customerList.actions.cardsDue}
+              </span>
               <Badge variant="secondary" data-testid="cards-due-badge">
                 {de.customerList.actions.cardsDueBadge(cardsDue)}
               </Badge>

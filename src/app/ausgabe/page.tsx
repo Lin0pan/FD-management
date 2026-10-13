@@ -459,7 +459,11 @@ export default async function DistributionPage({
                           </label>
                           <NumberField />
                         </div>
-                        <Button type="submit" variant="outline" size="lg">
+                        <Button
+                          type="submit"
+                          variant="outline"
+                          className="h-14 rounded-xl px-6 text-lg"
+                        >
                           <Search aria-hidden="true" data-icon="inline-start" />
                           {de.distribution.counter.submit}
                         </Button>
