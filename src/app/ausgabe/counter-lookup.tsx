@@ -251,8 +251,8 @@ export function HouseholdRows({
           </p>
         )}
       </div>
-      {/* Six tiles of one width, the row the Kontrast-Theme draws (US-41.5). */}
-      <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-6">
+      {/* Six tiles in one row (US-41.5); „Gezahlt" a quarter wider, its label carrying the price. */}
+      <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.25fr)_repeat(2,minmax(0,1fr))]">
         <Stat
           label={words.grownUps}
           value={String(customer.grownUps)}

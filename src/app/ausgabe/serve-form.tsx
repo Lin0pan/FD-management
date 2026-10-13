@@ -259,7 +259,7 @@ export function PaidTile(): React.ReactElement | null {
             <span
               id={askedId}
               data-testid={mode.kind === "correct" ? "correct-asked" : "counter-amount-to-pay"}
-              className="text-muted-foreground tabular-nums"
+              className="whitespace-nowrap text-muted-foreground tabular-nums"
             >
               {words.asked(opening.askedCents)}
             </span>
