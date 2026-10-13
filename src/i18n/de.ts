@@ -23,6 +23,16 @@ function eggCount(eggs: number): string {
   return eggs === 1 ? "1 Ei" : `${eggs} Eier`;
 }
 
+/** „Ab 3 Personen“ — {@link fromPersons} opening a sentence. */
+function capitalised(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Three „zu lang“ refusals, one shape: „Die Notiz ist zu lang (512 Zeichen, höchstens 500).“ */
+function tooLong(subject: string, length: number, maxLength: number): string {
+  return `${subject} ist zu lang (${length} Zeichen, höchstens ${maxLength}).`;
+}
+
 /** One row of the egg rule: „ab 3 Personen: 6 Eier“ (US-28) — the clause four entries share. */
 function eggRow(minPersons: number, eggs: number): string {
   return `${fromPersons(minPersons)}: ${eggCount(eggs)}`;
@@ -384,7 +394,7 @@ export const de = {
       /** The mark for a `gültig bis` that has already passed — {@link fieldRequired}'s register. */
       dateInPast: "Liegt in der Vergangenheit.",
       notesTooLong: (maxLength: number, length: number): string =>
-        `Die Notiz ist zu lang (${length} Zeichen, höchstens ${maxLength}).`,
+        tooLong("Die Notiz", length, maxLength),
       /**
        * The number a household is moved to is the one they already hold (US-30) — refused, because it
        * would print a fresh card for a move that never happened.
@@ -1167,7 +1177,7 @@ export const de = {
         errors: {
           alreadyRunning: "Es läuft bereits eine Ausgabe. Bitte die Seite neu laden.",
           noGroup: "Bitte eine Gruppe auswählen.",
-          unknown: "Die Ausgabe konnte nicht gestartet werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht gestartet werden.",
         },
       },
       /** Ending is the freeze (FR-14); the confirmation names the afternoon's totals that it fixes. */
@@ -1179,7 +1189,7 @@ export const de = {
         submitting: "Wird beendet …",
         errors: {
           notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
-          unknown: "Die Ausgabe konnte nicht beendet werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht beendet werden.",
         },
       },
       /** Throwing away a session started by mistake; nothing is written down about it (FR-7). */
@@ -1191,7 +1201,7 @@ export const de = {
         errors: {
           notEmpty: "An dieser Ausgabe wurde bereits etwas erfasst. Bitte sie stattdessen beenden.",
           notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
-          unknown: "Die Ausgabe konnte nicht verworfen werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht verworfen werden.",
         },
       },
       /**
@@ -1233,7 +1243,7 @@ export const de = {
         errors: {
           missingReason: "Bitte einen Grund angeben.",
           notReopenable: "Diese Ausgabe lässt sich nicht mehr öffnen. Bitte die Seite neu laden.",
-          unknown: "Die Ausgabe konnte nicht geöffnet werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht geöffnet werden.",
         },
       },
     },
@@ -1379,9 +1389,7 @@ export const de = {
        */
       recordLink: "Zur Kundenübersicht",
       errors: {
-        notANumber:
-          "Das ist keine Kundennummer und keine Kartennummer. Erwartet werden zum Beispiel 50 " +
-          "oder 50k3.",
+        notANumber: "Keine Kunden- oder Kartennummer. Beispiel: 50 oder 50k3.",
       },
     },
     /**
@@ -1466,13 +1474,13 @@ export const de = {
       },
       errors: {
         notClearToServe: "Ausgabe nicht möglich. Bitte die Nummer erneut nachschlagen.",
-        alreadyServed: "Dieser Haushalt hat bei dieser Ausgabe bereits etwas erhalten.",
+        alreadyServed: "Dieser Haushalt hat bereits etwas erhalten.",
         noLongerCorrectable:
           "Diese Ausgabe ist beendet. Der Eintrag kann nicht mehr geändert werden.",
         notFound: "Der Eintrag wurde nicht gefunden. Bitte die Seite neu laden.",
         /** The field takes euros as DF write them — `4`, `4,00` and `4.00` all read the same. */
-        notAnAmount: "Kein gültiger Betrag. Bitte so eingeben: 4,00",
-        unknown: "Die Ausgabe konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        notAnAmount: "Kein gültiger Betrag, z. B. 4,00.",
+        unknown: "Die Ausgabe konnte nicht gespeichert werden.",
       },
     },
     /**
@@ -1488,10 +1496,9 @@ export const de = {
         /** The chip the button turns into for the rest of the session (FR-5); the count beside it. */
         logged: "Erinnerung erfasst.",
         errors: {
-          alreadyLogged:
-            "Für diesen Haushalt ist bei dieser Ausgabe bereits eine Erinnerung erfasst.",
-          stillValid: "Der Bedarfsnachweis ist noch gültig. Es gibt nichts zu erinnern.",
-          unknown: "Die Erinnerung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+          alreadyLogged: "Die Erinnerung ist bereits erfasst.",
+          stillValid: "Der Nachweis ist noch gültig.",
+          unknown: "Die Erinnerung konnte nicht gespeichert werden.",
         },
       },
       renewal: {
@@ -1505,19 +1512,21 @@ export const de = {
         submit: "Nachweis speichern",
         saved: "Nachweis gespeichert.",
         errors: {
-          validUntilInPast:
-            "Das Datum „gültig bis“ liegt in der Vergangenheit. Bitte das Datum prüfen.",
+          validUntilInPast: "„Gültig bis“ liegt in der Vergangenheit.",
           dateMissing: "Datum fehlt.",
           notADate: "Kein gültiges Datum.",
-          unknown: "Der Nachweis konnte nicht gespeichert werden. Bitte erneut versuchen.",
+          unknown: "Der Nachweis konnte nicht gespeichert werden.",
         },
       },
     },
-    /** Reachable from the counter alone: the lookup prices a household and there are no settings. */
+    /**
+     * Reachable from the counter alone: the lookup prices a household and there are no settings.
+     * The settings screen's sentence, not a second wording of one fact (`ui_styling_guide.md` §8).
+     */
     errors: {
-      noSettings:
-        "Für dieses Datum sind keine Einstellungen hinterlegt. Bitte die Grundeinstellungen " +
-        "einspielen.",
+      get noSettings(): string {
+        return de.settings.errors.noSettings;
+      },
     },
   },
   settings: {
@@ -1574,17 +1583,15 @@ export const de = {
        * thresholds itself — with no mark, that is the only way the rows are findable.
        */
       duplicateThreshold: (minPersons: number): string =>
-        `Es gibt zwei Zeilen ${fromPersons(minPersons)}. Jede Stufe darf nur einmal vorkommen. ` +
-        `Es wurde nichts gespeichert.`,
+        `Die Stufe ${fromPersons(minPersons)} steht doppelt.`,
       eggsNotIncreasing: (
         minPersons: number,
         eggs: number,
         lowerMinPersons: number,
         lowerEggs: number,
       ): string =>
-        `Die Zeile ${fromPersons(minPersons)} gibt ${eggCount(eggs)} und damit nicht mehr als die ` +
-        `${eggCount(lowerEggs)} ${fromPersons(lowerMinPersons)}. Größere Haushalte müssen mehr ` +
-        `Eier erhalten als kleinere. Es wurde nichts gespeichert.`,
+        `${capitalised(fromPersons(minPersons))}: ${eggCount(eggs)} — das muss mehr sein als die ` +
+        `${eggCount(lowerEggs)} ${fromPersons(lowerMinPersons)}.`,
       /**
        * One row as it stands: „ab 3 Personen: 6 Eier“. The three phrasings below are this clause plus
        * what became of the row, so a rule and a change to it name a row in the same words.
@@ -1653,11 +1660,9 @@ export const de = {
       saving: "Arten werden gespeichert …",
       saved: "Gespeichert.",
       errors: {
-        duplicate: (label: string): string =>
-          `„${label}“ steht bereits in der Liste. Es wurde nichts gespeichert.`,
+        duplicate: (label: string): string => `„${label}“ steht bereits in der Liste.`,
         tooLong: (length: number, maxLength: number): string =>
-          `Die Art ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
-          `möglich. Es wurde nichts gespeichert.`,
+          tooLong("Die Art", length, maxLength),
         unknown: "Die Änderung konnte nicht gespeichert werden.",
       },
     },
@@ -1681,8 +1686,7 @@ export const de = {
       ending: "Wird gelöscht …",
       errors: {
         tooLong: (length: number, maxLength: number): string =>
-          `Der Name ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
-          `möglich.`,
+          tooLong("Der Name", length, maxLength),
         alreadyActive: "Es gibt bereits eine Erinnerung. Bitte die Seite neu laden.",
         notActive: "Diese Erinnerung gibt es nicht mehr. Bitte die Seite neu laden.",
         unknown: "Die Erinnerung konnte nicht geändert werden.",
@@ -1743,8 +1747,7 @@ export const de = {
         "Es sind noch keine Einstellungen hinterlegt. Bitte die Grundeinstellungen einspielen.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",
       quotaBelowActiveCustomers: (quotaN: number, activeCustomers: number): string =>
-        `Die Höchstzahl ${quotaN} liegt unter den derzeit ${activeCustomers} aktiven Kunden. ` +
-        `Es wurde nichts gespeichert.`,
+        `Die Höchstzahl ${quotaN} liegt unter den ${activeCustomers} aktiven Kunden.`,
       invalidSettings: (field: string): string => `Ungültiger Wert im Feld „${field}“.`,
       invalidAmount: (text: string): string => `„${text}“ ist kein Betrag wie 2,50.`,
       /**
@@ -1813,7 +1816,7 @@ const EGG_RULE_FIELD = /^eggRule\.(\d+)\.(minPersons|eggs)$/;
 /**
  * {@link householdFieldLabel} for the egg rule (US-28), and for its reason. Without it a refused row
  * would be a path with no label — dropped as a field nobody can see (§7) — and the summary would fall
- * through to „nichts gespeichert“ for a box right there on the screen.
+ * through to `settings.errors.unknown` for a box right there on the screen.
  */
 function eggRuleFieldLabel(field: string): string | null {
   const match = EGG_RULE_FIELD.exec(field);
@@ -1828,8 +1831,8 @@ function eggRuleFieldLabel(field: string): string | null {
  *
  * `de.settings.fields` is keyed by the `name` each input carries, so only `reason` needs a case of
  * its own — it is not one of the values being set, but it *is* a box on the screen, and a summary
- * that skipped it would fall through to „nichts gespeichert“. Nothing refuses it today, which is
- * exactly why it would go unnoticed if it ever did.
+ * that skipped it would fall through to `settings.errors.unknown`. Nothing refuses it today, which
+ * is exactly why it would go unnoticed if it ever did.
  *
  * The egg rule is a table rather than a field, so {@link eggRuleFieldLabel} answers its paths.
  */
