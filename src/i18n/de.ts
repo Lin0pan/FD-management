@@ -1041,7 +1041,7 @@ export const de = {
     },
     /** The badge on a row whose certificate lapsed while the applicant waited (FR-5). */
     certificateExpired: "Nachweis abgelaufen",
-    /** Lower-case: it follows {@link certificateExpired} after a dash in the free-slot banner. */
+    /** Lower-case: it follows {@link certificateExpired} after a dash, in banner and tooltip alike. */
     certificateExpiredHint: "vor der Aufnahme wird ein neuer benötigt.",
     /**
      * The "a slot is free" banner — the feature's whole value (PRD §6). It names one applicant and
