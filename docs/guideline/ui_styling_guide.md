@@ -16,9 +16,13 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   a component we have touched** — it overwrites the edit.
 - A re-theme is a change to the token block in `globals.css` and nothing else. `--destructive` is the
   only chromatic token; everything else is neutral zinc (see §5).
-- `radix-nova` is compact: `Button` and `Input` are `h-8`, `Card` is `text-sm`. Override where a
-  control is the screen's primary interaction; the defaults are tuned for dense admin UI, not for
-  reading standing up.
+- The primitives are sized for reading standing up, not `radix-nova`'s office density: `Button`,
+  `Input` and the native select are `h-10` (`sm` is `h-9`), body text 16px and tables 15px, labels
+  15/600, nothing under 13px (badges, table heads). The counter's lookup row is `h-14`. Focus is one
+  2px foreground outline at 2px offset for every control, set in `globals.css`.
+- The page is `--background` zinc-100 and every `Card` is white with a zinc-300 border and a faint
+  shadow, so a section stands off the page under hall light. Field edges are `--input` `#94949c`,
+  exactly 3:1 on white (WCAG 1.4.11).
 - `.dark` tokens exist and nothing toggles them. Do not build a theme switcher without being asked.
 - **Do not add**: a form library (`react-hook-form` fights `useActionState`), a toast library (an
   answer renders beside its own button, §7), a date picker, or a chart library. A day is a **typed**
@@ -221,7 +225,7 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   and are the worked example of the rule rather than a breach of it: a hand-out paid short and a
   household carrying a debt are one meaning — money is owed — read at two altitudes. `BALANCE_STYLES`
   is a **fill without a border**, because every `Stat` tile is borderless and outlining one of five on
-  a row would make it a different kind of object; a settled balance is `null` and keeps `bg-muted/50`,
+  a row would make it a different kind of object; a settled balance is `null` and keeps `bg-muted`,
   since colour there means _something is standing_. A second _weight_ of a meaning is still that meaning and belongs in `accents.ts` beside
   the first, not in a screen. Two are currently hand-written and must not be copied further: the
   solid group fill (`bg-red-600` / `bg-blue-700`, against `GROUP_STYLES`' tint) exists in
@@ -240,10 +244,12 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 - **The word never goes without the chrome** (US-03.4). Wrap the `Badge` _around_ the span holding
   exactly the word; do not let the badge replace it. A glyph is bound by the same rule, and by
   the same registry discipline — §12.
+- **Every accent is opaque at one strength**: a -100 fill, a -400/-500 border, -800/-900 text, so
+  the word inside reads at 7:1 or better on the grey page and on a white card alike.
 - Never nest a translucent tint inside a tinted container — the two composite into a third colour
   that means neither. Let the inner element keep the opaque fill and carry its colour in the border.
-- To give one `Card` a coloured edge: `<Card className="ring-0 border border-…">`. `Card` brings
-  `ring-1`, not a border, so the ring has to go or the card wears two outlines.
+- To give one `Card` a coloured edge: `<Card className="border-…">`. `Card` already brings a
+  `border`, so only its colour changes.
 - `Badge` `variant="outline"` when layering an accent on it; `default` paints the text white.
 
 ## 6. Controls
