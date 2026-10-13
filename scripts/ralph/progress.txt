@@ -641,3 +641,24 @@ to a German literal.
   - Demo waiting-list certificates run to 12.12.2026 and 12.03.2027; pin the clock after the later
     one to see both rows expired.
 ---
+
+## 2026-10-13 - US-004
+- The 19 refusals of PRD §US-42.4 read the „New" column. Doc comments trimmed where they described
+  dropped wording: customerNumberUnchanged (no longer „asks for another number"), cardNumberTaken
+  (the „vergeben“ vs. „ausgestellt“ paragraph), cardIndexTaken (no longer „points at the household").
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating; no literal
+  of the old sentences in tests/, src/ or docs/handout/.
+- Both engines green (268 passed, 1 skipped each). Browser-checked on the demo register (production
+  build): empty household and future birthdate on /kunden/neu, block and archive without a reason on
+  /kunden/91, archive search with no criteria.
+- **Learnings for future iterations:**
+  - **Most of these refusals cannot be reached through the UI any more**, and that is the client
+    guarding, not a broken screen. The intake's first household row mirrors the customer's own
+    fields read-only, so „Haushalt ist leer" needs `input[name^=member]` removed via `eval` before
+    submitting; block/archive reasons are trimmed client-side and the button stays disabled, so the
+    server's missingReason needs `button.disabled = false; button.click()` via `eval`.
+  - Demo ids after `npm run db:demo -- --reset` are NOT 1–10 any more (customer 9 was /kunden/91);
+    read the ids off /kunden rather than trusting the „id 6 is active" bullet above.
+  - playwright-cli refs gain a frame-like prefix after navigation (`f4e215`), so a helper that greps
+    `ref=e[0-9]*` silently returns nothing — grep `ref=[a-z0-9]*`.
+---
