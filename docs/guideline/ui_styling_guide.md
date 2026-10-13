@@ -466,12 +466,13 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   and they are handed `docs/handout/`; they do not read the screen to find out what the software
   does. Text earns its place by naming something **invisible**:
   - a side effect — „Erinnerungen werden dabei auf 0 zurückgesetzt“
-  - a one-way door — „Rückgängig machen lässt sich die Archivierung nicht“
-  - a window that closes — „Nach dem Beenden sind die Einträge nicht mehr korrigierbar“
+  - a one-way door — „Rückgängig machen nicht möglich“
   - what an **empty** field means — „Leer lassen: kein Maximalpreis“
   - an example that makes a free-text box answerable — „z. B. über die Nachbarin, dienstags
     vormittags“
-  - a rule the missing control would otherwise raise — „Die Liste lässt sich nicht umsortieren“
+
+  A window that closes and a rule the missing control would raise are invisible too, but DF chose
+  terseness over the two warnings that stated them (US-42).
 
   This has now been cut back five times, and it grows back every time, because each sentence is
   reasonable **on its own** — it is only redundant next to the thing it sits under. So the test is
@@ -490,6 +491,9 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   Neue Karte: 7k2.“ — not the rule about superseded cards. One that recites the rules is one that
   gets clicked past unread, which is the opposite of what a confirmation is for.
 - Errors live in a per-section `errors` object keyed by cause, ending with `unknown`.
+- **An amber or red box already means nothing was saved**, so no message says „Es wurde nichts
+  gespeichert.“, and none says „Bitte erneut versuchen.“ — the button is still there. „Bitte die
+  Seite neu laden.“ appears only where the screen is out of date (US-42).
 - Where two screens state the same fact, write one key in terms of the other. Two phrasings of one
   number is how two screens come to disagree.
 - Number and date **shapes** come from `src/i18n/format.ts` (dates in UTC, times in Europe/Berlin) and

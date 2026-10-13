@@ -259,22 +259,15 @@ export function NumberControl({
           </div>
         </details>
       )}
-      {/* The receipt, where the button was pressed. The record above re-renders the new number, the
-          new week and the new card number from the revalidated read model — but the slot that was
-          *freed* is named nowhere on it, and „did that save?“ is otherwise a question the screen
-          answers only to somebody who remembers what it said before.
+      {/* The receipt, where the button was pressed: „did that save?“ is otherwise a question the
+          screen answers only to somebody who remembers what it said before.
 
           The group is read off the number the store came back with, through the same `groupOf` the
           read model uses. Nothing carries it back from the action, because there is nothing to
           carry: the number is the group. */}
       {showing && state.status === "saved" ? (
         <Confirmation
-          text={words.saved(
-            state.from,
-            state.to,
-            de.customers.groups[groupOf(state.to)],
-            state.cardNumber,
-          )}
+          text={words.saved(state.to, de.customers.groups[groupOf(state.to)], state.cardNumber)}
           testId="number-change-saved"
         />
       ) : null}

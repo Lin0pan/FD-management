@@ -63,7 +63,6 @@ export function DetailsEditor({
   return (
     <form ref={form} action={formAction} onKeyDown={guardEnter} className="flex flex-col gap-4">
       <input type="hidden" name="customerId" value={customerId} />
-      <p className="max-w-prose text-sm text-muted-foreground">{de.customers.record.detailsHint}</p>
 
       <div className={GRID}>
         <TextField

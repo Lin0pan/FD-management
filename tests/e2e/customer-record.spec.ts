@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { faker } from "@faker-js/faker";
 import { PrismaClient } from "@prisma/client";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { de } from "@/i18n/de";
+import { de, plain } from "@/i18n/de";
 import { foldName } from "@/domain/customer/nameSearch";
 import { expectNothingCovers } from "./layout";
 import { SHARED } from "./registers";
@@ -609,7 +609,9 @@ test.describe("Kundenakte pflegen", () => {
     await page.getByTestId("reissue-submit").click();
 
     await expect(page.getByTestId("card-number")).toHaveText(card(2));
-    await expect(page.getByTestId("reissue-saved")).toHaveText(de.customers.reissue.saved(card(2)));
+    await expect(page.getByTestId("reissue-saved")).toHaveText(
+      plain(de.customers.reissue.saved(card(2))),
+    );
     await expect(page.getByTestId("reissue-error")).toHaveCount(0);
 
     await page.goto("/karten-neuausstellung");
@@ -686,7 +688,9 @@ test.describe("Kundenakte pflegen", () => {
 
     // The reissue answers, and the save's answer goes — it is not the answer to the button that was
     // just pressed. The one that stays is beside the button that produced it.
-    await expect(page.getByTestId("reissue-saved")).toHaveText(de.customers.reissue.saved(card(3)));
+    await expect(page.getByTestId("reissue-saved")).toHaveText(
+      plain(de.customers.reissue.saved(card(3))),
+    );
     await expect(page.getByTestId("notes-saved")).toHaveCount(0);
   });
 

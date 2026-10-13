@@ -23,6 +23,16 @@ function eggCount(eggs: number): string {
   return eggs === 1 ? "1 Ei" : `${eggs} Eier`;
 }
 
+/** „Ab 3 Personen“ — {@link fromPersons} opening a sentence. */
+function capitalised(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Three „zu lang“ refusals, one shape: „Die Notiz ist zu lang (512 Zeichen, höchstens 500).“ */
+function tooLong(subject: string, length: number, maxLength: number): string {
+  return `${subject} ist zu lang (${length} Zeichen, höchstens ${maxLength}).`;
+}
+
 /** One row of the egg rule: „ab 3 Personen: 6 Eier“ (US-28) — the clause four entries share. */
 function eggRow(minPersons: number, eggs: number): string {
   return `${fromPersons(minPersons)}: ${eggCount(eggs)}`;
@@ -246,7 +256,7 @@ export const de = {
        * redirects. One sentence and only the fact: the button that prints the card is in the header,
        * a hand's width above this line.
        */
-      saved: "Kunde erfolgreich hinzugefügt.",
+      saved: "Kunde aufgenommen.",
       /**
        * The way out of a full register (US-12.4), beside the "alle Nummern sind vergeben" message,
        * which is otherwise a dead end.
@@ -346,20 +356,16 @@ export const de = {
     } as Record<string, string | undefined>,
     errors: {
       missingField: (field: string): string => `Bitte das Feld „${field}“ ausfüllen.`,
-      emptyHousehold:
-        "Der Haushalt hat kein Mitglied. Die aufgenommene Person zählt selbst dazu — bitte " +
-        "mindestens eine Zeile ausfüllen.",
+      emptyHousehold: "Der Haushalt ist leer. Bitte mindestens die aufgenommene Person eintragen.",
       /**
        * Names the person the household is missing rather than the rule it broke: the customer's row is
        * locked on the record, so a household without them predates the rule and has to be typed back.
        */
       customerNotInHousehold: (name: string): string =>
-        `${name} zählt selbst zum Haushalt und fehlt in der Liste. Bitte eine Zeile mit Namen ` +
-        `und Geburtsdatum ergänzen.`,
-      birthDateInFuture: "Ein Geburtsdatum liegt in der Zukunft. Bitte das Datum prüfen.",
+        `${name} fehlt in der Haushaltsliste. Bitte eine Zeile ergänzen.`,
+      birthDateInFuture: "Ein Geburtsdatum liegt in der Zukunft.",
       noFreeCustomerNumber: (quotaN: number): string =>
-        `Alle ${quotaN} Kundennummern sind vergeben. Bitte einen Haushalt archivieren oder die ` +
-        `Höchstzahl in den Einstellungen erhöhen. Es wurde nichts gespeichert.`,
+        `Alle ${quotaN} Kundennummern sind vergeben.`,
       /**
        * One sentence for both `CustomerNumberTaken` and `CustomerNumberOutOfRange` (US-24): staff act
        * the same on either — they pick another number. The two codes stay apart because the program
@@ -369,8 +375,7 @@ export const de = {
        * identically however often it is re-submitted.
        */
       customerNumberUnavailable: (customerNumber: number): string =>
-        `Die Kundennummer ${customerNumber} ist nicht mehr verfügbar. Bitte eine andere Nummer ` +
-        `wählen.`,
+        `Kundennummer ${customerNumber} ist nicht mehr frei. Bitte eine andere wählen.`,
       /**
        * Two answers, not one: a blank field and an unreadable one are different mistakes (ADR-013).
        * Both short — they sit under the field, beside a placeholder that already shows the format.
@@ -389,40 +394,32 @@ export const de = {
       /** The mark for a `gültig bis` that has already passed — {@link fieldRequired}'s register. */
       dateInPast: "Liegt in der Vergangenheit.",
       notesTooLong: (maxLength: number, length: number): string =>
-        `Die Notiz ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
-        `möglich — bitte kürzen.`,
+        tooLong("Die Notiz", length, maxLength),
       /**
        * The number a household is moved to is the one they already hold (US-30) — refused, because it
        * would print a fresh card for a move that never happened.
        *
        * The control does not offer the step that produces this (the confirmation appears only once
-       * another number is picked), so it is read when the record was moved in a second tab — which is
-       * why it ends by asking for another number rather than for the same one again.
+       * another number is picked), so it is read when the record was moved in a second tab.
        */
       customerNumberUnchanged: (customerNumber: number): string =>
-        `Der Haushalt hat bereits die Kundennummer ${customerNumber}. Es wurde nichts geändert; ` +
-        `bitte eine andere Nummer wählen.`,
+        `Der Haushalt hat bereits die Kundennummer ${customerNumber}.`,
       /**
        * `cardNumberTaken` is the *slot's* run read stale (US-25): the number was printed on that slot
        * already, and a card number is never printed twice — so the answer is to reload, not retype,
        * which is why it is red in `notice-tier.ts`.
        *
-       * A *Nummer* is „vergeben“ and a *Karte* „ausgestellt“; a spent card number is both at once,
-       * and swapping the verbs makes staff read the sentence twice.
-       *
        * It takes the number **already formatted** — writing `50k3` is `formatCardNumber`'s job, and
        * this module owns no second spelling of it.
        */
       cardNumberTaken: (cardNumber: string): string =>
-        `Die Kartennummer ${cardNumber} ist bereits vergeben und wird kein zweites Mal ` +
-        `ausgestellt. Es wurde nichts gespeichert. Bitte die Seite neu laden.`,
+        `Kartennummer ${cardNumber} ist bereits vergeben. Bitte die Seite neu laden.`,
       /**
        * `cardIndexTaken` is the *record's* run read stale: the household was issued another card
        * while this one was being decided — a second tab, or the colleague at the next chair, since
-       * DF share one machine. So the answer is to read the record again, and the sentence points at
-       * the household rather than at a number. It does **not** guess which of the two happened:
-       * naming a second window would send somebody hunting through their own tabs for a card a
-       * colleague issued.
+       * DF share one machine. So the answer is to read the record again. It does **not** guess
+       * which of the two happened: naming a second window would send somebody hunting through their
+       * own tabs for a card a colleague issued.
        *
        * It names **no** card number, and deliberately so. The error carries a `customerId` and an
        * index — no slot — and the card that took the index may well have been printed under the
@@ -430,9 +427,7 @@ export const de = {
        * one from the slot in hand would quote a card that was never printed. A staff member sent to
        * look for it would be looking for nothing.
        */
-      cardIndexTaken:
-        "Für diesen Haushalt wurde inzwischen eine neue Karte ausgestellt. Es wurde nichts " +
-        "gespeichert. Bitte die Seite neu laden.",
+      cardIndexTaken: "Inzwischen wurde eine neue Karte ausgestellt. Bitte die Seite neu laden.",
       unknown: "Die Aufnahme konnte nicht gespeichert werden.",
       notFound: "Dieser Kunde wurde nicht gefunden.",
     },
@@ -462,8 +457,7 @@ export const de = {
       submit: "Sperren",
       submitting: "Wird gesperrt …",
       unblock: "Sperre aufheben",
-      unblockConfirm: (reason: string): string =>
-        `Diese Sperre wird aufgehoben: „${reason}“. Der Kunde ist danach wieder bezugsberechtigt.`,
+      unblockConfirm: (reason: string): string => `Sperre wird aufgehoben: „${reason}“.`,
       unblockSubmit: "Sperre jetzt aufheben",
       unblocking: "Wird aufgehoben …",
       /**
@@ -471,10 +465,10 @@ export const de = {
        * swap places after the write, so a sentence about the click would sit next to a control
        * saying the opposite.
        */
-      blocked: "Der Kunde ist jetzt gesperrt und erhält an der Ausgabe nichts.",
-      unblocked: "Die Sperre ist aufgehoben. Der Kunde ist wieder bezugsberechtigt.",
+      blocked: "Kunde gesperrt.",
+      unblocked: "Sperre aufgehoben.",
       errors: {
-        missingReason: "Bitte einen Grund für die Sperre angeben.",
+        missingReason: "Bitte einen Grund angeben.",
         notBlockable: "Dieser Kunde kann nicht gesperrt werden. Bitte die Seite neu laden.",
         notBlocked: "Dieser Kunde ist nicht gesperrt. Bitte die Seite neu laden.",
         unknown: "Die Änderung konnte nicht gespeichert werden.",
@@ -494,30 +488,23 @@ export const de = {
       compactAction: "Archivieren",
       reasonLabel: "Grund der Archivierung",
       confirm: (customerNumber: number): string =>
-        `Die Kundennummer ${customerNumber} wird frei. Rückgängig machen lässt sich die ` +
-        `Archivierung nicht.`,
+        `Kundennummer ${customerNumber} wird frei. Rückgängig machen nicht möglich.`,
       submit: "Jetzt archivieren",
       submitting: "Wird archiviert …",
-      /**
-       * The receipt, read above the standing banner. It says what the banner does not — that *this
-       * click* did it — and names the freed number, because somebody on the waiting list can have it.
-       */
-      saved: (customerNumber: number): string =>
-        `Der Haushalt ist archiviert. Die Kundennummer ${customerNumber} ist wieder frei.`,
+      /** The receipt above the standing banner: it says what the banner does not — *this click*. */
+      saved: "Haushalt archiviert.",
       /** The banner an archived record carries — the reason and the day, on every screen it shows on. */
       bannerHeading: "Archiviert",
-      bannerDetail: (date: string, reason: string): string =>
-        `Archiviert am ${date}. Grund: „${reason}“`,
+      bannerDetail: (date: string, reason: string): string => `Am ${date}. Grund: „${reason}“`,
       bannerNoReason: "Zu dieser Archivierung ist kein Grund hinterlegt.",
       /**
-       * „frei“ and „gehört bereits jemand anderem“ are two facts, and the second is the one acted on
-       * wrongly: the number is still printed on this record with nothing to say it has moved on.
+       * The second sentence is the one acted on wrongly: the number is still printed on this record
+       * with nothing to say it has moved on.
        */
       bannerReadOnly:
-        "Der Datensatz kann nicht mehr geändert werden. Die Kundennummer ist wieder frei und " +
-        "gehört möglicherweise bereits einem anderen Haushalt.",
+        "Nicht mehr änderbar. Die Kundennummer kann inzwischen einem anderen Haushalt gehören.",
       errors: {
-        missingReason: "Bitte einen Grund für die Archivierung angeben.",
+        missingReason: "Bitte einen Grund angeben.",
         notArchivable: "Dieser Haushalt ist bereits archiviert. Bitte die Seite neu laden.",
         unknown: "Die Archivierung konnte nicht gespeichert werden.",
       },
@@ -540,18 +527,15 @@ export const de = {
         count === 1
           ? "1 archivierter Haushalt gefunden"
           : `${count} archivierte Haushalte gefunden`,
-      noMatches:
-        "Kein archivierter Haushalt gefunden. Bitte die Schreibweise prüfen — oder die Aufnahme " +
-        "einfach leer ausfüllen.",
+      noMatches: "Kein archivierter Haushalt gefunden.",
       /**
        * What is shown instead of a twenty-first result — there is no paging, and the message names
        * the fields that would narrow the search rather than only saying there were too many.
        */
       tooMany: (shown: number): string =>
-        `Es werden ${shown} Treffer angezeigt; es gibt weitere. Bitte die Suche eingrenzen — mit ` +
-        `dem Vornamen oder dem Geburtsdatum.`,
+        `Mehr als ${shown} Treffer. Bitte mit Vorname oder Geburtsdatum eingrenzen.`,
       /** The refusal when staff press Search with every field empty. */
-      noCriteria: "Bitte mindestens ein Feld ausfüllen: Nachname, Vorname oder Geburtsdatum.",
+      noCriteria: "Bitte Nachname, Vorname oder Geburtsdatum eingeben.",
       /** The labels on one result row — enough to tell two people of the same name apart. */
       result: {
         householdSize: (size: number): string =>
@@ -589,17 +573,13 @@ export const de = {
       prefilled: {
         heading: "Daten aus dem Archiv übernommen",
         detail: (name: string, formerNumber: number, archivedOn: string): string =>
-          `Übernommen von „${name}“, archiviert am ${archivedOn} unter der Kundennummer ` +
-          `${formerNumber}. Es wird ein neuer Datensatz mit einer neu vergebenen Kundennummer und ` +
-          `einer neuen Karte angelegt.`,
+          `Von „${name}“ (archiviert am ${archivedOn}, frühere Nr. ${formerNumber}). Der Haushalt ` +
+          `erhält eine neue Kundennummer und eine neue Karte.`,
         clear: "Übernahme verwerfen und leer beginnen",
       },
       errors: {
-        notFound:
-          "Dieser archivierte Datensatz wurde nicht gefunden. Bitte die Suche erneut ausführen.",
-        notArchived:
-          "Dieser Haushalt ist nicht archiviert und kann nicht übernommen werden. Bitte die " +
-          "Seite neu laden.",
+        notFound: "Datensatz nicht gefunden. Bitte erneut suchen.",
+        notArchived: "Dieser Haushalt ist nicht archiviert. Bitte die Seite neu laden.",
         unknown: "Die Suche im Archiv ist fehlgeschlagen.",
         prefillFailed: "Die Daten konnten nicht übernommen werden.",
       },
@@ -621,7 +601,7 @@ export const de = {
       printed: "Gedruckt",
       notYetPrinted: "noch nicht",
       supersededHeading: "Ersetzte Kartennummern",
-      supersededNone: "Diese Karte ist die erste des Haushalts und ersetzt keine frühere.",
+      supersededNone: "Keine früheren Karten.",
       // The reason belongs to the card named here — why *it* was handed over, not why it was
       // replaced — so it reads as a note on that line.
       supersededEntry: (
@@ -647,21 +627,12 @@ export const de = {
      */
     record: {
       detailsHeading: "Person und Anschrift",
-      /**
-       * About the boxes above it and nothing else: a form that says where a *different* form lives is
-       * how a screen cross-references itself, and one that narrates its own effect describes what the
-       * next scroll already shows.
-       */
-      detailsHint: "Korrekturen an Name, Geburtsdatum und Anschrift.",
       detailsSubmit: "Person und Anschrift speichern",
       /**
        * The one thing saving a household does that this screen cannot show: the card in their hand
-       * still names the old counts. The only place on the record where a save leaves that to be done
-       * by hand.
+       * still names the old counts, and its reissue waits on another screen.
        */
-      householdHint:
-        "Ändert sich die Zahl der Köpfe, muss die Karte unter „Karten neu ausstellen“ neu " +
-        "ausgestellt werden.",
+      householdHint: "Ändert sich die Kopfzahl, erscheint die Karte unter „Karten neu ausstellen“.",
       householdSubmit: "Haushalt speichern",
       notesHeading: "Bemerkung",
       /** Where the note is read — the one thing about it this screen cannot show. */
@@ -733,15 +704,11 @@ export const de = {
        * irreversible action sits a stray click from the household editor (PRD §6).
        */
       dangerHeading: "Aktionen mit Folgen",
-      /** The one-way door is stated in {@link archive.confirm}, beside the button that opens it. */
-      dangerHint: "Diese Aktionen wirken sofort und werden einzeln bestätigt.",
       saving: "Wird gespeichert …",
       saved: "Gespeichert.",
       errors: {
         unknown: "Die Änderung konnte nicht gespeichert werden.",
-        archived:
-          "Dieser Haushalt ist archiviert; sein Datensatz kann nicht mehr geändert werden. Bitte " +
-          "die Seite neu laden.",
+        archived: "Dieser Haushalt ist archiviert. Bitte die Seite neu laden.",
       },
     },
     /**
@@ -789,26 +756,18 @@ export const de = {
       submit: "Kundennummer jetzt ändern",
       submitting: "Wird geändert …",
       /**
-       * The receipt: the confirmation's three values plus the slot that was freed. It names the old
-       * number because the record above now says the new one everywhere, and this is the only thing
-       * left saying which slot came free.
-       *
-       * The weight is on what is *acted on* — the slot, the week and the card number, which are what
-       * gets copied onto the card in the household's hand.
+       * The receipt: the confirmation's three values, with the weight on what is *acted on* — the
+       * slot, the week and the card number, which are what gets copied onto the card in the
+       * household's hand.
        */
-      saved: (
-        from: number,
-        to: number,
-        group: string,
-        cardNumber: string,
-      ): ReadonlyArray<Segment> => [
-        { text: `Kundennummer geändert ${from} → ` },
+      saved: (to: number, group: string, cardNumber: string): ReadonlyArray<Segment> => [
+        { text: "Neue Kundennummer " },
         { text: String(to), strong: true },
-        { text: "; Gruppe " },
+        { text: ", Gruppe " },
         { text: group, strong: true },
-        { text: "; neue Karte " },
+        { text: ", neue Karte " },
         { text: cardNumber, strong: true },
-        { text: " ausgestellt." },
+        { text: "." },
       ],
     },
     /**
@@ -829,14 +788,16 @@ export const de = {
       /**
        * The number again after the write — deliberately repeated from `confirm`, because this is a
        * receipt rather than a warning and on `/karten-neuausstellung` the row it was read from is
-       * gone by the time this is read.
+       * gone by the time this is read. Bold, as in {@link numberChange.saved}: it is copied onto
+       * the card.
        */
-      saved: (next: string): string =>
-        `Die neue Karte ${next} ist ausgestellt. Die alte Karte ist ungültig und darf an der ` +
-        `Ausgabe nicht mehr angenommen werden.`,
+      saved: (next: string): ReadonlyArray<Segment> => [
+        { text: "Neue Karte " },
+        { text: next, strong: true },
+        { text: " ist ausgestellt." },
+      ],
       errors: {
-        archived:
-          "Dieser Kunde ist archiviert und erhält keine neue Karte. Bitte die Seite neu laden.",
+        archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
         unknown: "Die neue Karte konnte nicht ausgestellt werden.",
       },
     },
@@ -969,9 +930,7 @@ export const de = {
      */
     empty: {
       unfiltered: "Es ist noch niemand aufgenommen.",
-      filtered: (filters: string): string =>
-        `Kein Haushalt entspricht den gewählten Filtern (${filters}). Bitte die Suche oder die ` +
-        `Filter ändern.`,
+      filtered: (filters: string): string => `Kein Haushalt entspricht den Filtern (${filters}).`,
     },
   },
   /**
@@ -991,7 +950,7 @@ export const de = {
     listTitle: "Karten",
     // That a stale card turns nobody away is said where it could be got wrong — at the counter
     // ({@link distribution.counter.staleCard}), not in a caption over this list.
-    empty: "Zurzeit ist keine Karte neu auszustellen.",
+    empty: "Keine Karte neu auszustellen.",
     countsOnCard: "Auf der Karte gedruckt",
     countsToday: "Haushalt heute",
     /** Why the card and the record differ — the two cases `StaleCardReason` names. */
@@ -1025,14 +984,13 @@ export const de = {
     /** Read after „Gedruckt“ by a screen reader only, so the button says which card it ticks off. */
     submitCard: (cardNumber: string): string => ` (Karte ${cardNumber})`,
     done: (cardNumber: string, name: string): string =>
-      `Karte ${cardNumber} von ${name} ist als gedruckt abgehakt.`,
+      `Karte ${cardNumber} (${name}) als gedruckt abgehakt.`,
     undo: "Rückgängig",
     undoing: "Wird zurückgenommen …",
     /** The opt-in on every card issued by hand (D2); unticked, the card lands on the list. */
     alreadyPrinted: "Karte ist bereits gedruckt",
     errors: {
-      superseded:
-        "Diese Karte ist inzwischen durch eine neue ersetzt worden. Bitte die Seite neu laden.",
+      superseded: "Diese Karte wurde inzwischen ersetzt. Bitte die Seite neu laden.",
       alreadyPrinted: "Diese Karte ist bereits als gedruckt abgehakt. Bitte die Seite neu laden.",
       notPrinted: "Diese Karte ist nicht als gedruckt abgehakt. Bitte die Seite neu laden.",
       archived: "Dieser Kunde ist archiviert. Bitte die Seite neu laden.",
@@ -1068,8 +1026,8 @@ export const de = {
     waitingCount: (count: number): string =>
       count === 0 ? "niemand wartet" : count === 1 ? "1 Wartende:r" : `${count} Wartende`,
     /** The list's own description, because it is the rule the list exists to keep. */
-    orderRule: "Wer am längsten wartet, steht oben. Die Liste lässt sich nicht umsortieren.",
-    empty: "Zurzeit steht niemand auf der Warteliste.",
+    orderRule: "Wer am längsten wartet, steht oben.",
+    empty: "Niemand auf der Warteliste.",
     position: "Platz",
     addedOn: "Angemeldet am",
     waited: "Wartet",
@@ -1083,8 +1041,8 @@ export const de = {
     },
     /** The badge on a row whose certificate lapsed while the applicant waited (FR-5). */
     certificateExpired: "Nachweis abgelaufen",
-    certificateExpiredHint:
-      "Der Platz auf der Liste bleibt bestehen. Vor der Aufnahme wird ein neuer Nachweis benötigt.",
+    /** Lower-case: it follows {@link certificateExpired} after a dash, in banner and tooltip alike. */
+    certificateExpiredHint: "vor der Aufnahme wird ein neuer benötigt.",
     /**
      * The "a slot is free" banner — the feature's whole value (PRD §6). It names one applicant and
      * one number, because a banner that only said "es ist etwas frei" would leave the decision it
@@ -1105,14 +1063,11 @@ export const de = {
       /**
        * The example does the work — it is what makes „Freitext“ mean more than an empty box. The
        * second sentence is a deliberate decision about DF's data, stated nowhere else on any screen.
-       *
-       * Phrased as what the software does rather than as an instruction: „Keine Telefonnummern und
-       * E-Mail-Adressen“ would put one „keine“ in front of two nouns and read as forbidding only the
-       * pair. „bewusst“ is the word that makes it a decision rather than an order.
+       * „oder“, not „und“: one „keine“ in front of „und“ would read as forbidding only the pair.
        */
       contactNoteHint:
-        "Freitext, z. B. „über die Nachbarin, dienstags vormittags“. Telefonnummern und " +
-        "E-Mail-Adressen werden bewusst nicht erfasst.",
+        "Freitext, z. B. „über die Nachbarin, dienstags vormittags“. Bitte keine Telefonnummern " +
+        "oder E-Mail-Adressen.",
       submit: "Auf die Warteliste setzen",
       submitting: "Wird gespeichert …",
       saved: (applicant: string): string => `${applicant} steht jetzt auf der Warteliste.`,
@@ -1120,9 +1075,7 @@ export const de = {
     /** Taking somebody off the list before they were ever registered (FR-6). */
     remove: {
       action: "Von der Warteliste nehmen",
-      confirm: (applicant: string): string =>
-        `${applicant} wird von der Warteliste genommen. Der Eintrag bleibt mit dem Grund ` +
-        `erhalten, damit die Reihenfolge nachvollziehbar bleibt.`,
+      confirm: (applicant: string): string => `${applicant} wird von der Warteliste genommen.`,
       reasonLabel: "Grund",
       reasonHint: "Zum Beispiel: zurückgezogen, umgezogen, nicht mehr erreichbar.",
       submit: "Von der Warteliste nehmen",
@@ -1130,36 +1083,33 @@ export const de = {
       /**
        * Read on the list after the row is gone. **It names nobody**: a name here would have to travel
        * through the URL the removal redirects via, and a browser history is the one place DF's data
-       * must not end up. What is left to say is that the entry was kept.
+       * must not end up.
        */
-      saved: "Der Eintrag ist von der Warteliste genommen.",
+      saved: "Von der Warteliste genommen.",
     },
     /** Registering the applicant a freed slot belongs to. */
     promote: {
       heading: "Von der Warteliste aufnehmen",
       intro: (applicant: string, customerNumber: number): string =>
         `${applicant} steht am längsten auf der Warteliste und erhält die Kundennummer ` +
-        `${customerNumber}. Die Angaben von der Warteliste sind vorausgefüllt und lassen sich hier ` +
-        `noch ändern.`,
+        `${customerNumber}.`,
       /**
        * Shown *before* the form when the certificate lapsed during the wait — a step, not a dialog.
        * The applicant is never sent away: DF has not decided how such a case is handled (PRD §9).
        */
       expiredHeading: "Der Bedarfsnachweis ist abgelaufen",
       expiredDetail: (validUntil: string): string =>
-        `Der vorgelegte Nachweis galt bis zum ${validUntil}. Für die Aufnahme wird ein aktueller ` +
-        `Nachweis benötigt.`,
+        `Gültig bis ${validUntil}. Für die Aufnahme wird ein aktueller Nachweis benötigt.`,
       expiredContinue: "Verstanden, jetzt aufnehmen",
       backToList: "Zurück zur Warteliste",
     },
     errors: {
       certificateExpired: (validUntil: string): string =>
-        `Der Bedarfsnachweis ist am ${validUntil} abgelaufen. Für die Warteliste wird — wie für ` +
-        `die Aufnahme — ein gültiger Nachweis benötigt.`,
+        `Der Bedarfsnachweis ist am ${validUntil} abgelaufen. Für die Warteliste ist ein ` +
+        `gültiger Nachweis nötig.`,
       missingReason: "Bitte einen Grund angeben.",
       notFound: "Dieser Eintrag steht nicht mehr auf der Warteliste. Bitte die Seite neu laden.",
-      noFreeCustomerNumber:
-        "Zurzeit ist keine Kundennummer frei. Es kann niemand von der Warteliste aufgenommen werden.",
+      noFreeCustomerNumber: "Zurzeit ist keine Kundennummer frei.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",
     },
   },
@@ -1213,35 +1163,31 @@ export const de = {
         errors: {
           alreadyRunning: "Es läuft bereits eine Ausgabe. Bitte die Seite neu laden.",
           noGroup: "Bitte eine Gruppe auswählen.",
-          unknown: "Die Ausgabe konnte nicht gestartet werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht gestartet werden.",
         },
       },
-      /** Ending is the freeze (FR-14), so the confirmation names the window that closes with it. */
+      /** Ending is the freeze (FR-14); the confirmation names the afternoon's totals that it fixes. */
       end: {
         open: "Ausgabe beenden",
         confirm: (households: number, totalPaidCents: number): string =>
-          `${servedAndTook(households, totalPaidCents)}. ` +
-          `Nach dem Beenden sind die Einträge nicht mehr korrigierbar.`,
+          `${servedAndTook(households, totalPaidCents)}.`,
         submit: "Ja, Ausgabe beenden",
         submitting: "Wird beendet …",
         errors: {
           notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
-          unknown: "Die Ausgabe konnte nicht beendet werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht beendet werden.",
         },
       },
-      /**
-       * Throwing away a session started by mistake. The confirmation states the one thing the screen
-       * cannot show: nothing is written down about it (FR-7).
-       */
+      /** Throwing away a session started by mistake; nothing is written down about it (FR-7). */
       discard: {
         open: "Ausgabe verwerfen",
-        confirm: "Diese Ausgabe wird verworfen. Es wird nichts darüber festgehalten.",
+        confirm: "Diese Ausgabe wird verworfen.",
         submit: "Ja, verwerfen",
         submitting: "Wird verworfen …",
         errors: {
           notEmpty: "An dieser Ausgabe wurde bereits etwas erfasst. Bitte sie stattdessen beenden.",
           notRunning: "Es läuft keine Ausgabe. Bitte die Seite neu laden.",
-          unknown: "Die Ausgabe konnte nicht verworfen werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht verworfen werden.",
         },
       },
       /**
@@ -1283,7 +1229,7 @@ export const de = {
         errors: {
           missingReason: "Bitte einen Grund angeben.",
           notReopenable: "Diese Ausgabe lässt sich nicht mehr öffnen. Bitte die Seite neu laden.",
-          unknown: "Die Ausgabe konnte nicht geöffnet werden. Bitte erneut versuchen.",
+          unknown: "Die Ausgabe konnte nicht geöffnet werden.",
         },
       },
     },
@@ -1334,9 +1280,7 @@ export const de = {
          * (US-35): it says what the table cannot, that these figures are today's rather than that
          * afternoon's.
          */
-        live:
-          "Diese Ausgabe wurde beendet, bevor der Stand festgehalten wurde — die Tabelle zeigt " +
-          "die Haushalte, wie sie heute im Register stehen.",
+        live: "Kein festgehaltener Stand — die Tabelle zeigt die Haushalte, wie sie heute sind.",
       },
     },
     /**
@@ -1383,7 +1327,7 @@ export const de = {
         archived: { headline: "Archiviert" },
         blocked: {
           headline: "Gesperrt",
-          noReason: "Es ist kein Grund hinterlegt. Bitte in der Kundenakte nachsehen.",
+          noReason: "Kein Grund hinterlegt.",
         },
         wrongGroup: { headline: "Falsche Gruppe" },
         outdatedCard: { headline: "Karte ungültig" },
@@ -1431,9 +1375,7 @@ export const de = {
        */
       recordLink: "Zur Kundenübersicht",
       errors: {
-        notANumber:
-          "Das ist keine Kundennummer und keine Kartennummer. Erwartet werden zum Beispiel 50 " +
-          "oder 50k3.",
+        notANumber: "Keine Kunden- oder Kartennummer. Beispiel: 50 oder 50k3.",
       },
     },
     /**
@@ -1503,7 +1445,7 @@ export const de = {
       },
       correct: {
         save: "Betrag speichern",
-        saved: "Eintrag aktualisiert.",
+        saved: "Betrag gespeichert.",
         remove: "Eintrag entfernen",
         /**
          * The one consequence of a removal that „entfernen“ does not already say: the balance returns
@@ -1511,20 +1453,20 @@ export const de = {
          * removal moves invisibly.
          */
         removeConfirm: (balanceWithoutRecordCents: number): string =>
-          `Diesen Eintrag wirklich entfernen? Der Saldo steht danach wieder bei: ` +
+          `Eintrag entfernen? Saldo danach: ` +
           `${balanceWording(balanceKind(balanceWithoutRecordCents), balanceWithoutRecordCents)}.`,
         removeConfirmButton: "Ja, entfernen",
-        removed: "Eintrag entfernt. Der Haushalt kann erneut erfasst werden.",
+        removed: "Eintrag entfernt.",
       },
       errors: {
         notClearToServe: "Ausgabe nicht möglich. Bitte die Nummer erneut nachschlagen.",
-        alreadyServed: "Dieser Haushalt hat bei dieser Ausgabe bereits etwas erhalten.",
+        alreadyServed: "Dieser Haushalt hat bereits etwas erhalten.",
         noLongerCorrectable:
           "Diese Ausgabe ist beendet. Der Eintrag kann nicht mehr geändert werden.",
         notFound: "Der Eintrag wurde nicht gefunden. Bitte die Seite neu laden.",
         /** The field takes euros as DF write them — `4`, `4,00` and `4.00` all read the same. */
-        notAnAmount: "Kein gültiger Betrag. Bitte so eingeben: 4,00",
-        unknown: "Die Ausgabe konnte nicht gespeichert werden. Bitte erneut versuchen.",
+        notAnAmount: "Kein gültiger Betrag, z. B. 4,00.",
+        unknown: "Die Ausgabe konnte nicht gespeichert werden.",
       },
     },
     /**
@@ -1538,12 +1480,11 @@ export const de = {
       reminder: {
         submit: "Erinnerung erfassen",
         /** The chip the button turns into for the rest of the session (FR-5); the count beside it. */
-        logged: "Erinnerung erfasst",
+        logged: "Erinnerung erfasst.",
         errors: {
-          alreadyLogged:
-            "Für diesen Haushalt ist bei dieser Ausgabe bereits eine Erinnerung erfasst.",
-          stillValid: "Der Bedarfsnachweis ist noch gültig. Es gibt nichts zu erinnern.",
-          unknown: "Die Erinnerung konnte nicht gespeichert werden. Bitte erneut versuchen.",
+          alreadyLogged: "Die Erinnerung ist bereits erfasst.",
+          stillValid: "Der Nachweis ist noch gültig.",
+          unknown: "Die Erinnerung konnte nicht gespeichert werden.",
         },
       },
       renewal: {
@@ -1555,21 +1496,23 @@ export const de = {
         /** The side effect — the only part of this form the form itself does not show. */
         hint: "Erinnerungen werden dabei auf 0 zurückgesetzt.",
         submit: "Nachweis speichern",
-        saved: "Nachweis gespeichert. Erinnerungen zurückgesetzt: 0.",
+        saved: "Nachweis gespeichert.",
         errors: {
-          validUntilInPast:
-            "Das Datum „gültig bis“ liegt in der Vergangenheit. Bitte das Datum prüfen.",
+          validUntilInPast: "„Gültig bis“ liegt in der Vergangenheit.",
           dateMissing: "Datum fehlt.",
           notADate: "Kein gültiges Datum.",
-          unknown: "Der Nachweis konnte nicht gespeichert werden. Bitte erneut versuchen.",
+          unknown: "Der Nachweis konnte nicht gespeichert werden.",
         },
       },
     },
-    /** Reachable from the counter alone: the lookup prices a household and there are no settings. */
+    /**
+     * Reachable from the counter alone: the lookup prices a household and there are no settings.
+     * The settings screen's sentence, not a second wording of one fact (`ui_styling_guide.md` §8).
+     */
     errors: {
-      noSettings:
-        "Für dieses Datum sind keine Einstellungen hinterlegt. Bitte die Grundeinstellungen " +
-        "einspielen.",
+      get noSettings(): string {
+        return de.settings.errors.noSettings;
+      },
     },
   },
   settings: {
@@ -1626,17 +1569,15 @@ export const de = {
        * thresholds itself — with no mark, that is the only way the rows are findable.
        */
       duplicateThreshold: (minPersons: number): string =>
-        `Es gibt zwei Zeilen ${fromPersons(minPersons)}. Jede Stufe darf nur einmal vorkommen. ` +
-        `Es wurde nichts gespeichert.`,
+        `Die Stufe ${fromPersons(minPersons)} steht doppelt.`,
       eggsNotIncreasing: (
         minPersons: number,
         eggs: number,
         lowerMinPersons: number,
         lowerEggs: number,
       ): string =>
-        `Die Zeile ${fromPersons(minPersons)} gibt ${eggCount(eggs)} und damit nicht mehr als die ` +
-        `${eggCount(lowerEggs)} ${fromPersons(lowerMinPersons)}. Größere Haushalte müssen mehr ` +
-        `Eier erhalten als kleinere. Es wurde nichts gespeichert.`,
+        `${capitalised(fromPersons(minPersons))}: ${eggCount(eggs)} — das muss mehr sein als die ` +
+        `${eggCount(lowerEggs)} ${fromPersons(lowerMinPersons)}.`,
       /**
        * One row as it stands: „ab 3 Personen: 6 Eier“. The three phrasings below are this clause plus
        * what became of the row, so a rule and a change to it name a row in the same words.
@@ -1705,11 +1646,9 @@ export const de = {
       saving: "Arten werden gespeichert …",
       saved: "Gespeichert.",
       errors: {
-        duplicate: (label: string): string =>
-          `„${label}“ steht bereits in der Liste. Es wurde nichts gespeichert.`,
+        duplicate: (label: string): string => `„${label}“ steht bereits in der Liste.`,
         tooLong: (length: number, maxLength: number): string =>
-          `Die Art ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
-          `möglich. Es wurde nichts gespeichert.`,
+          tooLong("Die Art", length, maxLength),
         unknown: "Die Änderung konnte nicht gespeichert werden.",
       },
     },
@@ -1733,18 +1672,17 @@ export const de = {
       ending: "Wird gelöscht …",
       errors: {
         tooLong: (length: number, maxLength: number): string =>
-          `Der Name ist mit ${length} Zeichen zu lang. Es sind höchstens ${maxLength} Zeichen ` +
-          `möglich.`,
+          tooLong("Der Name", length, maxLength),
         alreadyActive: "Es gibt bereits eine Erinnerung. Bitte die Seite neu laden.",
         notActive: "Diese Erinnerung gibt es nicht mehr. Bitte die Seite neu laden.",
         unknown: "Die Erinnerung konnte nicht geändert werden.",
       },
     },
     reason: "Grund der Änderung (optional)",
-    reasonHint: "Wird, falls angegeben, im Änderungsprotokoll festgehalten.",
+    reasonHint: "Wird im Änderungsprotokoll festgehalten.",
     save: "Speichern",
     saving: "Wird gespeichert …",
-    saved: "Gespeichert. Die neuen Werte gelten ab sofort.",
+    saved: "Gespeichert.",
     /**
      * The version history, folded away and written as a diff: each superseded version states only
      * what moved. The labels are `fields` above, so a change is named in the same words as the
@@ -1795,8 +1733,7 @@ export const de = {
         "Es sind noch keine Einstellungen hinterlegt. Bitte die Grundeinstellungen einspielen.",
       unknown: "Die Änderung konnte nicht gespeichert werden.",
       quotaBelowActiveCustomers: (quotaN: number, activeCustomers: number): string =>
-        `Die Höchstzahl ${quotaN} liegt unter den derzeit ${activeCustomers} aktiven Kunden. ` +
-        `Es wurde nichts gespeichert.`,
+        `Die Höchstzahl ${quotaN} liegt unter den ${activeCustomers} aktiven Kunden.`,
       invalidSettings: (field: string): string => `Ungültiger Wert im Feld „${field}“.`,
       invalidAmount: (text: string): string => `„${text}“ ist kein Betrag wie 2,50.`,
       /**
@@ -1865,7 +1802,7 @@ const EGG_RULE_FIELD = /^eggRule\.(\d+)\.(minPersons|eggs)$/;
 /**
  * {@link householdFieldLabel} for the egg rule (US-28), and for its reason. Without it a refused row
  * would be a path with no label — dropped as a field nobody can see (§7) — and the summary would fall
- * through to „nichts gespeichert“ for a box right there on the screen.
+ * through to `settings.errors.unknown` for a box right there on the screen.
  */
 function eggRuleFieldLabel(field: string): string | null {
   const match = EGG_RULE_FIELD.exec(field);
@@ -1880,8 +1817,8 @@ function eggRuleFieldLabel(field: string): string | null {
  *
  * `de.settings.fields` is keyed by the `name` each input carries, so only `reason` needs a case of
  * its own — it is not one of the values being set, but it *is* a box on the screen, and a summary
- * that skipped it would fall through to „nichts gespeichert“. Nothing refuses it today, which is
- * exactly why it would go unnoticed if it ever did.
+ * that skipped it would fall through to `settings.errors.unknown`. Nothing refuses it today, which
+ * is exactly why it would go unnoticed if it ever did.
  *
  * The egg rule is a table rather than a field, so {@link eggRuleFieldLabel} answers its paths.
  */

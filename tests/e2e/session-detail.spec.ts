@@ -454,9 +454,7 @@ test.describe("Ein vergangener Ausgabetermin", () => {
     await page.getByTestId("archive-open").click();
     await page.getByTestId("archive-reason").fill(ARCHIVE_REASON);
     await page.getByTestId("archive-submit").click();
-    await expect(page.getByTestId("archive-saved")).toHaveText(
-      de.customers.archive.saved(NUMBERS.handedOn),
-    );
+    await expect(page.getByTestId("archive-saved")).toHaveText(de.customers.archive.saved);
 
     // The slot is back in circulation, so somebody else takes it — the week first, because that is
     // the first half of picking a number since US-31.

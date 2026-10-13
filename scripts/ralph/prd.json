@@ -22,7 +22,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Text only. Specs that call archive.saved / reissue.saved / numberChange.saved: archive, customer-record, card-number, reissue, cards-to-print, session-detail (grep tests/e2e)."
     },
     {
@@ -42,7 +42,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -61,7 +61,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -81,7 +81,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -103,7 +103,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -126,7 +126,7 @@
         "Lint passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

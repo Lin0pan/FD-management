@@ -576,3 +576,129 @@ Most specs compare against `de.*`, so they follow the dictionary by themselves. 
 where a signature changed or a removed key was referenced; migrate it to the new `de.*` value, never
 to a German literal.
 
+
+## 2026-10-13 - US-001
+- The 13 success messages of PRD §US-42.1 now read the „New" column. `archive.saved` is a plain
+  string; `numberChange.saved` lost `from`; `reissue.saved` returns segments with the card number
+  bold (both call sites already render `Confirmation`, which takes segments — no markup change).
+- Since nothing reads `from` any more, `NumberChangeState`'s `from` field and the action line that
+  set it went too — a field carried only for a sentence that no longer exists.
+- Files: src/i18n/de.ts, src/app/kunden/[id]/{page.tsx,number-control.tsx,number-change-state.ts,
+  actions.ts}, src/app/ausgabe/page.tsx, tests/e2e/{archive,card-number,customer-record,
+  number-change,number-group,reissue,session-detail}.spec.ts
+- Both engines green (268 passed, 1 skipped each). Browser-checked on the demo register: block →
+  unblock, reissue on the record (6k2 bold) and on /karten-neuausstellung, number change, archive on
+  the record and in the counter footer, Karten drucken + Rückgängig, settings save.
+- **Learnings for future iterations:**
+  - `number-group.spec.ts` also calls `numberChange.saved` (as `words.saved`) — the PRD's list of
+    specs missed it; `grep -rn "words.saved"` finds it.
+  - `playwright-cli` must run from the repo root: started from `/tmp` it crashes on launch.
+  - The handout's „Kundennummer ändern" paragraph says the old card „darf an der Ausgabe nicht mehr
+    angenommen werden" in its own words — it is guidance, not a quote of `reissue.saved`, so it stays.
+---
+
+## 2026-10-13 - US-002
+- The six confirmations of PRD §US-42.2 read the „New" column: archive.confirm, unblockConfirm,
+  waitingList.remove.confirm, session.end.confirm (still `servedAndTook(...) + "."`),
+  session.discard.confirm, serve.correct.removeConfirm. The doc comments on end and discard no
+  longer claim the confirmation names a closing window / the nothing-is-recorded fact.
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating.
+- Both engines green (268 passed, 1 skipped each). Browser-checked on the demo register with
+  FD_FIXED_NOW_FILE=2026-10-15 (a Thursday): unblock id 7, archive id 6 (reason `required`),
+  waiting-list removal (reason `required`), discard a session, serve #3 → Korrigieren → Eintrag
+  entfernen („Saldo danach: ausgeglichen."), serve #9 → end („1 Haushalt versorgt, 4,00 €
+  eingenommen."). Each completed with its confirming button.
+- **Learnings for future iterations:**
+  - `unblockConfirm` renders „„…Mitarbeitenden.“." when the stored reason ends with a full stop —
+    the doubled stop predates US-42 and the PRD fixes the text, so it was left.
+  - On the counter with „Rot und Blau" chosen, `#3` and `#9` of the demo register are clear to
+    serve on 2026-10-15; the session table's rows come back in one
+    `--raw eval` over `tbody tr` innerText, which is cheaper than a snapshot for picking a number.
+  - `playwright-cli` prints a „skill does not match the tool version" banner on stderr/stdout on
+    every call; filter `^[║╔╚]` lines rather than reinstalling the skill mid-batch.
+---
+
+## 2026-10-13 - US-003
+- The 15 banners, notices and empty states of PRD §US-42.3 read the „New" column.
+  `certificateExpiredHint` starts lower-case and got a one-line comment saying why; the comment on
+  `bannerReadOnly` no longer names the „frei" fact the text dropped.
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating.
+- Chromium green (268 passed, 1 skipped). WebKit: one run failed `number-group.spec.ts` „the list's
+  week filter …" (touches no changed string), and the next full run was green (268 passed).
+- Browser-checked on the demo register: archived record id 1, Kundenkarte of id 6, archive search
+  with no match / too many / prefill, /kunden?suche=Zzzqx, and with FD_FIXED_NOW_FILE=2027-03-20
+  the free-slot banner, the promotion of an applicant whose certificate had expired, and an
+  emptied waiting list. Demo re-seeded with `npm run db:demo -- --reset` afterwards.
+- **Learnings for future iterations:**
+  - `certificateExpiredHint` is also the waiting-list row badge's `title` (warteliste/page.tsx:88),
+    so its tooltip and accessible name are now the lower-case fragment „vor der Aufnahme wird ein
+    neuer benötigt." The PRD only names the banner; left as is because markup is out of scope.
+  - The archive search's „too many" state needs 21+ archived matches, more than the demo has.
+    `local_only/us42/many-archived.ts` clones archived customer 1 with its members, certificate and
+    a card (index 100+i, to stay clear of the unique slot index), and `… clean` removes the clones.
+    A clone without a card or certificate makes the search fail with „Die Suche im Archiv ist
+    fehlgeschlagen.", not with fewer results.
+  - Demo waiting-list certificates run to 12.12.2026 and 12.03.2027; pin the clock after the later
+    one to see both rows expired.
+---
+
+## 2026-10-13 - US-004
+- The 19 refusals of PRD §US-42.4 read the „New" column. Doc comments trimmed where they described
+  dropped wording: customerNumberUnchanged (no longer „asks for another number"), cardNumberTaken
+  (the „vergeben“ vs. „ausgestellt“ paragraph), cardIndexTaken (no longer „points at the household").
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating; no literal
+  of the old sentences in tests/, src/ or docs/handout/.
+- Both engines green (268 passed, 1 skipped each). Browser-checked on the demo register (production
+  build): empty household and future birthdate on /kunden/neu, block and archive without a reason on
+  /kunden/91, archive search with no criteria.
+- **Learnings for future iterations:**
+  - **Most of these refusals cannot be reached through the UI any more**, and that is the client
+    guarding, not a broken screen. The intake's first household row mirrors the customer's own
+    fields read-only, so „Haushalt ist leer" needs `input[name^=member]` removed via `eval` before
+    submitting; block/archive reasons are trimmed client-side and the button stays disabled, so the
+    server's missingReason needs `button.disabled = false; button.click()` via `eval`.
+  - Demo ids after `npm run db:demo -- --reset` are NOT 1–10 any more (customer 9 was /kunden/91);
+    read the ids off /kunden rather than trusting the „id 6 is active" bullet above.
+  - playwright-cli refs gain a frame-like prefix after navigation (`f4e215`), so a helper that greps
+    `ref=e[0-9]*` silently returns nothing — grep `ref=[a-z0-9]*`.
+---
+
+## 2026-10-13 - US-005
+- The 20 refusals of PRD §US-42.5 read the „New" column. `distribution.errors.noSettings` is a
+  getter returning `de.settings.errors.noSettings` (the settings block sits *after* distribution in
+  the literal, so a plain property cannot reach it; a getter is read lazily). The three „zu lang"
+  strings share a module-level `tooLong(subject, length, maxLength)`; `eggsNotIncreasing` opens with
+  `capitalised(fromPersons(…))` so it still inflects „1 Person" / „1 Ei". Two comments near
+  `settingsFormFieldLabel` quoted „nichts gespeichert" and now name `settings.errors.unknown`.
+- Files: src/i18n/de.ts only — every spec compares against de.*, none needed migrating. The
+  handout's egg paragraph says „sonst wird nichts gespeichert" as behaviour, not a quote; it stays.
+- Both engines green (268 passed, 1 skipped each). Browser-checked (production build,
+  FD_FIXED_NOW_FILE=2026-10-15): counter invalid lookup „abc", invalid amount „vier" on #3, past
+  „gültig bis" on #1's renewal (then discarded the session); settings quota 1, duplicate egg tier,
+  non-increasing tier with 1 and 6 eggs, duplicate and 120-char Nachweis-Art. Nothing saved
+  (one settings version, four types).
+- **Learnings for future iterations:**
+  - The counter's renewal form has a client-side mark under the date („Liegt in der
+    Vergangenheit.", `customers.errors.dateInPast`) *and* the server notice in its slot
+    (`data-testid=renewal-error`). The playwright-cli `find` output can cut off before the slot;
+    read it with `eval` on the test id. The date field is text in `TT.MM.JJJJ`, and the type select
+    must be chosen or the refusal is a missing field instead.
+  - A de.ts key that has to be written in terms of a key further *down* the literal needs a getter
+    (`get x(): string { return de.….; }`); a function entry does it for free since it is called late.
+---
+
+## 2026-10-13 - US-006
+- Deleted `customers.record.detailsHint` / `dangerHint` and their `<p>`s (details-editor.tsx,
+  kunden/[id]/page.tsx); `householdHint`, `waitingList.add.contactNoteHint`, `settings.reasonHint`
+  read the PRD's „New“ text; their doc comments follow. Styling guide §8: archive quote updated, the
+  two removed examples dropped with one line naming US-42's choice, and a bullet for the
+  „nichts gespeichert“ / „neu laden“ rules. Handout grep: nothing quotes a changed sentence.
+- Files: src/i18n/de.ts, src/app/kunden/[id]/details-editor.tsx, src/app/kunden/[id]/page.tsx,
+  docs/guideline/ui_styling_guide.md
+- Gates: lint, typecheck, coverage, build, arc42 check, both e2e engines green (WebKit
+  `age-13.spec.ts` reissue test failed once, passed alone and on a full re-run — flake, untouched).
+  playwright-cli on record 101, /warteliste, /einstellungen.
+- **Learnings for future iterations:**
+  - The demo register's ids are not stable across re-seeds without `--reset`; `/kunden/6` can be a
+    „nicht gefunden“. Take an id off the `/kunden` snapshot's `/url:` lines instead.
+---
