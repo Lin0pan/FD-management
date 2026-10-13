@@ -52,7 +52,6 @@ function RenewalFields({
       <div className="flex flex-col gap-1.5 sm:col-span-2 lg:col-span-6">
         <CertificateTypeField
           types={certificateTypes}
-          height="h-8"
           id="renewal-type-field"
           typeProblem={typeProblem}
           otherProblem={otherProblem}

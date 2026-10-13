@@ -85,7 +85,7 @@ const TO_DO_LISTS: Record<ToDoKind, { readonly list: keyof Overviews; readonly t
 function ToDos({ toDos }: { toDos: ReadonlyArray<ToDo> }): React.ReactElement {
   return (
     <section data-testid="to-dos" className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">{de.home.toDos}</h2>
+      <h2 className="text-[19px] leading-7 font-bold">{de.home.toDos}</h2>
       <ul className="flex flex-col gap-2">
         {toDos.map((toDo) => {
           const { list, testId } = TO_DO_LISTS[toDo.kind];
@@ -158,7 +158,7 @@ export default async function Home(): Promise<React.ReactElement> {
     <main className={SHELL}>
       {/* The greeting is the `h1` — one line, and the whole of the welcome. It is set full strength
           rather than muted now that it is the only thing at the top of the screen. */}
-      <h1 className="text-3xl font-semibold tracking-tight">{de.home.heading}</h1>
+      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.home.heading}</h1>
       {/* Directly under the greeting whatever follows, so it never moves between visits. */}
       <p data-testid="today-date" className="text-xl text-muted-foreground">
         {de.home.today(germanLongDate(date))}

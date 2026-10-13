@@ -64,7 +64,7 @@ export function StartSessionForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">
+        <CardTitle>
           <h2>{de.distribution.session.start.heading}</h2>
         </CardTitle>
       </CardHeader>

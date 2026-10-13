@@ -76,7 +76,7 @@ export function RemoveApplicantControls({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-          <span className="text-xs text-muted-foreground">{de.waitingList.remove.reasonHint}</span>
+          <span className="text-sm text-muted-foreground">{de.waitingList.remove.reasonHint}</span>
         </div>
         <Button
           type="submit"

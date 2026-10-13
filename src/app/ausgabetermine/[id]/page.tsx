@@ -45,7 +45,7 @@ export const dynamic = "force-dynamic";
 function NotFound(): React.ReactElement {
   return (
     <main className={SHELL}>
-      <h1 className="text-3xl font-semibold tracking-tight">
+      <h1 className="text-[32px] leading-10 font-bold tracking-tight">
         {de.distribution.pastSessions.heading}
       </h1>
       <p data-testid="session-detail-not-found" className="max-w-prose">
@@ -227,7 +227,7 @@ export default async function PastSessionPage({
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
           {words.heading(germanDayOf(detail.session.startedAt))}
         </h1>
         {/* The overview's badge, so an afternoon under way is recognised by the same mark on both

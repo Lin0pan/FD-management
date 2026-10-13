@@ -56,7 +56,10 @@ type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
  * in them to keep still (`docs/guideline/ui_styling_guide.md` §12).
  */
 const TONES = {
-  warn: { className: "bg-amber-500 text-black ring-black/10", Icon: TriangleAlert },
+  warn: {
+    className: "border-2 border-amber-700 bg-amber-400 text-stone-900 ring-transparent",
+    Icon: TriangleAlert,
+  },
   refuse: { className: "bg-red-700 text-white ring-black/10", Icon: X },
   unknown: { className: "bg-muted text-foreground ring-foreground/10", Icon: CircleHelp },
   done: { className: "bg-muted text-foreground ring-foreground/10", Icon: Check },
@@ -122,7 +125,7 @@ export function VerdictChip({
   const { className, Icon } = TONES[tone];
   return (
     <p
-      className={`flex h-12 items-center gap-2 rounded-[10px] px-4 text-base font-semibold ring-1 ${className}`}
+      className={`flex h-14 items-center gap-2 rounded-xl px-6 text-lg font-bold ring-1 ${className}`}
     >
       <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={2.5} />
       <span>
@@ -153,7 +156,7 @@ function Headline({
 }): React.ReactElement {
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
       {children}
     </div>
   );
@@ -237,7 +240,7 @@ export function HouseholdRows({
         {/* Quiet on purpose: a card that has fallen behind is never grounds to turn anyone away
             (US-13.4, FR-5). */}
         {customer.staleCard === null ? null : (
-          <p data-testid="counter-stale-card" className="text-xs text-muted-foreground">
+          <p data-testid="counter-stale-card" className="text-sm text-muted-foreground">
             {de.distribution.counter.staleCard(
               customer.cardNumber,
               de.customers.derived.countsValue(
@@ -292,7 +295,7 @@ export function HouseholdRows({
           {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
             <p
               data-testid="campaign-reminder-none"
-              className="flex w-40 items-center self-stretch rounded-lg border px-3 text-xs text-muted-foreground"
+              className="flex w-40 items-center self-stretch rounded-lg border px-3 text-sm text-muted-foreground"
             >
               {words.noCampaignReminder}
             </p>
@@ -361,7 +364,7 @@ function NoteRow({
           nothing else on the screen holds it. */}
       {verdict.kind === "BLOCKED" ? (
         <div className="flex max-w-[75ch] flex-col gap-0.5 rounded-lg border border-red-300 px-3 py-2">
-          <span className="text-xs font-semibold text-red-700">
+          <span className="text-sm font-semibold text-red-700">
             {de.distribution.counter.mask.blockReason}
           </span>
           <p data-testid="counter-verdict-detail" className="whitespace-pre-line">

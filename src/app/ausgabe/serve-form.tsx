@@ -177,7 +177,7 @@ export function ActionButton(): React.ReactElement {
         variant="outline"
         disabled={pending || edited}
         data-testid="correct-save"
-        className="h-12 px-[22px] text-lg font-semibold"
+        className="h-14 rounded-xl px-6 text-lg font-semibold"
       >
         {de.distribution.serve.correct.save}
       </Button>
@@ -192,7 +192,7 @@ export function ActionButton(): React.ReactElement {
       disabled={!enabled || pending}
       data-testid="serve-button"
       className={cn(
-        "h-12 px-[22px] text-lg font-semibold",
+        "h-14 rounded-xl px-6 text-lg font-semibold",
         enabled
           ? "bg-green-700 text-white hover:bg-green-800"
           : "bg-muted text-muted-foreground disabled:opacity-100",
@@ -248,7 +248,7 @@ export function PaidTile(): React.ReactElement | null {
           refused && "opacity-50",
         )}
       >
-        <span className="flex items-baseline gap-1 text-xs leading-snug">
+        <span className="flex items-baseline gap-1 text-sm leading-snug">
           <label
             htmlFor={fieldId}
             className={problem === null ? "text-muted-foreground" : "font-medium text-destructive"}
@@ -325,7 +325,7 @@ export function StatusSlot({
     <div
       data-testid={verdictKind === null ? undefined : "counter-verdict"}
       data-verdict={verdictKind ?? undefined}
-      className="flex min-h-12 min-w-64 flex-1 items-center"
+      className="flex min-h-14 min-w-64 flex-1 items-center"
     >
       {own ?? certificate ?? answer ?? chip}
     </div>
@@ -367,7 +367,7 @@ function OwnAnswer({ context }: { context: ServeContext }): React.ReactElement |
           variant="outline"
           disabled={context.pending || edited}
           data-testid={correcting ? "correct-confirm-overpayment" : "serve-confirm-overpayment"}
-          className="h-12 shrink-0 text-base"
+          className="h-14 shrink-0 rounded-xl px-6 text-lg"
         >
           {de.distribution.serve.overpayment.confirm}
         </Button>

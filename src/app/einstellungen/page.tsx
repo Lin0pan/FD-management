@@ -258,7 +258,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         // Still a dead end: giving this state the form so it can bootstrap itself is §4.2f, a change
         // to what the screen does rather than how it looks.
         <main className={SHELL}>
-          <h1 className="text-3xl font-semibold tracking-tight">{de.settings.heading}</h1>
+          <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.settings.heading}</h1>
           <p className="max-w-prose text-muted-foreground">{de.settings.errors.noSettings}</p>
         </main>
       );
@@ -273,7 +273,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
   return (
     <main className={SHELL}>
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.settings.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.settings.heading}</h1>
         <p className="max-w-prose text-muted-foreground">{de.settings.intro}</p>
       </header>
       <SettingsForm settings={current} />
@@ -290,7 +290,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         aria-labelledby="certificate-types-heading"
         className="mt-8 flex flex-col gap-4 border-t pt-8"
       >
-        <h2 id="certificate-types-heading" className="text-xl font-semibold">
+        <h2 id="certificate-types-heading" className="text-2xl font-bold">
           {de.settings.certificateTypes.heading}
         </h2>
         <CertificateTypeTable types={certificateTypes} />
@@ -300,7 +300,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         aria-labelledby="campaign-reminder-heading"
         className="mt-8 flex flex-col gap-4 border-t pt-8"
       >
-        <h2 id="campaign-reminder-heading" className="text-xl font-semibold">
+        <h2 id="campaign-reminder-heading" className="text-2xl font-bold">
           {de.settings.campaignReminder.heading}
         </h2>
         <CampaignReminderPanel

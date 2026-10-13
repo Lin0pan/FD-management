@@ -113,7 +113,9 @@ function Section({
 function NotFound(): React.ReactElement {
   return (
     <main className={SHELL}>
-      <h1 className="text-3xl font-semibold tracking-tight">{de.customers.card.heading}</h1>
+      <h1 className="text-[32px] leading-10 font-bold tracking-tight">
+        {de.customers.card.heading}
+      </h1>
       <p className="max-w-prose">{de.customers.errors.notFound}</p>
     </main>
   );
@@ -320,7 +322,7 @@ function History({
           ))}
         </TableBody>
       </Table>
-      <p className="max-w-prose text-xs text-muted-foreground">{words.historyHint}</p>
+      <p className="max-w-prose text-sm text-muted-foreground">{words.historyHint}</p>
     </>
   );
 }
@@ -371,7 +373,7 @@ function CustomerRecord({
          */}
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-3xl font-semibold tracking-tight break-words">
+            <h1 className="text-[32px] leading-10 font-bold tracking-tight break-words">
               {details.firstName} {details.lastName}
             </h1>
             {/* The number and the week it collects in, on one badge (US-31.7, R-27). Reading „37“

@@ -106,7 +106,9 @@ export default async function CardsToPrintPage({
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.cardsToPrint.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
+          {de.cardsToPrint.heading}
+        </h1>
         <BackToOverviews testId="cards-to-print-back" />
       </div>
 
@@ -126,7 +128,7 @@ export default async function CardsToPrintPage({
 
       <Card>
         <CardHeader className="border-b">
-          <CardTitle className="text-lg">
+          <CardTitle>
             <h2>{de.cardsToPrint.listTitle}</h2>
           </CardTitle>
           <CardAction className="text-sm text-muted-foreground">

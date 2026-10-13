@@ -131,7 +131,7 @@ function Field({
       {problem === null ? null : (
         <FieldRejection id={name} problem={problem} testId="waiting-list-field-error" />
       )}
-      {hint === undefined ? null : <span className="text-xs text-muted-foreground">{hint}</span>}
+      {hint === undefined ? null : <span className="text-sm text-muted-foreground">{hint}</span>}
     </div>
   );
 }
@@ -175,7 +175,6 @@ function Fields({
         {before.map(gridField)}
         <CertificateTypeField
           types={certificateTypes}
-          height="h-8"
           id="certificateType"
           typeProblem={problemAt(fields, "certificateType")}
           otherProblem={problemAt(fields, "certificateTypeOther")}
@@ -230,7 +229,7 @@ export function AddApplicantForm({
     // bar, which would otherwise cover this card's heading on arrival.
     <Card id={ADD_FORM_ANCHOR} className="scroll-mt-16">
       <CardHeader>
-        <CardTitle className="text-lg">
+        <CardTitle>
           <h2>{de.waitingList.add.heading}</h2>
         </CardTitle>
       </CardHeader>

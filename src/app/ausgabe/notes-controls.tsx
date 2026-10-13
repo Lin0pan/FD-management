@@ -66,7 +66,7 @@ export function CounterNotes({
 
   return (
     <>
-      <span id={labelId} className="text-xs text-muted-foreground">
+      <span id={labelId} className="text-sm text-muted-foreground">
         {de.customers.record.notesHeading}
       </span>
       {editing ? (

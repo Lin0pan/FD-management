@@ -46,7 +46,7 @@ export function FreeSlotBanner({
             household on", which is exactly what the banner announces. Not `Check`: green-plus-check
             is `CONFIRMATION_ACCENT`'s meaning ("a write went through"), and reusing it here would
             give one glyph two meanings. */}
-        <CardTitle className="flex items-center gap-2 text-lg">
+        <CardTitle className="flex items-center gap-2">
           <UserPlus aria-hidden="true" className="size-5 shrink-0" />
           <h2>{de.waitingList.banner.heading}</h2>
         </CardTitle>

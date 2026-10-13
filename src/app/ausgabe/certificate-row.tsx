@@ -171,7 +171,7 @@ function Fact({
 }): React.ReactElement {
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
       {children}
     </div>
   );
@@ -181,7 +181,7 @@ function Fact({
 const RENEWAL_FORM_ID = "counter-renewal-form";
 
 const VALUE = "text-base font-medium tabular-nums";
-const SMALL_BUTTON = "h-7 text-[13px]";
+const SMALL_BUTTON = "h-9 text-sm";
 
 /** Everything row 4 shows, already in German where the server formats it (Berlin, not the browser). */
 export interface CertificateRowProps {
@@ -221,7 +221,7 @@ export function CertificateRow(props: CertificateRowProps): React.ReactElement {
         {/* The second archiving trigger (US-10.4): a number and nothing more — no threshold, no
             warning (PRD §5). */}
         {props.consecutiveNoShows === 0 ? null : (
-          <span data-testid="counter-no-shows" className="text-xs text-muted-foreground">
+          <span data-testid="counter-no-shows" className="text-sm text-muted-foreground">
             {words.noShows(props.consecutiveNoShows)}
           </span>
         )}
@@ -293,7 +293,7 @@ function ReminderActions({
           <span
             data-testid="reminder-confirmation"
             className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[13px] font-medium",
+              "inline-flex h-9 items-center gap-1 rounded-[10px] border px-3 text-sm font-semibold",
               CONFIRMATION_ACCENT,
             )}
           >
@@ -372,7 +372,6 @@ function RenewalForm({
       <div className="flex items-start gap-3">
         <CertificateTypeField
           types={certificateTypes}
-          height="h-8"
           id="renewal-type"
           className="w-52"
           typeProblem={typeProblem}
@@ -394,7 +393,7 @@ function RenewalForm({
             value={validUntil}
             onChange={setValidUntil}
             data-testid="renewal-valid-until"
-            className="h-8 w-32"
+            className="w-36"
             {...marking("certificateValidUntil", "renewal-valid-until", validUntilProblem)}
           />
           {validUntilProblem === null ? null : (
@@ -405,19 +404,13 @@ function RenewalForm({
             />
           )}
         </div>
-        <p className="mt-5 min-w-0 flex-1 text-xs text-muted-foreground">{words.hint}</p>
+        <p className="mt-5 min-w-0 flex-1 text-sm text-muted-foreground">{words.hint}</p>
       </div>
       <div className="mt-1 flex gap-2">
-        <Button type="submit" disabled={renewing} data-testid="renewal-save" className="h-8">
+        <Button type="submit" disabled={renewing} data-testid="renewal-save">
           {words.submit}
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={toggleRenewal}
-          data-testid="renewal-cancel"
-          className="h-8"
-        >
+        <Button type="button" variant="ghost" onClick={toggleRenewal} data-testid="renewal-cancel">
           {words.cancel}
         </Button>
       </div>

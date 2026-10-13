@@ -59,7 +59,7 @@ export function SessionHouseholds({ roster }: { roster: CounterRosterView }): Re
   return (
     <Card data-testid="session-households">
       <CardHeader>
-        <CardTitle className="flex items-baseline gap-3 text-lg">
+        <CardTitle className="flex items-baseline gap-3">
           <h2>{words.heading(colours)}</h2>
           <span
             data-testid="session-households-count"

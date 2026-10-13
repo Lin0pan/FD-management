@@ -100,14 +100,14 @@ export function CampaignReminderField({
           <label
             htmlFor={fieldId}
             title={name}
-            className="flex min-w-0 items-center gap-1.5 text-xs leading-snug text-muted-foreground"
+            className="flex min-w-0 items-center gap-1.5 text-sm leading-snug text-muted-foreground"
           >
             {outstanding("size-3.5 shrink-0 text-foreground")}
             <span className="truncate">{name}</span>
           </label>
           {/* The figures beside it are `text-2xl`; this row is their line height, so the tiles end
               on one edge. */}
-          <span className="flex h-8 items-center">{box}</span>
+          <span className="flex h-10 items-center">{box}</span>
         </form>
         {error}
       </div>

@@ -162,7 +162,7 @@ function MatchRow({
               {match.formerCustomerNumber}
             </span>
           </p>
-          <p className="max-w-prose text-xs text-muted-foreground">{words.formerNumberHint}</p>
+          <p className="max-w-prose text-sm text-muted-foreground">{words.formerNumberHint}</p>
         </div>
       </details>
     </li>

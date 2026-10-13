@@ -85,7 +85,7 @@ function SessionRow({ session }: { session: ListedSession }): React.ReactElement
         {session.running ? (
           <span
             data-testid="past-session-provisional"
-            className="block text-xs text-muted-foreground"
+            className="block text-sm text-muted-foreground"
           >
             {words.provisional}
           </span>
@@ -102,7 +102,7 @@ export default async function PastSessionsPage(): Promise<React.ReactElement> {
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{words.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">{words.heading}</h1>
         <BackToOverviews testId="past-sessions-back" />
       </div>
 

@@ -91,7 +91,6 @@ function TypeOption({
 
 export function CertificateTypeField({
   types,
-  height,
   id,
   className,
   initialValue,
@@ -100,8 +99,6 @@ export function CertificateTypeField({
   errorTestId,
 }: {
   types: CertificateTypeList;
-  /** The height of the boxes beside it on this screen — `h-9` only at the counter. */
-  height: "h-8" | "h-9";
   /** The select's id and `data-testid` both — `RenewalFields`' own convention. */
   id: string;
   /**
@@ -146,7 +143,7 @@ export function CertificateTypeField({
               requestAnimationFrame(() => otherRef.current?.focus());
             }
           }}
-          className={selectClass(height)}
+          className={selectClass()}
           data-testid={id}
           {...marking("certificateType", id, typeProblem)}
         >
@@ -187,7 +184,6 @@ export function CertificateTypeField({
             value={other}
             onChange={(event) => setOther(event.target.value)}
             data-testid={otherId}
-            className={height}
             {...marking("certificateTypeOther", otherId, otherProblem)}
           />
           {otherProblem === null ? null : (

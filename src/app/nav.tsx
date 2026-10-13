@@ -19,7 +19,7 @@ import { activeSection, NAV_ITEMS } from "./active-section";
 
 /**
  * A tab, sized and focus-ringed like the `Button` primitive so the bar belongs to the same set of
- * controls as the screens below it — but taller than the `radix-nova` default (`h-8`), because this
+ * controls as the screens below it — but taller than the `Button` default (`h-10`), because this
  * is read and hit standing up at the counter, not from an office chair.
  */
 const ITEM =

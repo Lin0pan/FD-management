@@ -300,12 +300,7 @@ function Section({
 /** The field grid: twelve columns at `lg`, two at `sm`, one below. */
 const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
 
-/**
- * A native `<select>` at the height of this form's `Input`s: `/einstellungen` puts controls on `h-9`
- * and this screen leaves `Input` at `h-8`, and a select carrying the other screen's height is the
- * ragged baseline `docs/guideline/ui_styling_guide.md` §3 warns about.
- */
-const SELECT = selectClass("h-8");
+const SELECT = selectClass();
 
 /** The household as the form starts out: the archived one if there is a draft, otherwise one blank row. */
 function initialRows(draft: PrefillDraft | null): ReadonlyArray<MemberRow> {
@@ -547,7 +542,6 @@ export function RegistrationForm({
         <div className={GRID}>
           <CertificateTypeField
             types={certificateTypes}
-            height="h-8"
             id="certificateType"
             className="lg:col-span-6"
             initialValue={draft?.certificateType}
@@ -763,7 +757,7 @@ export function RegistrationForm({
                     {soldOut && !full ? (
                       <p
                         id={`group-${option}-full`}
-                        className="max-w-prose text-xs text-muted-foreground"
+                        className="max-w-prose text-sm text-muted-foreground"
                       >
                         {de.customers.assignment.groupFull(de.customers.groups[option])}
                       </p>
@@ -776,7 +770,7 @@ export function RegistrationForm({
                 sizes stay whatever the register looks like — a staff member must be able to see for
                 themselves that it has drifted — while the proposal is named only where there is
                 one, which is everywhere but a full register (US-31.3). */}
-            <p data-testid="group-proposal" className="max-w-prose text-xs text-muted-foreground">
+            <p data-testid="group-proposal" className="max-w-prose text-sm text-muted-foreground">
               {proposal.suggestedGroup === null
                 ? null
                 : `${de.customers.assignment.suggestedGroup(
@@ -848,7 +842,7 @@ export function RegistrationForm({
             {full ? null : (
               <p
                 data-testid="free-numbers-by-group"
-                className="max-w-prose text-xs text-muted-foreground"
+                className="max-w-prose text-sm text-muted-foreground"
               >
                 {de.customers.assignment.freeNumbersByGroup(
                   freeInGroup.RED.length,

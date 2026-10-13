@@ -51,7 +51,7 @@ export function PromotionScreen({
         className="max-w-prose border border-amber-500 bg-amber-100 text-amber-900 ring-0"
       >
         <CardHeader>
-          <CardTitle className="text-lg">
+          <CardTitle>
             <h2>{de.waitingList.promote.expiredHeading}</h2>
           </CardTitle>
         </CardHeader>

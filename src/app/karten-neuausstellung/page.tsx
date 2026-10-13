@@ -163,7 +163,7 @@ export default async function CardsDuePage({
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.cardsDue.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.cardsDue.heading}</h1>
         <BackToOverviews testId="cards-due-back" />
       </div>
 
@@ -182,7 +182,7 @@ export default async function CardsDuePage({
             heading, so without it the row names would be the only headings on the screen and would
             be announced with nothing above them saying what the collection is. */}
         <CardHeader className="border-b">
-          <CardTitle className="text-lg">
+          <CardTitle>
             <h2>{de.cardsDue.listTitle}</h2>
           </CardTitle>
           <CardAction className="text-sm text-muted-foreground">

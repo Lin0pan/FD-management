@@ -41,7 +41,9 @@ function Frame({ children }: { children: React.ReactNode }): React.ReactElement 
       {/* The back-link stays — it names the list this applicant came from, which the nav bar cannot
           say — but it belongs beside the heading rather than stranded below the form. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.promote.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
+          {de.waitingList.promote.heading}
+        </h1>
         <Button variant="ghost" asChild>
           <Link href="/warteliste">
             <ArrowLeft aria-hidden="true" />

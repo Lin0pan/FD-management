@@ -111,7 +111,7 @@ function SessionHeader({
 }): React.ReactElement {
   return (
     <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard}>
-      <h1 className="text-3xl font-semibold tracking-tight">{de.distribution.heading}</h1>
+      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.distribution.heading}</h1>
       <p data-testid="session-day" className="text-lg text-muted-foreground tabular-nums">
         {germanSessionDay(running.session.startedAt)}
       </p>
@@ -139,7 +139,7 @@ function LastSessionCard({ ended }: { ended: EndedSession }): React.ReactElement
   return (
     <Card data-testid="last-session">
       <CardHeader>
-        <CardTitle className="text-lg">
+        <CardTitle>
           <h2>{words.heading}</h2>
         </CardTitle>
         {/* The other shortcut to the afternoons already held: this card answers what the last one
@@ -336,7 +336,7 @@ function slotAnswer({
 function PageHeader(): React.ReactElement {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-3xl font-semibold tracking-tight">{de.distribution.heading}</h1>
+      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.distribution.heading}</h1>
     </div>
   );
 }
@@ -456,7 +456,7 @@ export default async function DistributionPage({
                           </label>
                           <NumberField />
                         </div>
-                        <Button type="submit" variant="outline" className="h-12 px-4 text-base">
+                        <Button type="submit" variant="outline" size="lg">
                           <Search aria-hidden="true" data-icon="inline-start" />
                           {de.distribution.counter.submit}
                         </Button>

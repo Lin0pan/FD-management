@@ -42,7 +42,9 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
       return (
         <main className={SHELL}>
-          <h1 className="text-3xl font-semibold tracking-tight">{de.customers.new.heading}</h1>
+          <h1 className="text-[32px] leading-10 font-bold tracking-tight">
+            {de.customers.new.heading}
+          </h1>
           <p className="max-w-prose">{de.settings.errors.noSettings}</p>
         </main>
       );
@@ -55,7 +57,9 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
   return (
     <main className={SHELL}>
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.customers.new.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
+          {de.customers.new.heading}
+        </h1>
       </header>
 
       {/* Above the form, so it is read before the first field is typed: the number this screen is

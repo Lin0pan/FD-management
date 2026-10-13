@@ -37,7 +37,7 @@ import { Confirmation, Notice, Sentence } from "../../notice";
 import { useNoticeSlot } from "../../notice-board";
 import { selectClass } from "../../select";
 
-const SELECT = selectClass("h-8");
+const SELECT = selectClass();
 
 export function NumberControl({
   customerId,
@@ -175,7 +175,7 @@ export function NumberControl({
                 {soldOut ? (
                   <p
                     id={`group-${option}-full`}
-                    className="max-w-prose text-xs text-muted-foreground"
+                    className="max-w-prose text-sm text-muted-foreground"
                   >
                     {de.customers.assignment.groupFull(de.customers.groups[option])}
                   </p>
@@ -188,7 +188,7 @@ export function NumberControl({
             the weeks out has to be able to see for themselves that they have drifted. No proposal
             beside them, unlike at the intake — there is nothing to recommend about a household that
             is already somewhere. */}
-        <p data-testid="group-sizes" className="max-w-prose text-xs text-muted-foreground">
+        <p data-testid="group-sizes" className="max-w-prose text-sm text-muted-foreground">
           {de.customers.assignment.groupSizes(groupCounts.red, groupCounts.blue)}
         </p>
       </fieldset>
@@ -221,7 +221,7 @@ export function NumberControl({
             Blau: 0“ states a shortage twice and says nothing about it. */}
         <p
           data-testid="free-numbers-by-group"
-          className="max-w-prose text-xs text-muted-foreground"
+          className="max-w-prose text-sm text-muted-foreground"
         >
           {freeInGroup.RED + freeInGroup.BLUE === 0
             ? words.noOtherNumber

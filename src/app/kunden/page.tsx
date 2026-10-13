@@ -68,7 +68,7 @@ const filterParams = z.object({
 type Filters = z.infer<typeof filterParams>;
 
 /** The three filter selects, styled from the same string so they cannot drift apart. */
-const FILTER_SELECT = selectClass("h-9");
+const FILTER_SELECT = selectClass();
 
 /** The German name of a certificate state as a *filter option*, which spells out what it includes. */
 function certificateFilterLabel(state: CertificateState): string {
@@ -170,7 +170,7 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
           <div className="relative">
             <Search
               aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground"
             />
             <Input
               id="filter-search"
@@ -181,7 +181,7 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
               placeholder={de.customerList.search.placeholder}
               defaultValue={search}
               autoComplete="off"
-              className="h-9 pl-8"
+              className="pl-10"
             />
           </div>
         </FilterField>
@@ -391,7 +391,7 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
 function NoSettings(): React.ReactElement {
   return (
     <main className={SHELL}>
-      <h1 className="text-3xl font-semibold tracking-tight">{de.customerList.heading}</h1>
+      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.customerList.heading}</h1>
       <Alert>
         <AlertDescription>{de.settings.errors.noSettings}</AlertDescription>
       </Alert>
@@ -457,7 +457,9 @@ export default async function CustomerListPage({
       {/* The one *write* on this screen stands beside the heading, where the page skeleton puts a
           screen's primary action — rather than opening a band of its own above the register. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.customerList.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
+          {de.customerList.heading}
+        </h1>
         <Button size="lg" asChild>
           <Link href="/kunden/neu" data-testid="hub-new-customer">
             <UserPlus aria-hidden="true" />

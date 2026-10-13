@@ -160,7 +160,9 @@ export default async function WaitingListPage({
           the list: with fifteen applicants the form is 2000px down, and whoever came to *look* is
           the more common visitor. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.heading}</h1>
+        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
+          {de.waitingList.heading}
+        </h1>
         <Button variant="outline" size="lg" asChild>
           <a href={`#${ADD_FORM_ANCHOR}`} data-testid="waiting-list-add-link">
             <UserPlus aria-hidden="true" />
@@ -186,7 +188,7 @@ export default async function WaitingListPage({
             rule is its description rather than a paragraph two blocks above with a banner in
             between — it is the fairness contract, and it belongs against the rows it governs. */}
         <CardHeader className="border-b">
-          <CardTitle className="text-lg">
+          <CardTitle>
             <h2>{de.waitingList.listTitle}</h2>
           </CardTitle>
           <CardDescription data-testid="waiting-list-order-rule" className="max-w-prose">
