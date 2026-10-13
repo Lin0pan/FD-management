@@ -48,10 +48,10 @@ function RunningSessionPanel({ session }: { session: DistributionSession }): Rea
     <Card data-testid="running-session">
       <CardContent className="flex flex-col items-start gap-4 py-2">
         <div className="flex flex-wrap items-center gap-3">
-          {/* Second only to the greeting, and a step above the date below it: on a screen of two
-              sentences the running afternoon is the one that needs acting on. It carries no
-              tint of its own — the group badges inside it do, and a translucent fill behind them
-              would composite into a third colour meaning neither (`ui_styling_guide.md` §5). */}
+          {/* A step above the date in size: on a screen of two sentences the running afternoon is
+              the one that needs acting on. It carries no tint of its own — the group badges inside
+              it do, and a translucent fill behind them would composite into a third colour meaning
+              neither (`ui_styling_guide.md` §5). */}
           <p className="text-2xl font-semibold tracking-tight">{de.distribution.session.running}</p>
           <SessionGroupBadges groups={session.groups} testId="running-session-groups" />
         </div>
@@ -159,15 +159,13 @@ export default async function Home(): Promise<React.ReactElement> {
       {/* The greeting is the `h1` — one line, and the whole of the welcome. It is set full strength
           rather than muted now that it is the only thing at the top of the screen. */}
       <h1 className="text-3xl font-semibold tracking-tight">{de.home.heading}</h1>
-      {/* Above the date, because an afternoon that is running outranks it: the date describes the
-          calendar, and this is what is actually happening. */}
-      {session.running === null ? null : <RunningSessionPanel session={session.running.session} />}
-      {/* Below the running afternoon, which blocks every household; above the date, which blocks
-          nothing. */}
-      {toDos.length === 0 ? null : <ToDos toDos={toDos} />}
+      {/* Directly under the greeting whatever follows, so it never moves between visits. */}
       <p data-testid="today-date" className="text-xl text-muted-foreground">
         {de.home.today(germanLongDate(date))}
       </p>
+      {session.running === null ? null : <RunningSessionPanel session={session.running.session} />}
+      {/* Below the running afternoon, which blocks every household. */}
+      {toDos.length === 0 ? null : <ToDos toDos={toDos} />}
       {configured ? null : <NotConfigured />}
     </main>
   );
