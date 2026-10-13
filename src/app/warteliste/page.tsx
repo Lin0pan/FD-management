@@ -86,7 +86,7 @@ function Row({
           <Badge
             variant="outline"
             title={`${de.waitingList.certificateExpired} — ${de.waitingList.certificateExpiredHint}`}
-            className="border-amber-500/40 bg-amber-500/10"
+            className="border-amber-500 bg-amber-100 text-amber-900"
           >
             <span data-testid="waiting-list-expired-badge">
               {de.waitingList.certificateExpired}

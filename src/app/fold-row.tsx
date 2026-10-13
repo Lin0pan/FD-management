@@ -98,7 +98,7 @@ export function FoldPanel({
     <FoldLine>
       <div
         id={idFor(fold)}
-        className="flex max-w-prose flex-col items-end gap-3 rounded-lg border border-red-700/35 px-3 py-2.5"
+        className="flex max-w-prose flex-col items-end gap-3 rounded-lg border border-red-300 px-3 py-2.5"
       >
         {children}
       </div>

@@ -23,16 +23,16 @@ import { activeSection, NAV_ITEMS } from "./active-section";
  * is read and hit standing up at the counter, not from an office chair.
  */
 const ITEM =
-  "inline-flex h-12 items-center rounded-t-md border-b-2 px-3 text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+  "inline-flex h-[52px] items-center rounded-t-md border-b-[3px] px-3.5 text-base transition-colors";
 
 /**
- * The current section is marked three ways at once — a bottom rule, a tint and bold text — because
+ * The current section is marked two ways — a bottom rule and bold text — because
  * DF works from one shared screen under whatever light the hall has that day. Colour alone would be
  * a distinction only some of the staff can make (US-03.4).
  */
-const ACTIVE = "border-foreground bg-muted font-semibold text-foreground";
+const ACTIVE = "border-foreground font-bold text-foreground";
 const INACTIVE =
-  "border-transparent font-medium text-muted-foreground hover:bg-muted hover:text-foreground";
+  "border-transparent font-medium text-zinc-700 hover:bg-muted hover:text-foreground";
 
 export function Nav(): React.ReactElement {
   const current = activeSection(usePathname());
@@ -44,7 +44,7 @@ export function Nav(): React.ReactElement {
     <nav
       aria-label={de.nav.label}
       data-testid="main-nav"
-      className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75"
+      className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85"
     >
       {/* Same container as the page below it (`max-w-6xl`), but inset by the page's padding *minus*
           a tab's own `px-3`: that puts the first tab's label on the same vertical line as the `h1`,

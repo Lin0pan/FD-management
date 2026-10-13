@@ -397,7 +397,7 @@ export function RemoveEntry(): React.ReactElement | null {
       <FoldToggle
         fold="remove"
         testId="correct-remove-open"
-        className="border-red-700/35 bg-red-700/5 text-red-700 hover:bg-red-700/10 hover:text-red-700 aria-expanded:bg-red-700/10 aria-expanded:text-red-700"
+        className="border-red-300 bg-card text-red-700 hover:bg-red-50 hover:text-red-700 aria-expanded:bg-red-50 aria-expanded:text-red-700"
       >
         <Undo2 aria-hidden="true" data-icon="inline-start" />
         {de.distribution.serve.correct.remove}

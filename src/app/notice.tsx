@@ -42,7 +42,7 @@ const TONES: Record<
 > = {
   success: { Icon: Check, box: CONFIRMATION_ACCENT },
   refusal: { Icon: TriangleAlert, box: REFUSAL_ACCENT },
-  error: { Icon: CircleAlert, box: "border-destructive/40 bg-destructive/5", destructive: true },
+  error: { Icon: CircleAlert, box: "border-red-400 bg-red-100 text-red-900", destructive: true },
 };
 
 /**
@@ -106,8 +106,8 @@ export function Notice({
         // its own id would leave all four asserting the absence of something that no longer renders.
         data-tier={tone}
         // Overrides `AlertDescription`'s muted default — the sentence is the message here, not a
-        // note under one. The destructive variant has already coloured it.
-        className={destructive ? "max-w-prose" : "max-w-prose text-foreground"}
+        // note under one — with the box's own dark text. The destructive variant has coloured it.
+        className={destructive ? "max-w-prose" : "max-w-prose text-current"}
       >
         <Sentence text={text} />
         {children}

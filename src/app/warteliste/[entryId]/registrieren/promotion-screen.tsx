@@ -48,7 +48,7 @@ export function PromotionScreen({
     return (
       <Card
         data-testid="promotion-expired-warning"
-        className="max-w-prose border border-amber-500/40 bg-amber-500/10 ring-0"
+        className="max-w-prose border border-amber-500 bg-amber-100 text-amber-900 ring-0"
       >
         <CardHeader>
           <CardTitle className="text-lg">
