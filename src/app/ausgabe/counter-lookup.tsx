@@ -56,7 +56,10 @@ type Tone = "serve" | "warn" | "refuse" | "unknown" | "done";
  * in them to keep still (`docs/guideline/ui_styling_guide.md` §12).
  */
 const TONES = {
-  warn: { className: "bg-amber-500 text-black ring-black/10", Icon: TriangleAlert },
+  warn: {
+    className: "border-2 border-amber-700 bg-amber-400 text-stone-900 ring-transparent",
+    Icon: TriangleAlert,
+  },
   refuse: { className: "bg-red-700 text-white ring-black/10", Icon: X },
   unknown: { className: "bg-muted text-foreground ring-foreground/10", Icon: CircleHelp },
   done: { className: "bg-muted text-foreground ring-foreground/10", Icon: Check },
@@ -122,7 +125,7 @@ export function VerdictChip({
   const { className, Icon } = TONES[tone];
   return (
     <p
-      className={`flex h-12 items-center gap-2 rounded-[10px] px-4 text-base font-semibold ring-1 ${className}`}
+      className={`flex h-14 items-center gap-2 rounded-xl px-6 text-lg font-bold ring-1 ${className}`}
     >
       <Icon aria-hidden="true" className="size-5 shrink-0" strokeWidth={2.5} />
       <span>
@@ -138,7 +141,7 @@ export function VerdictChip({
 }
 
 /** The mask's tile: a `Stat` at the size the row of six has room for (US-41.5). */
-const TILE = "gap-0.5 rounded-lg bg-muted/60 px-3 py-1.5";
+const TILE = "min-w-0 gap-0.5 px-3 py-1.5";
 const TILE_VALUE = "text-2xl";
 
 /** A label over a figure at the name's size — the two things the counter reads out and compares. */
@@ -153,7 +156,7 @@ function Headline({
 }): React.ReactElement {
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
       {children}
     </div>
   );
@@ -193,7 +196,7 @@ export function HouseholdRows({
   const kind = balanceKind(customer.balanceCents);
 
   return (
-    <div data-testid="counter-customer" className="flex flex-col gap-[18px]">
+    <div data-testid="counter-customer" className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
         <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 border-t pt-4 md:grid-cols-12">
           <Headline label={words.name} className="md:col-span-6">
@@ -237,7 +240,7 @@ export function HouseholdRows({
         {/* Quiet on purpose: a card that has fallen behind is never grounds to turn anyone away
             (US-13.4, FR-5). */}
         {customer.staleCard === null ? null : (
-          <p data-testid="counter-stale-card" className="text-xs text-muted-foreground">
+          <p data-testid="counter-stale-card" className="text-sm text-muted-foreground">
             {de.distribution.counter.staleCard(
               customer.cardNumber,
               de.customers.derived.countsValue(
@@ -248,66 +251,59 @@ export function HouseholdRows({
           </p>
         )}
       </div>
-      <div className="grid grid-cols-1 items-start gap-x-6 gap-y-3 md:grid-cols-12">
-        <div className="flex gap-3 md:col-span-3">
-          <Stat
-            label={words.grownUps}
-            value={String(customer.grownUps)}
-            testId="counter-grown-ups"
-            className={cn(TILE, "w-24")}
-            valueClassName={TILE_VALUE}
-          />
-          <Stat
-            label={words.children}
-            value={String(customer.children)}
-            testId="counter-children"
-            className={cn(TILE, "w-24")}
-            valueClassName={TILE_VALUE}
-          />
-        </div>
+      {/* Six tiles in one row (US-41.5); „Gezahlt" a quarter wider, its label carrying the price. */}
+      <div className="grid grid-cols-2 items-start gap-3 md:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.25fr)_repeat(2,minmax(0,1fr))]">
+        <Stat
+          label={words.grownUps}
+          value={String(customer.grownUps)}
+          testId="counter-grown-ups"
+          className={TILE}
+          valueClassName={TILE_VALUE}
+        />
+        <Stat
+          label={words.children}
+          value={String(customer.children)}
+          testId="counter-children"
+          className={TILE}
+          valueClassName={TILE_VALUE}
+        />
         {/* A household entitled to none reads 0 rather than nothing: the counter has to see that the
             question was answered (US-27). */}
-        <div className="flex md:col-span-3">
-          <Stat
-            label={de.customers.derived.eggs}
-            value={String(customer.eggs)}
-            testId="counter-eggs"
-            className={cn(TILE, "w-24")}
-            valueClassName={TILE_VALUE}
+        <Stat
+          label={de.customers.derived.eggs}
+          value={String(customer.eggs)}
+          testId="counter-eggs"
+          className={TILE}
+          valueClassName={TILE_VALUE}
+        />
+        <PaidTile />
+        {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
+            (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
+        <Stat
+          label={de.customers.derived.balance}
+          value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
+          testId="counter-balance"
+          className={cn(TILE, BALANCE_STYLES[kind])}
+          valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
+        />
+        {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
+          <p
+            data-testid="campaign-reminder-none"
+            className="flex items-center self-stretch rounded-[10px] border px-3 text-sm text-muted-foreground"
+          >
+            {words.noCampaignReminder}
+          </p>
+        ) : (
+          // Keyed by customer: the optimistic tick must not survive into the next household.
+          <CampaignReminderField
+            key={`campaign-${customerId}`}
+            reminderId={campaignReminder.reminderId}
+            customerId={customerId}
+            name={campaignReminder.name}
+            received={campaignReminder.received}
+            tile
           />
-        </div>
-        <div className="flex flex-wrap items-start justify-between gap-3 md:col-span-6">
-          <div className="flex flex-wrap items-start gap-3">
-            <PaidTile />
-            {/* Signed, and tinted off the same `balanceKind` call: the colour never travels alone
-                (US-03.4). „ausgeglichen“ is a word, so it steps down to fit the tile. */}
-            <Stat
-              label={de.customers.derived.balance}
-              value={de.customers.derived.balanceValue(kind, customer.balanceCents)}
-              testId="counter-balance"
-              className={cn(TILE, "w-[164px]", BALANCE_STYLES[kind])}
-              valueClassName={cn(TILE_VALUE, kind === "SETTLED" && "text-lg leading-8")}
-            />
-          </div>
-          {customer.status === "ARCHIVED" ? null : campaignReminder === null ? (
-            <p
-              data-testid="campaign-reminder-none"
-              className="flex w-40 items-center self-stretch rounded-lg border px-3 text-xs text-muted-foreground"
-            >
-              {words.noCampaignReminder}
-            </p>
-          ) : (
-            // Keyed by customer: the optimistic tick must not survive into the next household.
-            <CampaignReminderField
-              key={`campaign-${customerId}`}
-              reminderId={campaignReminder.reminderId}
-              customerId={customerId}
-              name={campaignReminder.name}
-              received={campaignReminder.received}
-              tile
-            />
-          )}
-        </div>
+        )}
       </div>
       <CertificateRow
         customerId={customerId}
@@ -360,8 +356,8 @@ function NoteRow({
       {/* The record of why this household was blocked (US-08), verbatim and with its paragraphs:
           nothing else on the screen holds it. */}
       {verdict.kind === "BLOCKED" ? (
-        <div className="flex max-w-[75ch] flex-col gap-0.5 rounded-lg border border-red-700/35 px-3 py-2">
-          <span className="text-xs font-semibold text-red-700">
+        <div className="flex max-w-[75ch] flex-col gap-0.5 rounded-lg border border-destructive-edge px-3 py-2">
+          <span className="text-sm font-semibold text-red-700">
             {de.distribution.counter.mask.blockReason}
           </span>
           <p data-testid="counter-verdict-detail" className="whitespace-pre-line">

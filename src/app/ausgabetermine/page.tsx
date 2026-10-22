@@ -33,7 +33,7 @@ import { de } from "@/i18n/de";
 import { germanDayOf } from "@/i18n/format";
 import { SessionGroupBadges } from "../ausgabe/session-group-badges";
 import { pastSessionDeps } from "./deps";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { BackToOverviews } from "../uebersichten/back-link";
 
 /** An afternoon is started and ended on another workstation too, so never cache this screen. */
@@ -85,7 +85,7 @@ function SessionRow({ session }: { session: ListedSession }): React.ReactElement
         {session.running ? (
           <span
             data-testid="past-session-provisional"
-            className="block text-xs text-muted-foreground"
+            className="block text-sm text-muted-foreground"
           >
             {words.provisional}
           </span>
@@ -102,7 +102,7 @@ export default async function PastSessionsPage(): Promise<React.ReactElement> {
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{words.heading}</h1>
+        <h1 className={H1}>{words.heading}</h1>
         <BackToOverviews testId="past-sessions-back" />
       </div>
 

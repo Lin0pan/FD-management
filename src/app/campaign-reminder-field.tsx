@@ -86,21 +86,21 @@ export function CampaignReminderField({
 
   if (tile) {
     return (
-      <div className="flex flex-col gap-2">
+      <div className="flex min-w-0 flex-col gap-2">
         <form
           action={save}
           data-testid="campaign-reminder"
           className={cn(
-            "flex w-40 flex-col gap-1 rounded-lg px-3 py-1.5",
-            // One pixel less padding where the border takes one, so the tile ends on the tiles' edge.
-            shown ? "bg-muted/60" : cn("border py-[5px]", CAMPAIGN_OUTSTANDING_ACCENT),
+            "flex flex-col gap-1 rounded-[10px] border px-3 py-1.5",
+            // The border every tile wears, so the tiles end on one edge.
+            shown ? "border-rule-subtle bg-muted" : CAMPAIGN_OUTSTANDING_ACCENT,
           )}
         >
           {hidden}
           <label
             htmlFor={fieldId}
             title={name}
-            className="flex min-w-0 items-center gap-1.5 text-xs leading-snug text-muted-foreground"
+            className="flex min-w-0 items-center gap-1.5 text-sm leading-snug text-muted-foreground"
           >
             {outstanding("size-3.5 shrink-0 text-foreground")}
             <span className="truncate">{name}</span>

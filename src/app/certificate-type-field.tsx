@@ -31,6 +31,7 @@ import { Label } from "@/components/ui/label";
 import { foldName } from "@/domain/customer/nameSearch";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { CERTIFICATE_TYPE_OTHER } from "./certificate-type-resolver";
 import { FieldRejection } from "./field-mark";
 import { marking } from "./field-refusal";
@@ -91,8 +92,8 @@ function TypeOption({
 
 export function CertificateTypeField({
   types,
-  height,
   id,
+  inline = false,
   className,
   initialValue,
   typeProblem,
@@ -100,10 +101,13 @@ export function CertificateTypeField({
   errorTestId,
 }: {
   types: CertificateTypeList;
-  /** The height of the boxes beside it on this screen — `h-9` only at the counter. */
-  height: "h-8" | "h-9";
   /** The select's id and `data-testid` both — `RenewalFields`' own convention. */
   id: string;
+  /**
+   * The free text beside the select rather than under it: the counter's renewal, where a third line
+   * pushes the mask past 800 px (US-41, `counter-fit.spec.ts`).
+   */
+  inline?: boolean;
   /**
    * Where the control sits on the screen around it: a grid span, or a width cap in a wrapped row —
    * the select is `w-full` and its content is DF's to type, so a row that does not cap it can be
@@ -127,8 +131,14 @@ export function CertificateTypeField({
   const showingOther = selected === CERTIFICATE_TYPE_OTHER;
 
   return (
-    <div className={`flex flex-col gap-3${className === undefined ? "" : ` ${className}`}`}>
-      <div className="flex flex-col gap-1.5">
+    <div
+      className={cn(
+        inline ? "flex items-start gap-3" : "flex flex-col gap-3",
+        inline && showingOther && "flex-1",
+        className,
+      )}
+    >
+      <div className={cn("flex flex-col gap-1.5", inline && "w-44 shrink-0")}>
         <Label htmlFor={id} className={typeProblem === null ? undefined : "text-destructive"}>
           {de.customers.fields.certificateType}
         </Label>
@@ -146,7 +156,7 @@ export function CertificateTypeField({
               requestAnimationFrame(() => otherRef.current?.focus());
             }
           }}
-          className={selectClass(height)}
+          className={selectClass()}
           data-testid={id}
           {...marking("certificateType", id, typeProblem)}
         >
@@ -171,7 +181,7 @@ export function CertificateTypeField({
         )}
       </div>
       {showingOther ? (
-        <div className="flex flex-col gap-1.5">
+        <div className={cn("flex flex-col gap-1.5", inline && "min-w-0 flex-1")}>
           <Label
             htmlFor={otherId}
             className={otherProblem === null ? undefined : "text-destructive"}
@@ -187,7 +197,6 @@ export function CertificateTypeField({
             value={other}
             onChange={(event) => setOther(event.target.value)}
             data-testid={otherId}
-            className={height}
             {...marking("certificateTypeOther", otherId, otherProblem)}
           />
           {otherProblem === null ? null : (

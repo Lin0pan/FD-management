@@ -42,11 +42,11 @@ export function isCustomerRow(row: MemberRow, customer: MemberRow): boolean {
  * at the cell's 8px padding while the `Input` beside it starts at 14px, so the row number sat 6px
  * above the name it numbers.
  *
- * **Not a measured `pt-`**: this gives the text **the control's own box** — `h-8`, the height the
+ * **Not a measured `pt-`**: this gives the text **the control's own box** — `h-10`, the height the
  * styling guide states for `Input` and `Button` (§1) — and lets it centre itself the way the input
  * does, which stays correct if the type size changes.
  *
  * A `<div>` inside the cell rather than classes on it: `display: flex` on a `<td>` takes it out of
  * the table's formatting context and the columns stop sizing themselves.
  */
-export const ROW_TEXT = "flex h-8 items-center";
+export const ROW_TEXT = "flex h-10 items-center";

@@ -80,7 +80,7 @@ function EggCell({
     <TableCell className="align-top">
       <div className="flex flex-col gap-1">
         <Input
-          className="h-9 tabular-nums"
+          className="tabular-nums"
           type="number"
           inputMode="numeric"
           min={0}

@@ -11,3 +11,6 @@
  * as a string (`docs/guideline/ui_styling_guide.md` §9).
  */
 export const SHELL = "mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 p-6 md:p-8";
+
+/** Every screen's `h1`, one value for the reason the frame is one (`ui_styling_guide.md` §8). */
+export const H1 = "text-[32px] leading-10 font-bold tracking-tight";

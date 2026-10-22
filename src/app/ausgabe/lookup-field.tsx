@@ -84,7 +84,7 @@ export function NumberField(): React.ReactElement {
       autoComplete="off"
       autoFocus
       data-testid="counter-input"
-      className="h-12 w-[150px] text-2xl font-semibold tabular-nums md:text-2xl"
+      className="h-14 w-40 rounded-xl px-4 text-[30px] font-bold tabular-nums"
     />
   );
 }

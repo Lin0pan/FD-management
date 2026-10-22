@@ -36,7 +36,7 @@ import { de } from "@/i18n/de";
 import { germanDate, germanDateTime, germanDayOf } from "@/i18n/format";
 import { GROUP_STYLES } from "../../accents";
 import { SessionGroupBadges } from "../../ausgabe/session-group-badges";
-import { SHELL } from "../../shell";
+import { H1, SHELL } from "../../shell";
 import { pastSessionDeps } from "../deps";
 
 /** An afternoon is served and ended on another workstation too, so never cache this screen. */
@@ -45,9 +45,7 @@ export const dynamic = "force-dynamic";
 function NotFound(): React.ReactElement {
   return (
     <main className={SHELL}>
-      <h1 className="text-3xl font-semibold tracking-tight">
-        {de.distribution.pastSessions.heading}
-      </h1>
+      <h1 className={H1}>{de.distribution.pastSessions.heading}</h1>
       <p data-testid="session-detail-not-found" className="max-w-prose">
         {de.distribution.pastSessions.detail.notFound}
       </p>
@@ -227,9 +225,7 @@ export default async function PastSessionPage({
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">
-          {words.heading(germanDayOf(detail.session.startedAt))}
-        </h1>
+        <h1 className={H1}>{words.heading(germanDayOf(detail.session.startedAt))}</h1>
         {/* The overview's badge, so an afternoon under way is recognised by the same mark on both
             screens (`ui_styling_guide.md` §5). */}
         {detail.running ? (

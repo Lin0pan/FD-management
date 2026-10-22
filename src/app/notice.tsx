@@ -18,7 +18,7 @@ import { Check, CircleAlert, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Segment } from "@/i18n/de";
 import { cn } from "@/lib/utils";
-import { CONFIRMATION_ACCENT, REFUSAL_ACCENT } from "./accents";
+import { CONFIRMATION_ACCENT, ERROR_ACCENT, REFUSAL_ACCENT } from "./accents";
 import type { NoticeTier } from "./notice-tier";
 
 /**
@@ -42,7 +42,7 @@ const TONES: Record<
 > = {
   success: { Icon: Check, box: CONFIRMATION_ACCENT },
   refusal: { Icon: TriangleAlert, box: REFUSAL_ACCENT },
-  error: { Icon: CircleAlert, box: "border-destructive/40 bg-destructive/5", destructive: true },
+  error: { Icon: CircleAlert, box: ERROR_ACCENT, destructive: true },
 };
 
 /**
@@ -106,8 +106,8 @@ export function Notice({
         // its own id would leave all four asserting the absence of something that no longer renders.
         data-tier={tone}
         // Overrides `AlertDescription`'s muted default — the sentence is the message here, not a
-        // note under one. The destructive variant has already coloured it.
-        className={destructive ? "max-w-prose" : "max-w-prose text-foreground"}
+        // note under one — with the box's own dark text. The destructive variant has coloured it.
+        className={destructive ? "max-w-prose" : "max-w-prose text-current"}
       >
         <Sentence text={text} />
         {children}

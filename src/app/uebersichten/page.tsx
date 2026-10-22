@@ -6,7 +6,7 @@
 
 import { readOverviews } from "@/application/overviews/read-overviews";
 import { de } from "@/i18n/de";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { overviewDeps } from "./deps";
 import { ListLink } from "./list-link";
 
@@ -22,7 +22,7 @@ function Area({
 }): React.ReactElement {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-lg font-semibold">{heading}</h2>
+      <h2 className="text-[19px] leading-7 font-bold">{heading}</h2>
       <div className="flex flex-col gap-2">{children}</div>
     </section>
   );
@@ -34,7 +34,7 @@ export default async function OverviewsPage(): Promise<React.ReactElement> {
 
   return (
     <main className={SHELL}>
-      <h1 className="text-3xl font-semibold tracking-tight">{de.nav.overviews}</h1>
+      <h1 className={H1}>{de.nav.overviews}</h1>
 
       <Area heading={areas.customers}>
         <ListLink

@@ -18,7 +18,7 @@ import { EURO_SIGN, formatEuroAmount } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { correctServe, recordServe } from "./actions";
-import { FoldPanel, FoldToggle } from "../fold-row";
+import { FOOTER_RED, FoldPanel, FoldToggle } from "../fold-row";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
 import { guardEnter } from "../enter-guard";
@@ -177,7 +177,7 @@ export function ActionButton(): React.ReactElement {
         variant="outline"
         disabled={pending || edited}
         data-testid="correct-save"
-        className="h-12 px-[22px] text-lg font-semibold"
+        className="h-14 rounded-xl px-6 text-lg font-semibold"
       >
         {de.distribution.serve.correct.save}
       </Button>
@@ -192,7 +192,7 @@ export function ActionButton(): React.ReactElement {
       disabled={!enabled || pending}
       data-testid="serve-button"
       className={cn(
-        "h-12 px-[22px] text-lg font-semibold",
+        "h-14 rounded-xl px-6 text-lg font-semibold",
         enabled
           ? "bg-green-700 text-white hover:bg-green-800"
           : "bg-muted text-muted-foreground disabled:opacity-100",
@@ -240,15 +240,15 @@ export function PaidTile(): React.ReactElement | null {
   return (
     // The message under a refused amount runs on under „Saldo“ rather than widening the tile, which
     // would wrap the row.
-    <div className="flex w-40 flex-col gap-1">
+    <div className="flex min-w-0 flex-col gap-1">
       <div
         className={cn(
-          "flex w-40 flex-col gap-0.5 rounded-lg bg-background px-3 py-1.5 ring-1 ring-input focus-within:ring-2 focus-within:ring-ring",
+          "flex flex-col gap-0.5 rounded-[10px] border border-input bg-card px-3 py-1.5 focus-within:ring-2 focus-within:ring-ring",
           problem !== null && "ring-2 ring-destructive focus-within:ring-destructive",
           refused && "opacity-50",
         )}
       >
-        <span className="flex items-baseline gap-1 text-xs leading-snug">
+        <span className="flex items-baseline gap-1 text-sm leading-snug">
           <label
             htmlFor={fieldId}
             className={problem === null ? "text-muted-foreground" : "font-medium text-destructive"}
@@ -259,7 +259,7 @@ export function PaidTile(): React.ReactElement | null {
             <span
               id={askedId}
               data-testid={mode.kind === "correct" ? "correct-asked" : "counter-amount-to-pay"}
-              className="text-muted-foreground tabular-nums"
+              className="whitespace-nowrap text-muted-foreground tabular-nums"
             >
               {words.asked(opening.askedCents)}
             </span>
@@ -325,7 +325,7 @@ export function StatusSlot({
     <div
       data-testid={verdictKind === null ? undefined : "counter-verdict"}
       data-verdict={verdictKind ?? undefined}
-      className="flex min-h-12 min-w-64 flex-1 items-center"
+      className="flex min-h-14 min-w-64 flex-1 items-center"
     >
       {own ?? certificate ?? answer ?? chip}
     </div>
@@ -367,7 +367,7 @@ function OwnAnswer({ context }: { context: ServeContext }): React.ReactElement |
           variant="outline"
           disabled={context.pending || edited}
           data-testid={correcting ? "correct-confirm-overpayment" : "serve-confirm-overpayment"}
-          className="h-12 shrink-0 text-base"
+          className="h-14 shrink-0 rounded-xl px-6 text-lg"
         >
           {de.distribution.serve.overpayment.confirm}
         </Button>
@@ -394,11 +394,7 @@ export function RemoveEntry(): React.ReactElement | null {
   }
   return (
     <>
-      <FoldToggle
-        fold="remove"
-        testId="correct-remove-open"
-        className="border-red-700/35 bg-red-700/5 text-red-700 hover:bg-red-700/10 hover:text-red-700 aria-expanded:bg-red-700/10 aria-expanded:text-red-700"
-      >
+      <FoldToggle fold="remove" testId="correct-remove-open" className={FOOTER_RED}>
         <Undo2 aria-hidden="true" data-icon="inline-start" />
         {de.distribution.serve.correct.remove}
       </FoldToggle>

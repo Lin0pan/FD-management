@@ -41,8 +41,8 @@ const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12";
  */
 const FIELD_ROWS = "grid grid-rows-subgrid row-span-2 gap-1.5";
 
-/** One height for every control on the screen; `Input` and `Button` both default to `h-8` (§3.4). */
-const CONTROL_HEIGHT = "h-9";
+/** One height for every control on the screen, `Input`'s and `Button`'s default (§3.4). */
+const CONTROL_HEIGHT = "h-10";
 
 /** The fields the last submission refused, or nothing while it refused none. */
 function refusedFields(state: SaveSettingsState): ReadonlyArray<FieldRefusal> | undefined {
@@ -303,7 +303,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
                 // field's accessible name (§3.7).
                 aria-describedby="reason-hint"
               />
-              <p id="reason-hint" className="text-xs text-muted-foreground">
+              <p id="reason-hint" className="text-sm text-muted-foreground">
                 {de.settings.reasonHint}
               </p>
             </div>
@@ -321,7 +321,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
         ) : null}
 
         <div>
-          <Button type="submit" size="lg" disabled={pending}>
+          <Button type="submit" disabled={pending}>
             {pending ? de.settings.saving : de.settings.save}
           </Button>
         </div>

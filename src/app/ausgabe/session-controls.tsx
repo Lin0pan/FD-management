@@ -64,7 +64,7 @@ export function StartSessionForm({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">
+        <CardTitle>
           <h2>{de.distribution.session.start.heading}</h2>
         </CardTitle>
       </CardHeader>
@@ -90,7 +90,7 @@ export function StartSessionForm({
               ))}
             </div>
           </fieldset>
-          <Button type="submit" size="lg" disabled={pending} data-testid="session-start-submit">
+          <Button type="submit" disabled={pending} data-testid="session-start-submit">
             {pending
               ? de.distribution.session.start.submitting
               : de.distribution.session.start.submit}
@@ -143,13 +143,14 @@ export function RunningSessionControls({
           {/* A shortcut to the afternoons already held, whose home is Übersichten (US-38.3), named
               as that screen names itself. Borderless: it navigates, and it must not read as a third
               thing to do to the afternoon under way. */}
-          <Button variant="ghost" asChild>
+          <Button variant="ghost" size="sm" asChild>
             <Link href="/ausgabetermine" data-testid="session-past-link">
               {de.distribution.pastSessions.heading}
             </Link>
           </Button>
           <ControlToggle
             testId="session-end-open"
+            className="h-9 px-3 text-sm"
             controls={endId}
             expanded={open === "end"}
             onToggle={() => toggle("end")}
@@ -159,6 +160,7 @@ export function RunningSessionControls({
           {canDiscard ? (
             <ControlToggle
               testId="session-discard-open"
+              className="h-9 px-3 text-sm"
               controls={discardId}
               expanded={open === "discard"}
               onToggle={() => toggle("discard")}

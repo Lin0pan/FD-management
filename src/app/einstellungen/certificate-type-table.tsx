@@ -61,7 +61,6 @@ function CertificateTypeCell({
     <TableCell className="align-top">
       <div className="flex flex-col gap-1">
         <Input
-          className="h-9"
           name={INPUT_NAME}
           id={id}
           aria-label={de.settings.certificateTypes.fieldLabel(index + 1)}
@@ -173,7 +172,7 @@ export function CertificateTypeTable({
           ) : null}
 
           <div>
-            <Button type="submit" size="lg" disabled={pending}>
+            <Button type="submit" disabled={pending}>
               {pending ? words.saving : words.save}
             </Button>
           </div>

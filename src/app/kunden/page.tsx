@@ -38,7 +38,7 @@ import { FREE_SLOT_ACCENT } from "../accents";
 import { selectClass } from "../select";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { CustomerCells, CustomerHeads } from "./customer-cells";
 
 /**
@@ -68,7 +68,7 @@ const filterParams = z.object({
 type Filters = z.infer<typeof filterParams>;
 
 /** The three filter selects, styled from the same string so they cannot drift apart. */
-const FILTER_SELECT = selectClass("h-9");
+const FILTER_SELECT = selectClass();
 
 /** The German name of a certificate state as a *filter option*, which spells out what it includes. */
 function certificateFilterLabel(state: CertificateState): string {
@@ -170,7 +170,7 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
           <div className="relative">
             <Search
               aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute top-1/2 left-3 size-[18px] -translate-y-1/2 text-muted-foreground"
             />
             <Input
               id="filter-search"
@@ -181,7 +181,7 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
               placeholder={de.customerList.search.placeholder}
               defaultValue={search}
               autoComplete="off"
-              className="h-9 pl-8"
+              className="pl-10"
             />
           </div>
         </FilterField>
@@ -258,12 +258,10 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" size="lg">
-            {de.customerList.filters.submit}
-          </Button>
+          <Button type="submit">{de.customerList.filters.submit}</Button>
           {/* A plain `<a>`, and the one link on the screen that is deliberately not a `Link`: see
               the note above. */}
-          <Button variant="ghost" size="lg" asChild>
+          <Button variant="ghost" asChild>
             <a href="/kunden">{de.customerList.filters.reset}</a>
           </Button>
         </div>
@@ -303,10 +301,13 @@ function Overview({
           <h2>{de.customerList.overviewTitle}</h2>
         </CardTitle>
         <CardAction data-testid="customer-actions" className="flex flex-wrap items-center gap-1">
-          <Button variant="ghost" size="lg" asChild>
+          {/* The word underlined, not the badge: a link's underline reaches every flex item in it. */}
+          <Button variant="ghost" className="[a&]:no-underline" asChild>
             <Link href="/warteliste" data-testid="hub-waiting-list">
               <Users aria-hidden="true" data-icon="inline-start" />
-              {de.customerList.actions.waitingList}
+              <span className="underline underline-offset-4">
+                {de.customerList.actions.waitingList}
+              </span>
               {/* The state is on the element as data, not only in its colour, so a spec asserts what
                   the badge means rather than what shade it happens to be painted. */}
               <Badge
@@ -319,12 +320,14 @@ function Overview({
               </Badge>
             </Link>
           </Button>
-          <Button variant="ghost" size="lg" asChild>
+          <Button variant="ghost" className="[a&]:no-underline" asChild>
             <Link href="/karten-neuausstellung" data-testid="hub-cards-due">
               {/* The card glyph the reissue controls wear, so the hub link and the action it
                   leads to read as one thing across three screens. */}
               <IdCard aria-hidden="true" data-icon="inline-start" />
-              {de.customerList.actions.cardsDue}
+              <span className="underline underline-offset-4">
+                {de.customerList.actions.cardsDue}
+              </span>
               <Badge variant="secondary" data-testid="cards-due-badge">
                 {de.customerList.actions.cardsDueBadge(cardsDue)}
               </Badge>
@@ -362,14 +365,14 @@ function Overview({
  * nine columns need about 1000px, which a `lg` content box does not have.
  *
  * **The stickiness carries the same `xl:` as the overflow, and has to.** A sticky offset is measured
- * from the scrollport, and which element that is changes at this breakpoint. `top-12` against a
- * container whose scroll top is 0 pushes the header 48px *down*, opaque, exactly over the first row —
+ * from the scrollport, and which element that is changes at this breakpoint. `top-[52px]` against a
+ * container whose scroll top is 0 pushes the header 52px *down*, opaque, exactly over the first row —
  * which reads as a customer missing from the register, and flips on a resize or a zoom step.
  */
 function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): React.ReactElement {
   return (
     <Table data-testid="customer-table" containerClassName="overflow-x-auto xl:overflow-x-visible">
-      <TableHeader className="z-10 bg-card xl:sticky xl:top-12">
+      <TableHeader className="z-10 bg-card xl:sticky xl:top-[52px]">
         <TableRow className="hover:bg-transparent">
           <CustomerHeads />
         </TableRow>
@@ -391,7 +394,7 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
 function NoSettings(): React.ReactElement {
   return (
     <main className={SHELL}>
-      <h1 className="text-3xl font-semibold tracking-tight">{de.customerList.heading}</h1>
+      <h1 className={H1}>{de.customerList.heading}</h1>
       <Alert>
         <AlertDescription>{de.settings.errors.noSettings}</AlertDescription>
       </Alert>
@@ -457,8 +460,8 @@ export default async function CustomerListPage({
       {/* The one *write* on this screen stands beside the heading, where the page skeleton puts a
           screen's primary action — rather than opening a band of its own above the register. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.customerList.heading}</h1>
-        <Button size="lg" asChild>
+        <h1 className={H1}>{de.customerList.heading}</h1>
+        <Button asChild>
           <Link href="/kunden/neu" data-testid="hub-new-customer">
             <UserPlus aria-hidden="true" />
             {de.customerList.actions.newCustomer}

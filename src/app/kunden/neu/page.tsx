@@ -19,7 +19,7 @@ import { customerDeps } from "../deps";
 import { waitingListDeps } from "../../warteliste/deps";
 import { FreeSlotBanner } from "../../warteliste/free-slot-banner";
 import { RegistrationScreen } from "./registration-screen";
-import { SHELL } from "../../shell";
+import { H1, SHELL } from "../../shell";
 
 /** Every registration moves the next free number and both group sizes, so a cached proposal lies. */
 export const dynamic = "force-dynamic";
@@ -42,7 +42,7 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
       return (
         <main className={SHELL}>
-          <h1 className="text-3xl font-semibold tracking-tight">{de.customers.new.heading}</h1>
+          <h1 className={H1}>{de.customers.new.heading}</h1>
           <p className="max-w-prose">{de.settings.errors.noSettings}</p>
         </main>
       );
@@ -55,7 +55,7 @@ export default async function NewCustomerPage(): Promise<React.ReactElement> {
   return (
     <main className={SHELL}>
       <header className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.customers.new.heading}</h1>
+        <h1 className={H1}>{de.customers.new.heading}</h1>
       </header>
 
       {/* Above the form, so it is read before the first field is typed: the number this screen is

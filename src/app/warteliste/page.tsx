@@ -31,7 +31,7 @@ import { FreeSlotBanner } from "./free-slot-banner";
 import { Confirmation } from "../notice";
 import { RemoveApplicantControls } from "./remove-applicant-controls";
 import { REMOVED } from "./removed-flag";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 
 /** Both halves change at midnight without anything being written, so a cached render would lie. */
 export const dynamic = "force-dynamic";
@@ -86,7 +86,7 @@ function Row({
           <Badge
             variant="outline"
             title={`${de.waitingList.certificateExpired} — ${de.waitingList.certificateExpiredHint}`}
-            className="border-amber-500/40 bg-amber-500/10"
+            className="border-amber-500 bg-amber-100 text-amber-900"
           >
             <span data-testid="waiting-list-expired-badge">
               {de.waitingList.certificateExpired}
@@ -160,8 +160,8 @@ export default async function WaitingListPage({
           the list: with fifteen applicants the form is 2000px down, and whoever came to *look* is
           the more common visitor. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">{de.waitingList.heading}</h1>
-        <Button variant="outline" size="lg" asChild>
+        <h1 className={H1}>{de.waitingList.heading}</h1>
+        <Button variant="outline" asChild>
           <a href={`#${ADD_FORM_ANCHOR}`} data-testid="waiting-list-add-link">
             <UserPlus aria-hidden="true" />
             {de.waitingList.add.heading}
@@ -186,7 +186,7 @@ export default async function WaitingListPage({
             rule is its description rather than a paragraph two blocks above with a banner in
             between — it is the fairness contract, and it belongs against the rows it governs. */}
         <CardHeader className="border-b">
-          <CardTitle className="text-lg">
+          <CardTitle>
             <h2>{de.waitingList.listTitle}</h2>
           </CardTitle>
           <CardDescription data-testid="waiting-list-order-rule" className="max-w-prose">

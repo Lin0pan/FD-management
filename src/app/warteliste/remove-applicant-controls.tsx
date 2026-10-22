@@ -49,7 +49,7 @@ export function RemoveApplicantControls({
           is the one thing saying this opens rather than acts. */}
       <summary
         data-testid="waiting-list-remove-open"
-        className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none [&::-webkit-details-marker]:hidden"
+        className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-md px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline [&::-webkit-details-marker]:hidden"
       >
         {de.waitingList.remove.action}
         <FoldChevron />
@@ -76,7 +76,7 @@ export function RemoveApplicantControls({
             value={reason}
             onChange={(event) => setReason(event.target.value)}
           />
-          <span className="text-xs text-muted-foreground">{de.waitingList.remove.reasonHint}</span>
+          <span className="text-sm text-muted-foreground">{de.waitingList.remove.reasonHint}</span>
         </div>
         <Button
           type="submit"

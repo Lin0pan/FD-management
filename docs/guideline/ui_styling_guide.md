@@ -14,11 +14,38 @@ shadcn style `radix-nova`, base colour **zinc**, primitives **Radix** (`radix-ui
 radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>`.
 - `src/components/ui/` is ordinary project source and ours to edit. **Never re-run `shadcn add` over
   a component we have touched** — it overwrites the edit.
-- A re-theme is a change to the token block in `globals.css` and nothing else. `--destructive` is the
-  only chromatic token; everything else is neutral zinc (see §5).
-- `radix-nova` is compact: `Button` and `Input` are `h-8`, `Card` is `text-sm`. Override where a
-  control is the screen's primary interaction; the defaults are tuned for dense admin UI, not for
-  reading standing up.
+- **The look is the Kontrast-Theme**, which DF chose over the shadcn defaults in October 2026: their
+  staff read the screens standing at the counter, some of them older, under whatever light the hall
+  has. Everything in this section and in §8's type scale is that theme. Change it as a whole, by
+  asking DF again — not one control at a time.
+- **Colour is tokens in `globals.css`.** A re-theme changes the token block and the primitives in
+  `src/components/ui/`, never a screen. Beyond shadcn's set, five tokens of our own, drawn from
+  Tailwind's palette with `--theme()` so a token and the class it replaced are the same pixel:
+
+  | Token                | Is                                    | Used for                                      |
+  | -------------------- | ------------------------------------- | --------------------------------------------- |
+  | `--rule-strong`      | zinc-400                              | the rule under a table head, `Badge` outline  |
+  | `--rule-subtle`      | zinc-200                              | the rule between rows, the edge of a `Stat`   |
+  | `--foreground-soft`  | zinc-700                              | table heads, the nav's inactive tabs          |
+  | `--destructive-edge` | red-300                               | the outline of a destructive control or panel |
+  | `--destructive-wash` | red-50                                | its hover                                     |
+  | `shadow-card`        | `0 1px 2px` at 6 % — a `@theme` value | every `Card`, and the counter's mask          |
+
+  `--destructive` is the only chromatic _signal_ token; the meanings live in `accents.ts` (§5).
+
+- **The page is grey and the sections are white.** `--background` is zinc-100, and every `Card` is
+  white with a `--border` edge and `shadow-card`, so a section stands off the page in bright light.
+  Anything that sits _on the page_ rather than in a card needs a surface of its own — a `bg-muted`
+  tile on the page is invisible (`ListLink`, §4, was).
+- **Sized for reading standing up**, not `radix-nova`'s office density: `Button`, `Input` and the
+  native select are `h-10` (`size="sm"` is `h-9`) with a 10px radius; the counter's lookup
+  row is `h-14`. There is no `lg` size: it became the default.
+- **Field edges are `--input` `#94949c`, exactly 3:1 on white** — the floor WCAG 1.4.11 sets for a
+  control. An empty „TT.MM.JJJJ" field must be findable, which at the old 1.3:1 it was not.
+- **Focus is one mark for every control**: a 2px `--ring` outline at 2px offset, set once on
+  `:focus-visible` in `globals.css`. The counter is worked by keyboard. Never `outline-none` without
+  a replacement, and never a `ring-*` focus style beside it — `tests/e2e/legibility.spec.ts` tabs
+  through the register and the counter and fails on any stop without the mark.
 - `.dark` tokens exist and nothing toggles them. Do not build a theme switcher without being asked.
 - **Do not add**: a form library (`react-hook-form` fights `useActionState`), a toast library (an
   answer renders beside its own button, §7), a date picker, or a chart library. A day is a **typed**
@@ -30,14 +57,15 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 ```tsx
 <main className={SHELL}>
   <div className="flex flex-wrap items-center justify-between gap-3">
-    <h1 className="text-3xl font-semibold tracking-tight">{de.….heading}</h1>
+    <h1 className={H1}>{de.….heading}</h1>
   </div>
   <Card>…</Card>
 </main>
 ```
 
-- `SHELL` from `src/app/shell.ts`. Do not write a width per screen: `Nav` uses the same `max-w-6xl`
-  container, and a screen that picks another width stops lining up with the bar above it.
+- `SHELL` and `H1` from `src/app/shell.ts`. Do not write a width or a heading size per screen: `Nav`
+  uses the same `max-w-6xl` container, and a screen that picks another width stops lining up with
+  the bar above it.
 - The heading row stays **outside** any card. One `Card` per section, `gap-6` between.
 - `CardHeader` takes `CardTitle` (+ `CardDescription` where a hint paragraph would have gone);
   section-level controls go in `CardAction`. Rule off a header with
@@ -56,7 +84,7 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 
   ```tsx
   <section aria-labelledby="…-heading" className="mt-8 flex flex-col gap-4 border-t pt-8">
-    <h2 id="…-heading" className="text-xl font-semibold">{…}</h2>
+    <h2 id="…-heading" className="text-2xl font-bold">{…}</h2>
     <Card>…</Card>
   </section>
   ```
@@ -106,22 +134,23 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   ```tsx
   <Card className="overflow-visible">                                  {/* Card ships overflow-hidden */}
     <Table containerClassName="overflow-x-auto xl:overflow-x-visible"> {/* not overflow-y-visible */}
-      <TableHeader className="z-10 bg-card xl:sticky xl:top-12">      {/* same xl: as the overflow */}
+      <TableHeader className="z-10 bg-card xl:sticky xl:top-[52px]">  {/* same xl: as the overflow */}
   ```
 
   Pick the breakpoint by measuring `documentElement.scrollWidth - clientWidth` at it, not by eye.
 
 - **A sticky offset is measured from the scrollport, so `top-N` and the scrollport have to agree.**
-  Sticky shifts a box in _either_ direction: `top: 48px` against a scrollport already at 0 is not
-  satisfied by staying put, so the header is pushed 48px **down** — opaque, over the first row.
+  Sticky shifts a box in _either_ direction: `top: 52px` against a scrollport already at 0 is not
+  satisfied by staying put, so the header is pushed 52px **down** — opaque, over the first row.
 
   | The scrollport is…                                               | The header must be…                        |
   | ---------------------------------------------------------------- | ------------------------------------------ |
-  | the **window** (container `overflow-x-visible`)                  | `sticky top-12` — clear the nav            |
+  | the **window** (container `overflow-x-visible`)                  | `sticky top-[52px]` — clear the nav        |
   | the **container** (`overflow-x-auto`, `max-h-… overflow-y-auto`) | `sticky top-0` — there is nothing to clear |
 
   A container whose overflow switches at a breakpoint switches which of those two rows applies, so
-  the stickiness carries the **same breakpoint** as the overflow. `/kunden` shipped `sticky top-12`
+  the stickiness carries the **same breakpoint** as the overflow, and the offset is the nav's height,
+  which the customer-list spec reads off the bar rather than restating. `/kunden` shipped `sticky top-12`
   against an `xl:`-switched container and hid the first row of the register at every window under
   1280px, for weeks: the row was in the DOM, the result count counted it and the group balance
   counted it, so DF reported a customer missing from the list and every spec stayed green.
@@ -144,17 +173,19 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   box's `max-width` that clamps the column's min-content contribution.
 
   ```tsx
-  <TableCell className="min-w-64">
+  <TableCell className="min-w-44">
     {" "}
     {/* the floor, unchanged */}
-    <Link className="block max-w-64 truncate" title={name}>
+    <Link className="block max-w-44 truncate" title={name}>
       {name}
     </Link>
   </TableCell>
   ```
 
   Floor and ceiling the same number makes the column a fixed width, which is the point: what a
-  household is called may not move the table. The full text stays in the DOM, so search, screen
+  household is called may not move the table. Pick the number by measuring at 1100px
+  (`BELOW_BREAKPOINT`): the register's nine columns at the theme's cell size leave its name column
+  176px. The full text stays in the DOM, so search, screen
   readers and the e2e suite still see it, and the `title` spells it out for anyone who cannot tell
   two rows apart from the part they can see. `tests/e2e/layout.ts` has the two assertions —
   `expectNoHorizontalOverflow` and `expectTruncated`, which are needed together: a ceiling set wide
@@ -178,8 +209,10 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   everything else is a line. Never hand-roll its chrome for something that is not one — two
   components that look identical and read differently teach a rule and then break it.
 - **A `Stat` is inert.** A count that opens a list is `ListLink` (`src/app/uebersichten/list-link.tsx`)
-  — the Übersichten entries and the „Zu erledigen" rows on Start — never a `Stat` wrapped in a link:
-  borderless because it only navigates (§6), with the chevron that says it opens (§12).
+  — the Übersichten entries and the „Zu erledigen" rows on Start — never a `Stat` wrapped in a link,
+  with the chevron that says it opens (§12). It sits on the page, not in a card, so it wears the
+  card's surface — white, `--border`, a faint shadow. That edge is a surface's, like a `Card`'s, not
+  §6's write border: a grey fill on the grey page is invisible, and these were until they had one.
 - Put a promoted pair in the grid that is already there rather than in a parallel `flex` row, so one
   column rhythm runs down the page.
 - Where two values exist **to be compared**, they need a shared baseline, the same offset inside
@@ -195,8 +228,10 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 
 ## 5. Colour
 
-- **Theme tokens by default.** `text-muted-foreground`, `border-border`, `bg-muted` / `bg-muted/50`,
-  `bg-primary`. Never `text-foreground/70`, `border-foreground/20`, `bg-foreground/5`.
+- **Theme tokens by default.** `text-muted-foreground`, `text-foreground-soft`, `border-border`,
+  `border-rule-subtle`, `bg-muted`, `bg-primary`, `border-destructive-edge` (§1). Never
+  `text-foreground/70`, `border-foreground/20`, `bg-foreground/5`, and never a palette grey in a
+  screen: a missing step is a token.
 - **`src/app/accents.ts` is the list of permitted literal colours**, each reserved for one meaning:
 
   | Export                        | Meaning                                                                |
@@ -205,6 +240,7 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   | `FREE_SLOT_ACCENT`            | a customer number is free, somebody waits                              |
   | `CONFIRMATION_ACCENT`         | a write went through                                                   |
   | `REFUSAL_ACCENT`              | a write was refused, nothing is broken                                 |
+  | `ERROR_ACCENT`                | a write failed and something is wrong                                  |
   | `CAMPAIGN_OUTSTANDING_ACCENT` | a household not yet ticked off the campaign reminder — never a verdict |
   | `PAYMENT_STANDING_STYLES`     | a hand-out was paid short, exactly or over                             |
   | `BALANCE_STYLES`              | a household owes, has paid ahead, or neither                           |
@@ -217,16 +253,18 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   screen's job: the counter's traffic light (`ausgabe/counter-lookup.tsx`) and the full-strength
   green button beside it (`serve-form.tsx`).
 - **A meaning gets one colour application-wide**, and two unrelated meanings must not share a tint on
-  one screen. `BALANCE_STYLES` and `PAYMENT_STANDING_STYLES` share red-500 and blue-500 on purpose
-  and are the worked example of the rule rather than a breach of it: a hand-out paid short and a
-  household carrying a debt are one meaning — money is owed — read at two altitudes. `BALANCE_STYLES`
-  is a **fill without a border**, because every `Stat` tile is borderless and outlining one of five on
-  a row would make it a different kind of object; a settled balance is `null` and keeps `bg-muted/50`,
-  since colour there means _something is standing_. A second _weight_ of a meaning is still that meaning and belongs in `accents.ts` beside
-  the first, not in a screen. Two are currently hand-written and must not be copied further: the
-  solid group fill (`bg-red-600` / `bg-blue-700`, against `GROUP_STYLES`' tint) exists in
-  `ausgabe/page.tsx` and `kunden/[id]/karte/page.tsx`, and "the certificate has lapsed" is written as
-  amber in `kunden/page.tsx`, `warteliste/page.tsx` and `warteliste/free-slot-banner.tsx`.
+  one screen. `BALANCE_STYLES` and `PAYMENT_STANDING_STYLES` share the red-50 and blue-50 fills on
+  purpose and are the worked example of the rule rather than a breach of it: a hand-out paid short
+  and a household carrying a debt are one meaning — money is owed — read at two altitudes. Both stay
+  off `GROUP_STYLES`' -100 fills, which are the printed cards. `BALANCE_STYLES` is a **fill without a
+  border**, because every `Stat` tile wears the same neutral `--rule-subtle` edge and recolouring one
+  of five on a row would make it a different kind of object; a settled balance is `null` and keeps
+  `bg-muted`, since colour there means _something is standing_. A second _weight_ of a meaning is
+  still that meaning and belongs in `accents.ts` beside the first, not in a screen. Two are currently
+  hand-written and must not be copied further: the solid group fill (`bg-red-600` / `bg-blue-700`,
+  against `GROUP_STYLES`' tint) exists in `kunden/[id]/karte/page.tsx`, and "the certificate has
+  lapsed" is written as amber in `kunden/customer-cells.tsx`, `warteliste/page.tsx`,
+  `warteliste/free-slot-banner.tsx` and `warteliste/[entryId]/registrieren/promotion-screen.tsx`.
   `grep -rn "bg-red-\|bg-blue-\|bg-green-\|bg-amber-\|bg-emerald-" src/app` finds every copy.
 - **Chrome marks the exception; the default state gets the word and nothing else.** Before adding a
   badge, count how many rows will wear it — if it is most of them, it is not a badge, it is texture.
@@ -240,10 +278,14 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 - **The word never goes without the chrome** (US-03.4). Wrap the `Badge` _around_ the span holding
   exactly the word; do not let the badge replace it. A glyph is bound by the same rule, and by
   the same registry discipline — §12.
+- **Every accent is opaque**: a -100 fill (-50 for the marks on a row), a -400/-500 border and
+  -800/-900 text, so the word inside reads at 7:1 or better on the grey page and on a white card
+  alike. The translucent `/10` tints of the old look composited with whatever was under them; on a
+  grey page that is a different colour from the one on a card.
 - Never nest a translucent tint inside a tinted container — the two composite into a third colour
   that means neither. Let the inner element keep the opaque fill and carry its colour in the border.
-- To give one `Card` a coloured edge: `<Card className="ring-0 border border-…">`. `Card` brings
-  `ring-1`, not a border, so the ring has to go or the card wears two outlines.
+- To give one `Card` a coloured edge: `<Card className="border-…">`. `Card` already brings a
+  `border`, so only its colour changes.
 - `Badge` `variant="outline"` when layering an accent on it; `default` paints the text white.
 
 ## 6. Controls
@@ -256,8 +298,8 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 | `default`     | the primary write on the screen                                                   |
 | `outline`     | a secondary write, a cancel, a `<summary>` that opens a write                     |
 | `secondary`   | a write of equal weight beside another                                            |
-| `ghost`       | a link that only navigates — `<Button variant="ghost" asChild><Link>`             |
-| `destructive` | a confirm step. It is a **soft tint**; say so with a `className` if you need loud |
+| `ghost`       | a link that only navigates — `<Button variant="ghost" asChild><Link>`, underlined |
+| `destructive` | a confirm step — white, red text, a `--destructive-edge` outline                  |
 | `link`        | inline within prose                                                               |
 
 - **A link that opens the screen's write is bordered**, because it _is_ the write, one click earlier:
@@ -266,14 +308,22 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
   zurücksetzen", „Zur Kundenübersicht".
 - The one true exception: a link that is the sole way out of a dead end keeps `outline` although it
   only navigates, because it is the offered next step. Nothing else navigates with a border.
+- **A ghost link is underlined** whenever it renders an `<a>` (`[a&]:underline` on the variant), so it
+  reads as a link and not as loose text. A link carrying a badge underlines the **word only** — an
+  underline reaches every flex item inside the link — so it takes `[a&]:no-underline` and wraps the
+  label in an underlined `<span>`, as the hub links on `/kunden` do.
 - Give a ghost link room — `justify-between` across the row, or the `CardAction` slot. Eight pixels
   from a bordered button it reads as that button's caption, not as a second thing you can do.
+- **A destructive toggle wears `FOOTER_RED`** (`fold-row.tsx`) — the `destructive` variant's outline,
+  kept red through the hover a ghost or outline toggle would otherwise give it. „Sperren",
+  „Archivieren" and „Eintrag entfernen" share it; a fourth does too.
 - **One name per destination.** A screen is called what it calls itself, everywhere it is linked.
 - **Native `<input type="checkbox">` and `<input type="radio">` stay native** wherever the action
   reads the value as presence in `FormData`. Radix's `Checkbox` is a `button[role=checkbox]` and
-  submits nothing. Style the input: `size-4 accent-primary`.
-- **Native `<select>` stays native**, styled from `selectClass(height)` in `src/app/select.ts` — one
-  recipe so a row of them cannot drift. Radix `Select` submits nothing inside a `<form>` and is not
+  submits nothing. Style the input: `size-5 accent-primary` (`size-4` where it sits inline in a
+  sentence).
+- **Native `<select>` stays native**, styled from `selectClass()` in `src/app/select.ts` — one
+  recipe, at `Input`'s height, so a row of them cannot drift. Radix `Select` submits nothing inside a `<form>` and is not
   reachable by `selectOption`.
 - **Disclosures are `<details>`/`<summary>`, never `Dialog`.** At the counter the queue is waiting, so
   nothing may have to be dismissed before the next customer is served. `Dialog` also portals to
@@ -456,6 +506,22 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 
 ## 8. Text
 
+**The type scale.** Nothing a staff member reads is under 13px, and only badges and table heads go
+that low; `tests/e2e/legibility.spec.ts` sweeps every screen for it. Weight does the work colour
+used to: labels and titles are bold enough to find without a tint.
+
+| Role                               | Size / weight       | Where it is set                    |
+| ---------------------------------- | ------------------- | ---------------------------------- |
+| Page title (`h1`)                  | 32 / 700            | `H1` in `src/app/shell.ts`         |
+| Chapter heading above cards (`h2`) | 24 / 700            | `text-2xl font-bold` (§2)          |
+| Card title, page section (`h2`)    | 19 / 700            | `CardTitle`                        |
+| Body, fields, notices              | 16 (notices 15/500) | `Card`, `Input`, `Alert`           |
+| Table                              | 15                  | `Table`                            |
+| Field label                        | 15 / 600            | `Label`                            |
+| Hint, description, a fact's label  | 14, muted           | `text-sm text-muted-foreground`    |
+| `Stat` label / value               | 14/500 · 34/700     | `Stat` (the counter's tiles at 24) |
+| Badge, table head                  | 13 / 600            | `Badge`, `TableHead`               |
+
 - **German only from `src/i18n/de.ts`.** A new card title is a new key there, never a literal.
   Identifiers stay English.
 - **A screen explains itself by what it shows; a paragraph saying so is not text, it is clutter.**
@@ -522,10 +588,12 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 - `<label htmlFor>` + `<Input id>`, never a nested `<label><control/></label>`. Generate the id with
   `useId()` unless a spec reaches the field by CSS id, in which case the id is load-bearing.
 - Submit buttons keep distinct accessible names.
-- Colour never carries a meaning on its own — the active nav item is marked three ways (rule, tint,
-  weight) for the same reason the word always accompanies the chrome (§5).
+- Colour never carries a meaning on its own — the active nav item is marked two ways (a 3px rule and
+  bold type) for the same reason the word always accompanies the chrome (§5).
+- **The keyboard's position is always visible** — the one focus mark of §1. A component that draws
+  its own focus state draws it as an outline, so it cannot fall out of step with the rest.
 - `Label` and `Dialog` are `"use client"`. In a server-rendered form with no interactivity, a plain
-  `<label htmlFor>` styled `text-sm font-medium` is the better trade.
+  `<label htmlFor>` styled like `Label` — `text-[15px] leading-5 font-semibold` — is the better trade.
 - A constant shared across the server/client boundary belongs in a module with **no** directive: a
   string exported from a `"use client"` module arrives as a client-reference proxy, renders nonsense
   into the attribute, and throws nothing.
@@ -591,6 +659,10 @@ it. Playwright is the only thing that will tell you.
 - **Done is** `npm run lint && npm run typecheck && npm run test:coverage && npm run build`, then
   `npm run test:e2e` **and** `npm run test:e2e:webkit` with no test edited, then the `playwright-cli`
   pass above.
+- **A change that must not change the look is proved by a screenshot diff**, not by eye: shoot the
+  screens from the old build and the new one with `playwright-cli screenshot --full-page` and compare
+  the pixels. That is how moving the Kontrast-Theme's literals into tokens was shown to leave every
+  screen identical — and how it caught that Tailwind v4's `red-700` is not v3's `#b91c1c`.
 - **A day is typed, never picked.** Every calendar day uses `DateInput` (`components/ui/date-input.tsx`)
   with the placeholder from `de.day.placeholder` — never `<input type="date">`. The native control
   lets the _operating system_ decide which segment is typed first and, in Chromium, silently clamps

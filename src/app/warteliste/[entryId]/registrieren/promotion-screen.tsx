@@ -48,10 +48,10 @@ export function PromotionScreen({
     return (
       <Card
         data-testid="promotion-expired-warning"
-        className="max-w-prose border border-amber-500/40 bg-amber-500/10 ring-0"
+        className="max-w-prose border border-amber-500 bg-amber-100 text-amber-900 ring-0"
       >
         <CardHeader>
-          <CardTitle className="text-lg">
+          <CardTitle>
             <h2>{de.waitingList.promote.expiredHeading}</h2>
           </CardTitle>
         </CardHeader>
@@ -61,7 +61,7 @@ export function PromotionScreen({
           </p>
           <Button
             type="button"
-            size="lg"
+
             data-testid="promotion-expired-continue"
             onClick={() => setAcknowledged(true)}
           >

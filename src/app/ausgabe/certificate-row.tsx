@@ -171,7 +171,7 @@ function Fact({
 }): React.ReactElement {
   return (
     <div className={cn("flex min-w-0 flex-col gap-0.5", className)}>
-      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
       {children}
     </div>
   );
@@ -181,7 +181,7 @@ function Fact({
 const RENEWAL_FORM_ID = "counter-renewal-form";
 
 const VALUE = "text-base font-medium tabular-nums";
-const SMALL_BUTTON = "h-7 text-[13px]";
+const SMALL_BUTTON = "h-9 text-sm";
 
 /** Everything row 4 shows, already in German where the server formats it (Berlin, not the browser). */
 export interface CertificateRowProps {
@@ -221,7 +221,7 @@ export function CertificateRow(props: CertificateRowProps): React.ReactElement {
         {/* The second archiving trigger (US-10.4): a number and nothing more — no threshold, no
             warning (PRD §5). */}
         {props.consecutiveNoShows === 0 ? null : (
-          <span data-testid="counter-no-shows" className="text-xs text-muted-foreground">
+          <span data-testid="counter-no-shows" className="text-sm text-muted-foreground">
             {words.noShows(props.consecutiveNoShows)}
           </span>
         )}
@@ -230,7 +230,7 @@ export function CertificateRow(props: CertificateRowProps): React.ReactElement {
         <RenewalForm customerId={props.customerId} certificateTypes={props.certificateTypes} />
       ) : (
         <>
-          <Fact label={de.distribution.certificate.heading} className="md:col-span-3">
+          <Fact label={de.distribution.certificate.heading} className="md:col-span-2">
             <span data-testid="counter-certificate-type" className={cn(VALUE, "break-words")}>
               {props.certificateType}
             </span>
@@ -252,18 +252,23 @@ export function CertificateRow(props: CertificateRowProps): React.ReactElement {
           </Fact>
         </>
       )}
-      <Fact label={de.distribution.counter.details.reminderCount} className="md:col-span-4">
-        <span className="flex flex-wrap items-center gap-2">
-          <span data-testid="counter-reminder-count" className={VALUE}>
-            {props.reminderCount}
-          </span>
-          {props.expired ? (
+      {/* Five columns while closed, so both buttons stand side by side under the count; the open
+          renewal takes two of them back, its free text needing the room more than the buttons. */}
+      <Fact
+        label={de.distribution.counter.details.reminderCount}
+        className={open ? "md:col-span-3" : "md:col-span-5"}
+      >
+        <span data-testid="counter-reminder-count" className={VALUE}>
+          {props.reminderCount}
+        </span>
+        {props.expired ? (
+          <span className="mt-1.5 flex flex-wrap items-center gap-2">
             <ReminderActions
               customerId={props.customerId}
               loggedInSession={props.reminderLoggedInSession}
             />
-          ) : null}
-        </span>
+          </span>
+        ) : null}
       </Fact>
     </div>
   );
@@ -293,7 +298,7 @@ function ReminderActions({
           <span
             data-testid="reminder-confirmation"
             className={cn(
-              "inline-flex h-7 items-center gap-1 rounded-md border px-2 text-[13px] font-medium",
+              "inline-flex h-9 items-center gap-1 rounded-[10px] border px-3 text-sm font-semibold",
               CONFIRMATION_ACCENT,
             )}
           >
@@ -362,19 +367,19 @@ function RenewalForm({
       action={renew}
       aria-label={words.heading}
       data-testid="renewal-form"
-      className="flex flex-col gap-1.5 md:col-span-6"
+      className="flex flex-col gap-1.5 md:col-span-7"
     >
       <input type="hidden" name="customerId" value={customerId} />
-      {/* Two lines on purpose: at 1440 px the four controls overrun six columns by a few pixels, and a
-          date's refusal widens its column — wrapping would decide the layout per state. The hint
-          rides beside the date: a third line pushes `Z1` with „Sonstiges“ open past 800 px (FR-9).
-          `items-start`, so a mark rides under its own field rather than pushing the row apart. */}
+      {/* Two lines on purpose, fields over buttons: a date's refusal widens its column, so wrapping
+          would decide the layout per state. „Sonstiges“ opens beside the select and the hint rides
+          beside the buttons, because a third line pushes `Z1` past 800 px (FR-9). `items-start`, so
+          a mark rides under its own field rather than pushing the row apart. */}
       <div className="flex items-start gap-3">
         <CertificateTypeField
           types={certificateTypes}
-          height="h-8"
           id="renewal-type"
-          className="w-52"
+          inline
+          className="min-w-0"
           typeProblem={typeProblem}
           otherProblem={otherProblem}
           errorTestId="counter-field-error"
@@ -394,7 +399,7 @@ function RenewalForm({
             value={validUntil}
             onChange={setValidUntil}
             data-testid="renewal-valid-until"
-            className="h-8 w-32"
+            className="w-36"
             {...marking("certificateValidUntil", "renewal-valid-until", validUntilProblem)}
           />
           {validUntilProblem === null ? null : (
@@ -405,21 +410,21 @@ function RenewalForm({
             />
           )}
         </div>
-        <p className="mt-5 min-w-0 flex-1 text-xs text-muted-foreground">{words.hint}</p>
       </div>
-      <div className="mt-1 flex gap-2">
-        <Button type="submit" disabled={renewing} data-testid="renewal-save" className="h-8">
+      <div className="flex items-center gap-2">
+        <Button type="submit" size="sm" disabled={renewing} data-testid="renewal-save">
           {words.submit}
         </Button>
         <Button
           type="button"
           variant="ghost"
+          size="sm"
           onClick={toggleRenewal}
           data-testid="renewal-cancel"
-          className="h-8"
         >
           {words.cancel}
         </Button>
+        <p className="ml-2 min-w-0 flex-1 text-sm leading-5 text-muted-foreground">{words.hint}</p>
       </div>
     </form>
   );

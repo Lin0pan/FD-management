@@ -33,11 +33,16 @@ export function Stat({
   children?: React.ReactNode;
 }): React.ReactElement {
   return (
-    <p className={cn("flex flex-col gap-1 rounded-lg bg-muted/50 px-4 py-3", className)}>
-      <span className="text-xs leading-snug text-muted-foreground">{label}</span>
+    <p
+      className={cn(
+        "flex flex-col gap-1 rounded-[10px] border border-rule-subtle bg-muted px-4 py-3",
+        className,
+      )}
+    >
+      <span className="text-sm leading-5 font-medium text-muted-foreground">{label}</span>
       <span
         data-testid={testId}
-        className={cn("text-3xl font-semibold tabular-nums", valueClassName)}
+        className={cn("text-[34px] leading-10 font-bold tabular-nums", valueClassName)}
       >
         {value}
       </span>

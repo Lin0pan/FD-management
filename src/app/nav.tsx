@@ -19,20 +19,20 @@ import { activeSection, NAV_ITEMS } from "./active-section";
 
 /**
  * A tab, sized and focus-ringed like the `Button` primitive so the bar belongs to the same set of
- * controls as the screens below it — but taller than the `radix-nova` default (`h-8`), because this
+ * controls as the screens below it — but taller than the `Button` default (`h-10`), because this
  * is read and hit standing up at the counter, not from an office chair.
  */
 const ITEM =
-  "inline-flex h-12 items-center rounded-t-md border-b-2 px-3 text-sm transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
+  "inline-flex h-[52px] items-center rounded-t-md border-b-[3px] px-3.5 text-base transition-colors";
 
 /**
- * The current section is marked three ways at once — a bottom rule, a tint and bold text — because
+ * The current section is marked two ways — a bottom rule and bold text — because
  * DF works from one shared screen under whatever light the hall has that day. Colour alone would be
  * a distinction only some of the staff can make (US-03.4).
  */
-const ACTIVE = "border-foreground bg-muted font-semibold text-foreground";
+const ACTIVE = "border-foreground font-bold text-foreground";
 const INACTIVE =
-  "border-transparent font-medium text-muted-foreground hover:bg-muted hover:text-foreground";
+  "border-transparent font-medium text-foreground-soft hover:bg-muted hover:text-foreground";
 
 export function Nav(): React.ReactElement {
   const current = activeSection(usePathname());
@@ -44,16 +44,16 @@ export function Nav(): React.ReactElement {
     <nav
       aria-label={de.nav.label}
       data-testid="main-nav"
-      className="sticky top-0 z-40 border-b border-border bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75"
+      className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85"
     >
       {/* Same container as the page below it (`max-w-6xl`), but inset by the page's padding *minus*
-          a tab's own `px-3`: that puts the first tab's label on the same vertical line as the `h1`,
+          a tab's own `px-3.5`: that puts the first tab's label on the same vertical line as the `h1`,
           rather than 12px to the right of it, while the tint still extends past the text.
 
           Wraps onto a second line when the window is narrow; it is a block above the page, so it
           can never push the content sideways. `-mb-px` pulls the active tab's rule onto the bar's
           own bottom border, so the two read as one line instead of stacking into a double rule. */}
-      <ul className="mx-auto -mb-px flex w-full max-w-6xl flex-wrap gap-1 px-3 md:px-5">
+      <ul className="mx-auto -mb-px flex w-full max-w-6xl flex-wrap gap-1 px-2.5 md:px-4.5">
         {NAV_ITEMS.map((item) => {
           const active = item.section === current;
           return (
