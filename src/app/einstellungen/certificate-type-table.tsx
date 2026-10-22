@@ -172,7 +172,7 @@ export function CertificateTypeTable({
           ) : null}
 
           <div>
-            <Button type="submit" size="lg" disabled={pending}>
+            <Button type="submit" disabled={pending}>
               {pending ? words.saving : words.save}
             </Button>
           </div>

@@ -90,7 +90,7 @@ export function StartSessionForm({
               ))}
             </div>
           </fieldset>
-          <Button type="submit" size="lg" disabled={pending} data-testid="session-start-submit">
+          <Button type="submit" disabled={pending} data-testid="session-start-submit">
             {pending
               ? de.distribution.session.start.submitting
               : de.distribution.session.start.submit}

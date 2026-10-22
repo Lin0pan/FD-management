@@ -684,7 +684,7 @@ export function RegistrationForm({
 
             <CardPrintedField id="registration-card-printed" testId="registration-card-printed" />
 
-            <Button type="submit" size="lg" disabled={pending || full}>
+            <Button type="submit" disabled={pending || full}>
               {pending ? de.customers.new.submitting : de.customers.new.submit}
             </Button>
           </>

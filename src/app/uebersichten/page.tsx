@@ -6,7 +6,7 @@
 
 import { readOverviews } from "@/application/overviews/read-overviews";
 import { de } from "@/i18n/de";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { overviewDeps } from "./deps";
 import { ListLink } from "./list-link";
 
@@ -34,7 +34,7 @@ export default async function OverviewsPage(): Promise<React.ReactElement> {
 
   return (
     <main className={SHELL}>
-      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.nav.overviews}</h1>
+      <h1 className={H1}>{de.nav.overviews}</h1>
 
       <Area heading={areas.customers}>
         <ListLink

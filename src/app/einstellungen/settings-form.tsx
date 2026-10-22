@@ -321,7 +321,7 @@ export function SettingsForm({ settings }: { settings: Settings }): React.ReactE
         ) : null}
 
         <div>
-          <Button type="submit" size="lg" disabled={pending}>
+          <Button type="submit" disabled={pending}>
             {pending ? de.settings.saving : de.settings.save}
           </Button>
         </div>

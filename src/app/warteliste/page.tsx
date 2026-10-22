@@ -31,7 +31,7 @@ import { FreeSlotBanner } from "./free-slot-banner";
 import { Confirmation } from "../notice";
 import { RemoveApplicantControls } from "./remove-applicant-controls";
 import { REMOVED } from "./removed-flag";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 
 /** Both halves change at midnight without anything being written, so a cached render would lie. */
 export const dynamic = "force-dynamic";
@@ -160,10 +160,8 @@ export default async function WaitingListPage({
           the list: with fifteen applicants the form is 2000px down, and whoever came to *look* is
           the more common visitor. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
-          {de.waitingList.heading}
-        </h1>
-        <Button variant="outline" size="lg" asChild>
+        <h1 className={H1}>{de.waitingList.heading}</h1>
+        <Button variant="outline" asChild>
           <a href={`#${ADD_FORM_ANCHOR}`} data-testid="waiting-list-add-link">
             <UserPlus aria-hidden="true" />
             {de.waitingList.add.heading}

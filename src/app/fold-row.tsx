@@ -13,9 +13,12 @@ import { createContext, useContext, useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import { ControlToggle } from "./disclosure";
 
-/** The footer's red outline, which a ghost button's hover would otherwise turn back to the foreground. */
+/**
+ * `Button`'s destructive outline for a toggle, which a ghost or outline hover would otherwise turn back
+ * to the foreground.
+ */
 export const FOOTER_RED =
-  "border-red-300 bg-card text-red-700 shadow-xs hover:bg-red-50 hover:text-red-700 aria-expanded:bg-red-50 aria-expanded:text-red-700";
+  "border-destructive-edge bg-card text-red-700 shadow-xs hover:bg-destructive-wash hover:text-red-700 aria-expanded:bg-destructive-wash aria-expanded:text-red-700";
 
 interface FoldRowContext {
   readonly open: string | null;
@@ -99,7 +102,7 @@ export function FoldPanel({
     <FoldLine>
       <div
         id={idFor(fold)}
-        className="flex max-w-prose flex-col items-end gap-3 rounded-lg border border-red-300 px-3 py-2.5"
+        className="flex max-w-prose flex-col items-end gap-3 rounded-lg border border-destructive-edge px-3 py-2.5"
       >
         {children}
       </div>

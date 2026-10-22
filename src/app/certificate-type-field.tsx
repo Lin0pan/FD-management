@@ -31,11 +31,11 @@ import { Label } from "@/components/ui/label";
 import { foldName } from "@/domain/customer/nameSearch";
 import type { CertificateTypeList } from "@/domain/policy/certificateTypes";
 import { de } from "@/i18n/de";
+import { cn } from "@/lib/utils";
 import { CERTIFICATE_TYPE_OTHER } from "./certificate-type-resolver";
 import { FieldRejection } from "./field-mark";
 import { marking } from "./field-refusal";
 import { selectClass } from "./select";
-import { cn } from "@/lib/utils";
 
 /** The unchosen option's value — blank, which is the one answer the domain refuses. */
 const UNCHOSEN = "";

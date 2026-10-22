@@ -18,7 +18,7 @@ import { Check, CircleAlert, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Segment } from "@/i18n/de";
 import { cn } from "@/lib/utils";
-import { CONFIRMATION_ACCENT, REFUSAL_ACCENT } from "./accents";
+import { CONFIRMATION_ACCENT, ERROR_ACCENT, REFUSAL_ACCENT } from "./accents";
 import type { NoticeTier } from "./notice-tier";
 
 /**
@@ -42,7 +42,7 @@ const TONES: Record<
 > = {
   success: { Icon: Check, box: CONFIRMATION_ACCENT },
   refusal: { Icon: TriangleAlert, box: REFUSAL_ACCENT },
-  error: { Icon: CircleAlert, box: "border-red-400 bg-red-100 text-red-900", destructive: true },
+  error: { Icon: CircleAlert, box: ERROR_ACCENT, destructive: true },
 };
 
 /**

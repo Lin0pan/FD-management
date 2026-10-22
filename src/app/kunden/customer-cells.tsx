@@ -57,11 +57,12 @@ export function CustomerCells({
         {row.customerNumber}
       </TableCell>
       {/* `min-w-44`: the widest this column can be while nine columns at the theme's cell size
-          still fit a 1100px window (`tests/e2e/layout.ts`). This is the column staff scan, and the only one holding text long enough to need a ceiling as well as
-          a floor — the same `44`, so the column is a fixed width and the table cannot be widened by
-          what a household happens to be called (`docs/guideline/ui_styling_guide.md` §3). The cap is
-          on the link rather than the cell: in an auto-layout table it is the inner box's max-width
-          that clamps the column's min-content contribution. */}
+          still fit a 1100px window (`tests/e2e/layout.ts`). This is the column staff scan, and the
+          only one holding text long enough to need a ceiling as well as a floor — the same `44`, so
+          the column is a fixed width and the table cannot be widened by what a household happens
+          to be called (`docs/guideline/ui_styling_guide.md` §3). The cap is on the link rather than
+          the cell: in an auto-layout table it is the inner box's max-width that clamps the column's
+          min-content contribution. */}
       <TableCell className="min-w-44">
         {/* Underlined on hover rather than always: 240 permanent underlines is 240 pieces of noise,
             and the whole row lights up under the cursor anyway. */}

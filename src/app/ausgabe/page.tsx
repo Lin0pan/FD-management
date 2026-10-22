@@ -53,7 +53,7 @@ import { ARCHIVED } from "../kunden/archived-flag";
 import { ActionButton, ServeFormProvider, StatusSlot, type ServeMode } from "./serve-form";
 import { Confirmation, Notice } from "../notice";
 import { NoticeBoard } from "../notice-board";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { SLOT_NOTICE } from "./slot-notice";
 
 /**
@@ -111,7 +111,7 @@ function SessionHeader({
 }): React.ReactElement {
   return (
     <RunningSessionControls summary={running.summary} canDiscard={running.canDiscard}>
-      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.distribution.heading}</h1>
+      <h1 className={H1}>{de.distribution.heading}</h1>
       <p data-testid="session-day" className="text-lg text-muted-foreground tabular-nums">
         {germanSessionDay(running.session.startedAt)}
       </p>
@@ -336,7 +336,7 @@ function slotAnswer({
 function PageHeader(): React.ReactElement {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.distribution.heading}</h1>
+      <h1 className={H1}>{de.distribution.heading}</h1>
     </div>
   );
 }
@@ -439,7 +439,7 @@ export default async function DistributionPage({
               <ServeFormProvider key={lookup?.customerId ?? ""} mode={mode}>
                 <section
                   aria-label={de.distribution.counter.mask.label}
-                  className="flex flex-col gap-3 rounded-[14px] border bg-card px-6 py-4 text-card-foreground shadow-[0_1px_2px_rgb(24_24_27/0.06)]"
+                  className="flex flex-col gap-3 rounded-[14px] border bg-card px-6 py-4 text-card-foreground shadow-card"
                 >
                   {/* Row 1: look up, book, and the answer — the button beside the field it follows
                     (US-41.4). The lookup form ends before the button, which joins the serve form by

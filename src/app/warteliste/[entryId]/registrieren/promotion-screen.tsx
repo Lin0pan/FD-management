@@ -61,7 +61,7 @@ export function PromotionScreen({
           </p>
           <Button
             type="button"
-            size="lg"
+
             data-testid="promotion-expired-continue"
             onClick={() => setAcknowledged(true)}
           >

@@ -40,7 +40,7 @@ import { FoldChevron } from "../../disclosure";
 import { Confirmation } from "../../notice";
 import { NoticeBoard } from "../../notice-board";
 import { ARCHIVED } from "../archived-flag";
-import { SHELL } from "../../shell";
+import { H1, SHELL } from "../../shell";
 import { Stat } from "../../stat";
 import { ArchiveControls } from "../archive-controls";
 import { BlockControls } from "../block-controls";
@@ -113,9 +113,7 @@ function Section({
 function NotFound(): React.ReactElement {
   return (
     <main className={SHELL}>
-      <h1 className="text-[32px] leading-10 font-bold tracking-tight">
-        {de.customers.card.heading}
-      </h1>
+      <h1 className={H1}>{de.customers.card.heading}</h1>
       <p className="max-w-prose">{de.customers.errors.notFound}</p>
     </main>
   );
@@ -373,7 +371,7 @@ function CustomerRecord({
          */}
         <header className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-[32px] leading-10 font-bold tracking-tight break-words">
+            <h1 className={`${H1} break-words`}>
               {details.firstName} {details.lastName}
             </h1>
             {/* The number and the week it collects in, on one badge (US-31.7, R-27). Reading „37“

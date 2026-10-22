@@ -23,6 +23,12 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-rule-strong: var(--rule-strong);
+  --color-rule-subtle: var(--rule-subtle);
+  --color-foreground-soft: var(--foreground-soft);
+  --color-destructive-edge: var(--destructive-edge);
+  --color-destructive-wash: var(--destructive-wash);
+  --shadow-card: 0 1px 2px rgb(24 24 27 / 0.06);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
@@ -67,6 +73,13 @@
   /* A field's edge at exactly 3:1 on white, the floor WCAG 1.4.11 sets for a control. */
   --input: #94949c;
   --ring: #18181b;
+  /* A table head's rule, a row's rule and a tile's edge; secondary text that is not muted. */
+  --rule-strong: --theme(--color-zinc-400);
+  --rule-subtle: --theme(--color-zinc-200);
+  --foreground-soft: --theme(--color-zinc-700);
+  /* A destructive control is outlined, not filled: the edge, and the wash it takes on hover. */
+  --destructive-edge: --theme(--color-red-300);
+  --destructive-wash: --theme(--color-red-50);
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
   --chart-3: oklch(0.442 0.017 285.786);
@@ -102,6 +115,11 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.552 0.016 285.938);
+  --rule-strong: oklch(1 0 0 / 30%);
+  --rule-subtle: oklch(1 0 0 / 10%);
+  --foreground-soft: oklch(0.871 0.006 286.286);
+  --destructive-edge: oklch(0.704 0.191 22.216 / 50%);
+  --destructive-wash: oklch(0.704 0.191 22.216 / 10%);
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
   --chart-3: oklch(0.442 0.017 285.786);

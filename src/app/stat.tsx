@@ -35,7 +35,7 @@ export function Stat({
   return (
     <p
       className={cn(
-        "flex flex-col gap-1 rounded-[10px] border border-zinc-200 bg-muted px-4 py-3",
+        "flex flex-col gap-1 rounded-[10px] border border-rule-subtle bg-muted px-4 py-3",
         className,
       )}
     >

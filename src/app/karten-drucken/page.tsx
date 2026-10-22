@@ -18,7 +18,7 @@ import { germanDate } from "@/i18n/format";
 import { customerDeps } from "../kunden/deps";
 import { STATUS_CHROME, StateWord } from "../kunden/state-word";
 import { Confirmation } from "../notice";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { BackToOverviews } from "../uebersichten/back-link";
 import { ForgetUndoOffer, MarkPrintedControl, UndoPrintedControl } from "./print-controls";
 import { PRINTED_CARD, PRINTED_CUSTOMER, wholeNumber } from "./print-state";
@@ -106,9 +106,7 @@ export default async function CardsToPrintPage({
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
-          {de.cardsToPrint.heading}
-        </h1>
+        <h1 className={H1}>{de.cardsToPrint.heading}</h1>
         <BackToOverviews testId="cards-to-print-back" />
       </div>
 

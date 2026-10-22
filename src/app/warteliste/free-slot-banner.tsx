@@ -69,7 +69,7 @@ export function FreeSlotBanner({
           </Alert>
         ) : null}
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="lg" asChild>
+          <Button asChild>
             <Link
               href={`/warteliste/${head.entry.id}/registrieren`}
               data-testid="waiting-list-promote"
@@ -78,7 +78,7 @@ export function FreeSlotBanner({
             </Link>
           </Button>
           {showListLink ? (
-            <Button variant="ghost" size="lg" asChild>
+            <Button variant="ghost" asChild>
               <Link href="/warteliste" data-testid="waiting-list-banner-link">
                 {de.waitingList.banner.listLink}
               </Link>

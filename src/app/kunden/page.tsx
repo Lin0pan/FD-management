@@ -38,7 +38,7 @@ import { FREE_SLOT_ACCENT } from "../accents";
 import { selectClass } from "../select";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { CustomerCells, CustomerHeads } from "./customer-cells";
 
 /**
@@ -258,12 +258,10 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="submit" size="lg">
-            {de.customerList.filters.submit}
-          </Button>
+          <Button type="submit">{de.customerList.filters.submit}</Button>
           {/* A plain `<a>`, and the one link on the screen that is deliberately not a `Link`: see
               the note above. */}
-          <Button variant="ghost" size="lg" asChild>
+          <Button variant="ghost" asChild>
             <a href="/kunden">{de.customerList.filters.reset}</a>
           </Button>
         </div>
@@ -396,7 +394,7 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
 function NoSettings(): React.ReactElement {
   return (
     <main className={SHELL}>
-      <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.customerList.heading}</h1>
+      <h1 className={H1}>{de.customerList.heading}</h1>
       <Alert>
         <AlertDescription>{de.settings.errors.noSettings}</AlertDescription>
       </Alert>
@@ -462,10 +460,8 @@ export default async function CustomerListPage({
       {/* The one *write* on this screen stands beside the heading, where the page skeleton puts a
           screen's primary action — rather than opening a band of its own above the register. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[32px] leading-10 font-bold tracking-tight">
-          {de.customerList.heading}
-        </h1>
-        <Button size="lg" asChild>
+        <h1 className={H1}>{de.customerList.heading}</h1>
+        <Button asChild>
           <Link href="/kunden/neu" data-testid="hub-new-customer">
             <UserPlus aria-hidden="true" />
             {de.customerList.actions.newCustomer}

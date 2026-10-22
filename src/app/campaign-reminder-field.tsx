@@ -93,7 +93,7 @@ export function CampaignReminderField({
           className={cn(
             "flex flex-col gap-1 rounded-[10px] border px-3 py-1.5",
             // The border every tile wears, so the tiles end on one edge.
-            shown ? "border-zinc-200 bg-muted" : CAMPAIGN_OUTSTANDING_ACCENT,
+            shown ? "border-rule-subtle bg-muted" : CAMPAIGN_OUTSTANDING_ACCENT,
           )}
         >
           {hidden}

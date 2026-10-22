@@ -24,7 +24,7 @@ import { ISSUED_CARD } from "./issued-card";
 import { customerDeps } from "../kunden/deps";
 import { Confirmation } from "../notice";
 import { StaleCardControls } from "./stale-card-controls";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { BackToOverviews } from "../uebersichten/back-link";
 import { Stat } from "../stat";
 
@@ -163,7 +163,7 @@ export default async function CardsDuePage({
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.cardsDue.heading}</h1>
+        <h1 className={H1}>{de.cardsDue.heading}</h1>
         <BackToOverviews testId="cards-due-back" />
       </div>
 

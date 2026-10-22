@@ -3,8 +3,8 @@
  * are here because a meaning gets **one** colour application-wide, and two copies of a tint are how
  * two screens come to paint one fact two shades. Look for a state here before adding a treatment.
  *
- * Each is opaque at one strength — a -100 fill, a -400/-500 border, -800/-900 text — so the word inside
- * reads at 7:1 or better on the grey page as on a white card (Kontrast-Theme).
+ * Each is opaque — a -100 fill (-50 for the marks on a row), a -400/-500 border, -800/-900 text — so
+ * the word inside reads at 7:1 or better on the grey page as on a white card.
  *
  * None of them travels alone — the word goes with the chrome, because a colour is a distinction only
  * some of the staff can make (US-03.4).
@@ -53,6 +53,12 @@ export const CONFIRMATION_ACCENT = "border-green-500 bg-green-100 text-green-900
  * Worn through `Notice`'s `refusal` tone; nothing hand-tints it.
  */
 export const REFUSAL_ACCENT = "border-amber-500 bg-amber-100 text-amber-900";
+
+/**
+ * A write did not go through and something is wrong — a reload or a colleague, not another attempt.
+ * Worn through `Notice`'s `error` tone, as `REFUSAL_ACCENT` is through `refusal`.
+ */
+export const ERROR_ACCENT = "border-red-400 bg-red-100 text-red-900";
 
 /**
  * A household not yet ticked off the campaign reminder (US-40, D4).

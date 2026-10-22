@@ -356,7 +356,7 @@ function NoteRow({
       {/* The record of why this household was blocked (US-08), verbatim and with its paragraphs:
           nothing else on the screen holds it. */}
       {verdict.kind === "BLOCKED" ? (
-        <div className="flex max-w-[75ch] flex-col gap-0.5 rounded-lg border border-red-300 px-3 py-2">
+        <div className="flex max-w-[75ch] flex-col gap-0.5 rounded-lg border border-destructive-edge px-3 py-2">
           <span className="text-sm font-semibold text-red-700">
             {de.distribution.counter.mask.blockReason}
           </span>

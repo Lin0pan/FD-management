@@ -33,7 +33,7 @@ import { de } from "@/i18n/de";
 import { germanDayOf } from "@/i18n/format";
 import { SessionGroupBadges } from "../ausgabe/session-group-badges";
 import { pastSessionDeps } from "./deps";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { BackToOverviews } from "../uebersichten/back-link";
 
 /** An afternoon is started and ended on another workstation too, so never cache this screen. */
@@ -102,7 +102,7 @@ export default async function PastSessionsPage(): Promise<React.ReactElement> {
   return (
     <main className={SHELL}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-[32px] leading-10 font-bold tracking-tight">{words.heading}</h1>
+        <h1 className={H1}>{words.heading}</h1>
         <BackToOverviews testId="past-sessions-back" />
       </div>
 

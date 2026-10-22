@@ -255,7 +255,7 @@ export function AddApplicantForm({
 
           <Button
             type="submit"
-            size="lg"
+
             className="self-start"
             disabled={pending}
             data-testid="waiting-list-add-submit"

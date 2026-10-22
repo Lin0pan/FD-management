@@ -32,7 +32,7 @@ const ITEM =
  */
 const ACTIVE = "border-foreground font-bold text-foreground";
 const INACTIVE =
-  "border-transparent font-medium text-zinc-700 hover:bg-muted hover:text-foreground";
+  "border-transparent font-medium text-foreground-soft hover:bg-muted hover:text-foreground";
 
 export function Nav(): React.ReactElement {
   const current = activeSection(usePathname());

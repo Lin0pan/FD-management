@@ -21,7 +21,7 @@ import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
 import { germanDate, germanDayOf } from "@/i18n/format";
 import { FoldChevron } from "../disclosure";
-import { SHELL } from "../shell";
+import { H1, SHELL } from "../shell";
 import { CampaignReminderPanel } from "./campaign-reminder-panel";
 import { CertificateTypeTable } from "./certificate-type-table";
 import { campaignReminderDeps, settingsDeps } from "./deps";
@@ -258,7 +258,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
         // Still a dead end: giving this state the form so it can bootstrap itself is §4.2f, a change
         // to what the screen does rather than how it looks.
         <main className={SHELL}>
-          <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.settings.heading}</h1>
+          <h1 className={H1}>{de.settings.heading}</h1>
           <p className="max-w-prose text-muted-foreground">{de.settings.errors.noSettings}</p>
         </main>
       );
@@ -273,7 +273,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
   return (
     <main className={SHELL}>
       <header className="flex flex-col gap-2">
-        <h1 className="text-[32px] leading-10 font-bold tracking-tight">{de.settings.heading}</h1>
+        <h1 className={H1}>{de.settings.heading}</h1>
         <p className="max-w-prose text-muted-foreground">{de.settings.intro}</p>
       </header>
       <SettingsForm settings={current} />

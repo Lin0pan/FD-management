@@ -18,7 +18,7 @@ import { EURO_SIGN, formatEuroAmount } from "@/domain/money";
 import { de } from "@/i18n/de";
 import { cn } from "@/lib/utils";
 import { correctServe, recordServe } from "./actions";
-import { FoldPanel, FoldToggle } from "../fold-row";
+import { FOOTER_RED, FoldPanel, FoldToggle } from "../fold-row";
 import { initialCorrectState, initialServeState } from "./serve-state";
 import type { CorrectState, ServeState } from "./serve-state";
 import { guardEnter } from "../enter-guard";
@@ -394,11 +394,7 @@ export function RemoveEntry(): React.ReactElement | null {
   }
   return (
     <>
-      <FoldToggle
-        fold="remove"
-        testId="correct-remove-open"
-        className="border-red-300 bg-card text-red-700 hover:bg-red-50 hover:text-red-700 aria-expanded:bg-red-50 aria-expanded:text-red-700"
-      >
+      <FoldToggle fold="remove" testId="correct-remove-open" className={FOOTER_RED}>
         <Undo2 aria-hidden="true" data-icon="inline-start" />
         {de.distribution.serve.correct.remove}
       </FoldToggle>
