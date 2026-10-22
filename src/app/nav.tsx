@@ -47,13 +47,13 @@ export function Nav(): React.ReactElement {
       className="sticky top-0 z-40 border-b border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85"
     >
       {/* Same container as the page below it (`max-w-6xl`), but inset by the page's padding *minus*
-          a tab's own `px-3`: that puts the first tab's label on the same vertical line as the `h1`,
+          a tab's own `px-3.5`: that puts the first tab's label on the same vertical line as the `h1`,
           rather than 12px to the right of it, while the tint still extends past the text.
 
           Wraps onto a second line when the window is narrow; it is a block above the page, so it
           can never push the content sideways. `-mb-px` pulls the active tab's rule onto the bar's
           own bottom border, so the two read as one line instead of stacking into a double rule. */}
-      <ul className="mx-auto -mb-px flex w-full max-w-6xl flex-wrap gap-1 px-3 md:px-5">
+      <ul className="mx-auto -mb-px flex w-full max-w-6xl flex-wrap gap-1 px-2.5 md:px-4.5">
         {NAV_ITEMS.map((item) => {
           const active = item.section === current;
           return (
