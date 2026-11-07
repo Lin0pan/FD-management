@@ -14,7 +14,7 @@
         "src/app/kunden/[id]/household-editor.tsx renders its Alter cell through that shared piece; no direct ageInYears call remains in the render",
         "The age cell carries data-testid member-age-${index}",
         "Typing 01.01.2099 as a member's birthdate on /kunden/[id] shows „—\" in that row's Alter cell and the page stays usable; the derived figures above the table (Erwachsene, Kinder, Preis, Eier) behave exactly as before — `derived` is not changed",
-        "Saving with that date is still refused at the birthdate field, with today's message",
+        "Saving with that date is still refused with the household error and today's message",
         "e2e in tests/e2e/customer-record.spec.ts: a future birthdate typed in the household editor shows „—\" in member-age-<i>, asserted in the same page load",
         "Committed as fix(app): … — one intent, no unrelated refactoring",
         "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first)",

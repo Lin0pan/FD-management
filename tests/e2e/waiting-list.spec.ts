@@ -376,6 +376,7 @@ test.describe("Warteliste", () => {
     await expect(page.getByTestId("household-row")).toHaveCount(1);
     await expect(page.getByTestId("grown-ups")).toHaveText("1");
     await expect(page.getByTestId("children")).toHaveText("0");
+    await expect(page.getByTestId("member-age-0")).not.toHaveText("—");
 
     await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
     await page.waitForURL(/\/kunden\/\d+(\?|$)/);

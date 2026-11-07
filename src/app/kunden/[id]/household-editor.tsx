@@ -25,7 +25,6 @@
 import { useActionState, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,7 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ageInYears, composition } from "@/domain/customer/householdComposition";
+import { composition } from "@/domain/customer/householdComposition";
 import { formatEuros } from "@/domain/money";
 import { eggsFor } from "@/domain/policy/eggs";
 import { priceFor, type AllowanceValues } from "@/domain/policy/settings";
@@ -45,23 +44,11 @@ import { guardEnter } from "../../enter-guard";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
-import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
+import { AgeCell } from "../age-cell";
+import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT, typedDay } from "../household-row";
 import { updateHouseholdAction } from "./actions";
 import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
-
-/**
- * A row's birthdate as a `Date`, or `null` while it is still being typed — a refusal is the ordinary
- * case here, this running on every keystroke. Read the way the server will read it, so the panel and
- * the save cannot disagree about the same text (ADR-013).
- */
-function typedDay(value: string): Date | null {
-  try {
-    return parseCalendarDay(value);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * What the household comes to under today's policy, or `null` while it cannot be derived. The save
@@ -282,7 +269,6 @@ export function HouseholdEditor({
         </TableHeader>
         <TableBody>
           {rows.map((row, index) => {
-            const day = typedDay(row.birthDate);
             // Theirs by what it says, which is how the save finds it too — so what is locked here is
             // exactly what the domain would refuse to lose.
             const isCustomer = isCustomerRow(row, customer);
@@ -321,11 +307,7 @@ export function HouseholdEditor({
                 />
                 {/* Derived from the date in the field beside it, so the 13-year boundary follows a
                     correction immediately and a reissue can be anticipated (PRD §6). */}
-                <TableCell className="align-top whitespace-nowrap tabular-nums">
-                  <div className={ROW_TEXT}>
-                    {day === null ? "—" : de.customers.card.memberAge(ageInYears(day, today))}
-                  </div>
-                </TableCell>
+                <AgeCell index={index} birthDate={row.birthDate} today={today} />
                 <TableCell className="align-top">
                   {/* The label moves to `aria-label` rather than going: this column's `<TableHead>`
                       is empty by design, so the label is the control's only name (§9). Three of

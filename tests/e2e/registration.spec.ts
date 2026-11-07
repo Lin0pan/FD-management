@@ -1,3 +1,4 @@
+import { rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { faker } from "@faker-js/faker";
@@ -6,7 +7,7 @@ import { foldName } from "@/domain/customer/nameSearch";
 import { groupOf, type Group } from "@/domain/customer/group";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { SHARED } from "./registers";
-import { fillDay, fillSticky, hydrated } from "./day";
+import { fillDay, fillSticky, hydrated, typedDay } from "./day";
 import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
 import { releaseNumbers } from "./seeding";
 
@@ -301,6 +302,73 @@ test.describe("Kundenaufnahme", () => {
     // Nothing is derived from a day that cannot be read; the panel shows its empty mark rather than
     // a figure computed from a date nobody typed.
     await expect(page.getByTestId("grown-ups")).toHaveText("—");
+  });
+
+  /**
+   * The Alter column (US-43.2). The app's today is pinned, because the boundary is the 13th birthday
+   * and the runner's clock is not the server's; unpinned again afterwards, as `age-13.spec.ts` does,
+   * so the specs after this block run on the real clock they were written for.
+   */
+  test.describe("Alter", () => {
+    const TODAY = "2026-01-08";
+    const THIRTEEN_TODAY = "2013-01-08";
+    const THIRTEEN_TOMORROW = "2013-01-09";
+
+    test.beforeAll(() => {
+      writeFileSync(SHARED.now, `${TODAY}T09:00:00.000Z`, "utf8");
+    });
+
+    test.afterAll(() => {
+      rmSync(SHARED.now, { force: true });
+    });
+
+    /** The digits DF type for an ISO day; the field writes the dots itself. */
+    function digits(isoDay: string): string {
+      return typedDay(isoDay).replaceAll(".", "");
+    }
+
+    test("a member's age appears on the keystroke that completes the birthdate", async ({
+      page,
+    }) => {
+      await page.goto("/kunden/neu");
+      await hydrated(page.getByTestId("add-member"));
+      await page.getByTestId("add-member").click();
+      await expect(page.getByTestId("member-age-1")).toHaveText("—");
+
+      const field = page.locator("#memberBirthDate-1");
+      await field.click();
+      await field.pressSequentially(digits(THIRTEEN_TODAY).slice(0, -1));
+      await expect(page.getByTestId("member-age-1")).toHaveText("—");
+
+      // The last digit, and the field still has focus: no blur is needed for the age to appear.
+      await field.press(digits(THIRTEEN_TODAY).slice(-1));
+      await expect(field).toBeFocused();
+      await expect(page.getByTestId("member-age-1")).toHaveText(de.customers.card.memberAge(13));
+
+      // Born a day later, they are 12 until tomorrow.
+      await field.fill("");
+      await field.pressSequentially(digits(THIRTEEN_TOMORROW));
+      await expect(page.getByTestId("member-age-1")).toHaveText(de.customers.card.memberAge(12));
+
+      // A row added below and the one above removed: the age moves up with its row.
+      await page.getByTestId("add-member").click();
+      await expect(page.getByTestId("member-age-2")).toHaveText("—");
+      await page.getByTestId("remove-member-1").click();
+      await expect(page.getByTestId("member-age-1")).toHaveText("—");
+      await expect(page.getByTestId("member-age-2")).toHaveCount(0);
+    });
+
+    test("the applicant's own row shows the age typed in Person & Anschrift", async ({ page }) => {
+      await page.goto("/kunden/neu");
+      await expect(page.getByTestId("member-age-0")).toHaveText("—");
+
+      await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
+      await expect(page.getByTestId("member-age-0")).toHaveText(de.customers.card.memberAge(37));
+
+      // Half a date again, and the row follows it back to nothing.
+      await page.locator("#birthDate").fill("17.04.19");
+      await expect(page.getByTestId("member-age-0")).toHaveText("—");
+    });
   });
 
   test("a two-person household is registered with a number, a card and derived counts", async ({

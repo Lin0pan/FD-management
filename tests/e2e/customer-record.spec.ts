@@ -458,6 +458,29 @@ test.describe("Kundenakte pflegen", () => {
     await expectDerived(page, AFTER);
   });
 
+  /** A mistyped year is a typo to fix, not a fault: the save refuses it, the render must not. */
+  test("a future birthdate leaves the age blank and the page usable", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    await fillSticky(page.getByTestId("member-birth-date-1"), "01.01.2099");
+
+    await expect(page.getByTestId("member-age-1")).toHaveText("—");
+    await expect(page.getByTestId("member-age-0")).not.toHaveText("—");
+    await expectDerived(page, {
+      grownUps: de.customers.derived.unknown,
+      children: de.customers.derived.unknown,
+      price: de.customers.derived.unknown,
+    });
+
+    await page.getByTestId("household-submit").click();
+    await expect(page.getByTestId("household-error")).toHaveText(
+      de.customers.errors.birthDateInFuture,
+    );
+
+    await page.goto(`/kunden/${id}`);
+    await expectDerived(page, AFTER);
+  });
+
   /**
    * The other half of the naming, on the personal-data form: a refusal the **domain** raised.
    *

@@ -31,7 +31,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,7 +54,8 @@ import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
-import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
+import { AgeCell } from "../age-cell";
+import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT, typedDay } from "../household-row";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
@@ -106,14 +106,8 @@ function initialDetails(draft: PrefillDraft | null): DetailsDraft {
  */
 function datedMembers(rows: ReadonlyArray<MemberRow>): Array<{ birthDate: Date }> {
   return rows.flatMap((row) => {
-    // Half-typed days reach here on every keystroke — `11.0` is not a day yet — so the parser's
-    // refusal is the ordinary case, not an error. The same reading as the server's, so the panel
-    // cannot disagree with what the save will make of the same text (ADR-013).
-    try {
-      return [{ birthDate: parseCalendarDay(row.birthDate) }];
-    } catch {
-      return [];
-    }
+    const birthDate = typedDay(row.birthDate);
+    return birthDate === null ? [] : [{ birthDate }];
   });
 }
 
@@ -582,6 +576,7 @@ export function RegistrationForm({
               <TableHead>{de.customers.fields.firstName}</TableHead>
               <TableHead>{de.customers.fields.lastName}</TableHead>
               <TableHead>{de.customers.fields.birthDate}</TableHead>
+              <TableHead className="whitespace-nowrap">{de.customers.record.ageColumn}</TableHead>
               <TableHead className="w-0" />
             </TableRow>
           </TableHeader>
@@ -617,6 +612,7 @@ export function RegistrationForm({
                   problem={problem(memberPath(index, "birthDate"))}
                   readOnly={index === customerRow}
                 />
+                <AgeCell index={index} birthDate={row.birthDate} today={proposal.today} />
                 <TableCell className="align-top">
                   {/* The household editor's control, verbatim — the same act on the same table, so
                       it is the same shape: `aria-label` because the column heading is empty (§9),

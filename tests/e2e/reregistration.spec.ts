@@ -403,6 +403,8 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     await expect(page.locator("#memberBirthDate-1")).toHaveValue(typedDay(CHILD_BIRTH_DATE));
     await expect(page.getByTestId("grown-ups")).toHaveText("1");
     await expect(page.getByTestId("children")).toHaveText("1");
+    await expect(page.getByTestId("member-age-0")).not.toHaveText("—");
+    await expect(page.getByTestId("member-age-1")).not.toHaveText("—");
 
     // What is decided afresh did not come with it: the certificate is the paper the applicant holds
     // *today*, and the number on offer is the allocator's, not the one they used to have.

@@ -1,7 +1,12 @@
+import { parseCalendarDay } from "@/domain/calendarDay";
+import { ageInYears } from "@/domain/customer/householdComposition";
+import { BirthDateInFuture, InvalidCalendarDay } from "@/domain/errors";
+
 /**
- * What both household tables agree about a row: the shape it is held in while it is typed, and the
- * box its static text sits in. One module for both, for `MEMBER_INPUT`'s reason — two spellings of
- * one household-row decision is how the two tables come to behave differently, with nothing failing.
+ * What both household tables agree about a row: the shape it is held in while it is typed, the age
+ * shown beside it, and the box its static text sits in. One module for both, for `MEMBER_INPUT`'s
+ * reason — two spellings of one household-row decision is how the two tables come to behave
+ * differently, with nothing failing.
  */
 
 /** A household row as a form holds it: the raw strings, exactly as they were typed. */
@@ -32,6 +37,41 @@ export function isCustomerRow(row: MemberRow, customer: MemberRow): boolean {
   return (
     row.firstName.trim() === first && row.lastName.trim() === last && row.birthDate.trim() === born
   );
+}
+
+/**
+ * A row's birthdate as a `Date`, or `null` while it is still being typed — this runs on every
+ * keystroke, so the parser's refusal is the ordinary case. Read the way the server will read it, so a
+ * panel and the save cannot disagree about the same text (ADR-013).
+ */
+export function typedDay(birthDate: string): Date | null {
+  try {
+    return parseCalendarDay(birthDate);
+  } catch (error) {
+    if (error instanceof InvalidCalendarDay) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * The age a row's birthdate gives as of `today`, or `null` while there is none to show: no day yet,
+ * or a day after today, which the save will refuse.
+ */
+export function typedAge(birthDate: string, today: Date): number | null {
+  const day = typedDay(birthDate);
+  if (day === null) {
+    return null;
+  }
+  try {
+    return ageInYears(day, today);
+  } catch (error) {
+    if (error instanceof BirthDateInFuture) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**
