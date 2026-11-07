@@ -25,7 +25,6 @@
 import { useActionState, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import {
@@ -46,23 +45,10 @@ import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
 import { AgeCell } from "../age-cell";
-import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
+import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT, typedDay } from "../household-row";
 import { updateHouseholdAction } from "./actions";
 import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
-
-/**
- * A row's birthdate as a `Date`, or `null` while it is still being typed — a refusal is the ordinary
- * case here, this running on every keystroke. Read the way the server will read it, so the panel and
- * the save cannot disagree about the same text (ADR-013).
- */
-function typedDay(value: string): Date | null {
-  try {
-    return parseCalendarDay(value);
-  } catch {
-    return null;
-  }
-}
 
 /**
  * What the household comes to under today's policy, or `null` while it cannot be derived. The save

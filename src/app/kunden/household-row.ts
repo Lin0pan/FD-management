@@ -40,15 +40,34 @@ export function isCustomerRow(row: MemberRow, customer: MemberRow): boolean {
 }
 
 /**
- * The age a row's birthdate gives as of `today`, or `null` while there is none to show: the text is
- * still being typed, is no day at all, or is a day after today. This runs on every keystroke, so a
- * refusal is the ordinary case — but only those two; anything else thrown is a fault and surfaces.
+ * A row's birthdate as a `Date`, or `null` while it is still being typed — this runs on every
+ * keystroke, so the parser's refusal is the ordinary case. Read the way the server will read it, so a
+ * panel and the save cannot disagree about the same text (ADR-013).
+ */
+export function typedDay(birthDate: string): Date | null {
+  try {
+    return parseCalendarDay(birthDate);
+  } catch (error) {
+    if (error instanceof InvalidCalendarDay) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * The age a row's birthdate gives as of `today`, or `null` while there is none to show: no day yet,
+ * or a day after today, which the save will refuse.
  */
 export function typedAge(birthDate: string, today: Date): number | null {
+  const day = typedDay(birthDate);
+  if (day === null) {
+    return null;
+  }
   try {
-    return ageInYears(parseCalendarDay(birthDate), today);
+    return ageInYears(day, today);
   } catch (error) {
-    if (error instanceof InvalidCalendarDay || error instanceof BirthDateInFuture) {
+    if (error instanceof BirthDateInFuture) {
       return null;
     }
     throw error;

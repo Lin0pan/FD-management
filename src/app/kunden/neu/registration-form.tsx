@@ -31,7 +31,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { parseCalendarDay } from "@/domain/calendarDay";
 import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -56,7 +55,7 @@ import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from ".
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
 import { AgeCell } from "../age-cell";
-import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
+import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT, typedDay } from "../household-row";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
 import type { PrefillDraft } from "./archive-search-state";
@@ -107,14 +106,8 @@ function initialDetails(draft: PrefillDraft | null): DetailsDraft {
  */
 function datedMembers(rows: ReadonlyArray<MemberRow>): Array<{ birthDate: Date }> {
   return rows.flatMap((row) => {
-    // Half-typed days reach here on every keystroke — `11.0` is not a day yet — so the parser's
-    // refusal is the ordinary case, not an error. The same reading as the server's, so the panel
-    // cannot disagree with what the save will make of the same text (ADR-013).
-    try {
-      return [{ birthDate: parseCalendarDay(row.birthDate) }];
-    } catch {
-      return [];
-    }
+    const birthDate = typedDay(row.birthDate);
+    return birthDate === null ? [] : [{ birthDate }];
   });
 }
 
