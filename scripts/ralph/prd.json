@@ -24,8 +24,8 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Saving a future date is refused with the form-level message „Ein Geburtsdatum liegt in der Zukunft.\", as before — BirthDateInFuture carries no field path, so no field mark (unchanged, out of scope)."
     },
     {
       "id": "US-002",
