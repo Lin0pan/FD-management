@@ -68,8 +68,13 @@ const TIERS: Record<DomainErrorCode, NoticeTier> = {
   CertificateTypeTooLong: "refusal",
   DuplicateCertificateType: "refusal",
   CampaignReminderNameTooLong: "refusal",
+  BackupNotADatabase: "refusal",
+  BackupDamaged: "refusal",
+  BackupFromNewerVersion: "refusal",
+  BackupIncompatible: "refusal",
 
   // Something is wrong, and typing again will not fix it.
+  BackupMigrationFailed: "error",
   CustomerNotFound: "error",
   WaitingListEntryNotFound: "error",
   DistributionRecordNotFound: "error",

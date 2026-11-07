@@ -39,6 +39,8 @@ npm-debug.log*
 /data/*.db-journal
 /data/*.db-wal
 /data/*.db-shm
+/data/*.db.restore-*
+/data/sicherheitskopien/
 
 # FD-Management: the instant the end-to-end suite pins the app's clock to (tests/e2e/distribution.spec.ts).
 # A glob rather than a list: there is one of these per register per engine, and tests/e2e/registers.ts

@@ -59,7 +59,12 @@ export type DomainErrorCode =
   | "DuplicateCertificateType"
   | "CampaignReminderNameTooLong"
   | "CampaignReminderAlreadyActive"
-  | "CampaignReminderNotActive";
+  | "CampaignReminderNotActive"
+  | "BackupNotADatabase"
+  | "BackupDamaged"
+  | "BackupFromNewerVersion"
+  | "BackupIncompatible"
+  | "BackupMigrationFailed";
 
 /** Base class of every domain error. `code` lets callers switch over the closed set above. */
 export abstract class DomainError extends Error {
@@ -885,5 +890,50 @@ export class CampaignReminderNotActive extends DomainError {
   constructor(reminderId: number) {
     super(`Campaign reminder ${reminderId} is not the one switched on`);
     this.reminderId = reminderId;
+  }
+}
+
+/** The file offered for a restore is not a database this software wrote — or not SQLite at all. */
+export class BackupNotADatabase extends DomainError {
+  readonly code = "BackupNotADatabase";
+
+  constructor() {
+    super("The file is not a backup of this software's database");
+  }
+}
+
+/** The backup fails SQLite's integrity check, or a migration in it never finished. */
+export class BackupDamaged extends DomainError {
+  readonly code = "BackupDamaged";
+
+  constructor() {
+    super("The backup is damaged");
+  }
+}
+
+/** The backup carries migrations this software does not know: it was taken by a newer version. */
+export class BackupFromNewerVersion extends DomainError {
+  readonly code = "BackupFromNewerVersion";
+
+  constructor() {
+    super("The backup was taken by a newer version of the software");
+  }
+}
+
+/** The backup's migration history parted from this software's, so no migration can bring it up. */
+export class BackupIncompatible extends DomainError {
+  readonly code = "BackupIncompatible";
+
+  constructor() {
+    super("The backup's migration history does not match this software's");
+  }
+}
+
+/** Bringing an older backup up to this version's schema failed; the register is untouched. */
+export class BackupMigrationFailed extends DomainError {
+  readonly code = "BackupMigrationFailed";
+
+  constructor() {
+    super("Migrating the backup to this version failed");
   }
 }

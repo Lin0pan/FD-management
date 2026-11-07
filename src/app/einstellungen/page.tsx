@@ -4,6 +4,7 @@
  * (`tasks/prd-us-14-configure-business-rules.md` §US-14.4).
  */
 
+import { readLastBackup } from "@/application/backup/read-last-backup";
 import { readCampaignReminder } from "@/application/campaign/read-campaign-reminder";
 import {
   listSettingsVersions,
@@ -19,12 +20,13 @@ import type { EggRule, EggRuleRowChange } from "@/domain/policy/eggs";
 import type { Settings } from "@/domain/policy/settings";
 import type { SettingsChange } from "@/domain/policy/settings-diff";
 import { de } from "@/i18n/de";
-import { germanDate, germanDayOf } from "@/i18n/format";
+import { germanDate, germanDateTime, germanDayOf } from "@/i18n/format";
 import { FoldChevron } from "../disclosure";
 import { H1, SHELL } from "../shell";
+import { BackupPanel } from "./backup-panel";
 import { CampaignReminderPanel } from "./campaign-reminder-panel";
 import { CertificateTypeTable } from "./certificate-type-table";
-import { campaignReminderDeps, settingsDeps } from "./deps";
+import { backupDeps, campaignReminderDeps, settingsDeps } from "./deps";
 import { SettingsForm } from "./settings-form";
 
 /** Settings change through the form, so the page must never be served from a build-time cache. */
@@ -269,6 +271,7 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
   const history = await listSettingsVersions(settingsDeps);
   const certificateTypes = await readCertificateTypes(settingsDeps);
   const campaignReminder = await readCampaignReminder(campaignReminderDeps);
+  const lastBackup = await readLastBackup(backupDeps);
 
   return (
     <main className={SHELL}>
@@ -317,6 +320,13 @@ export default async function SettingsPage(): Promise<React.ReactElement> {
                 }
           }
         />
+      </section>
+      {/* A fourth chapter: it writes nothing a setting reads. Last, since it is the rarest. */}
+      <section aria-labelledby="backup-heading" className="mt-8 flex flex-col gap-4 border-t pt-8">
+        <h2 id="backup-heading" className="text-2xl font-bold">
+          {de.settings.backup.heading}
+        </h2>
+        <BackupPanel lastBackup={lastBackup === null ? null : germanDateTime(lastBackup)} />
       </section>
     </main>
   );

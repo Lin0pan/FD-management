@@ -6,6 +6,7 @@
  * adapters, the tests supply fakes. Type-only, so the file carries no untested runtime code.
  */
 
+import type { MigrationRecord } from "@/domain/backup/backup";
 import type { CampaignReminderName } from "@/domain/campaign/campaignReminder";
 import type { IssuedCard, NewCard } from "@/domain/card/card";
 import type { ValidUntilRange } from "@/domain/customer/certificate";
@@ -580,4 +581,60 @@ export interface AuditEntry {
 /** The append-only audit log. Entries are never amended or removed. */
 export interface AuditLog {
   append(entry: AuditEntry): Promise<void>;
+}
+
+/** What a file offered for a restore turned out to hold, read before anything is replaced. */
+export interface BackupInspection {
+  /** SQLite's `integrity_check` passed and every migration in the file finished. */
+  readonly intact: boolean;
+  /** The file's applied migrations; empty when it has no `_prisma_migrations` table. */
+  readonly migrations: ReadonlyArray<MigrationRecord>;
+}
+
+/**
+ * The register as a file: copied out for a backup, and a backup put back in its place.
+ *
+ * A restore is never swapped in while the software runs. It is **staged** beside the register and
+ * swapped in at the next start, before anything has opened the database; until `stageCandidate`, the
+ * register is untouched whatever fails. There is one candidate at a time — one workstation, one
+ * restore.
+ */
+export interface DatabaseBackups {
+  /** A consistent copy of the live register, WAL included, as one self-contained file. */
+  snapshot(): Promise<Uint8Array>;
+  /** When the last backup was taken, read off the audit log; `null` if none ever was. */
+  lastCreatedAt(): Promise<Date | null>;
+  /** The migrations this software ships, which a restored register must end up on. */
+  softwareMigrations(): Promise<ReadonlyArray<MigrationRecord>>;
+  /** Write the offered file aside as the candidate, replacing any earlier one. */
+  receiveCandidate(content: Uint8Array): Promise<void>;
+  /** `null` when the candidate is not an SQLite file at all. */
+  inspectCandidate(): Promise<BackupInspection | null>;
+  /**
+   * Apply this software's pending migrations to the candidate.
+   *
+   * @throws {BackupMigrationFailed} if any of them fails.
+   */
+  migrateCandidate(): Promise<void>;
+  discardCandidate(): Promise<void>;
+  /** Make the candidate the restore the next start swaps in. */
+  stageCandidate(): Promise<void>;
+  hasStagedRestore(): Promise<boolean>;
+  /** Copy the register about to be replaced into the safety-copy folder under this name. */
+  preserveCurrent(fileName: string): Promise<void>;
+  /** Replace the register with the staged restore. Called only before the database is opened. */
+  swapInStaged(): Promise<void>;
+}
+
+/** The running server process. A staged restore takes effect only once it has restarted. */
+export interface ProcessControl {
+  /** Changes with every start, so a browser can tell that a restart has happened. */
+  readonly bootId: string;
+  /** Whether a watchdog (`scripts/start.mjs`) starts the process again once it exits. */
+  readonly supervised: boolean;
+  /**
+   * Exit shortly — late enough for the answer that says so to reach the browser — asking the
+   * watchdog for a restart. Without one, the process simply stops.
+   */
+  restartSoon(): void;
 }

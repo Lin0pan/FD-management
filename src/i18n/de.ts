@@ -1678,6 +1678,49 @@ export const de = {
         unknown: "Die Erinnerung konnte nicht geändert werden.",
       },
     },
+    backup: {
+      heading: "Datensicherung",
+      lastBackup: (at: string): string => `Letzte Sicherung: ${at}`,
+      noBackupYet: "Noch keine Sicherung",
+      create: "Jetzt sichern",
+      creating: "Wird gesichert …",
+      createFailed: "Die Sicherung konnte nicht erstellt werden.",
+      restore: "Sicherung einspielen …",
+      file: "Sicherungsdatei",
+      /** The one-way door, and where the way back is kept (`ui_styling_guide.md` §8). */
+      restoreWarning:
+        "Alles, was seit dieser Sicherung erfasst wurde, geht verloren. Der heutige Stand wird " +
+        "vorher im Ordner „data/sicherheitskopien“ gesichert. Die Software startet dafür neu.",
+      restoreConfirm: "Einspielen und neu starten",
+      restoring: "Wird geprüft …",
+      /** While the page waits for the restarted server; nothing on it works until then. */
+      restarting: "Die Sicherung ist geprüft. Die Software startet neu und spielt sie ein …",
+      /** Without the watchdog (`npm run dev`) nothing starts the server again. */
+      restartByHand:
+        "Die Sicherung ist geprüft und wird beim nächsten Start eingespielt. Die Software ist " +
+        "beendet. Bitte von Hand neu starten.",
+      /** The watchdog should have been back long before this. */
+      restartOverdue:
+        "Die Software ist noch nicht wieder erreichbar. Falls sie nicht von selbst startet, bitte " +
+        "von Hand neu starten.",
+      restored: "Die Sicherung ist eingespielt.",
+      /** The start-up swap failed: the old register is still in use and the backup still waits. */
+      restoreFailed:
+        "Die Sicherung konnte beim Neustart nicht eingespielt werden. Es gilt weiter der bisherige " +
+        "Stand. Der Grund steht im Protokoll der Software.",
+      errors: {
+        noFile: "Bitte eine Sicherungsdatei auswählen.",
+        notADatabase: "Diese Datei ist keine Sicherung dieser Software.",
+        damaged: "Diese Sicherung ist beschädigt und kann nicht eingespielt werden.",
+        newerVersion:
+          "Diese Sicherung stammt aus einer neueren Version der Software und kann hier nicht " +
+          "eingespielt werden.",
+        incompatible: "Diese Sicherung passt nicht zu dieser Version der Software.",
+        migrationFailed:
+          "Die Sicherung konnte nicht auf diese Version gebracht werden. Es wurde nichts verändert.",
+        unknown: "Die Sicherung konnte nicht eingespielt werden. Es wurde nichts verändert.",
+      },
+    },
     reason: "Grund der Änderung (optional)",
     reasonHint: "Wird im Änderungsprotokoll festgehalten.",
     save: "Speichern",

@@ -46,9 +46,11 @@ function webServer(server: Register) {
   // Single-quoted inside the JS, because the whole `node -e` program is itself in double quotes.
   const scratch = [server.database, server.now].map((file) => `'${file}'`).join(",");
   return {
+    // `next start` rather than `npm start`: the watchdog behind that would restart a crashed server
+    // and turn a failing spec into a flaky one.
     command:
       `node -e "const fs=require('fs'); for (const f of [${scratch}]) for (const s of ['','-journal','-wal','-shm']) fs.rmSync(f+s,{force:true})" ` +
-      `&& npx prisma migrate deploy && npm run db:seed && npm run start -- --port ${server.port}`,
+      `&& npx prisma migrate deploy && npm run db:seed && npx next start --port ${server.port}`,
     url: url(server),
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -5,8 +5,11 @@ import type {
   Clock,
   CustomerCounter,
   CustomerRepository,
+  DatabaseBackups,
+  ProcessControl,
   SettingsRepository,
 } from "@/application/ports";
+import { databaseBackupsFor, softwareVersion } from "@/infrastructure/backup/composition";
 import { systemClock } from "@/infrastructure/clock";
 import { PrismaAuditLog } from "@/infrastructure/prisma/audit-log";
 import { PrismaCampaignReminderRepository } from "@/infrastructure/prisma/campaign-reminder-repository";
@@ -17,6 +20,7 @@ import {
 } from "@/infrastructure/prisma/customer-repository";
 import { prisma } from "@/infrastructure/prisma/client";
 import { PrismaSettingsRepository } from "@/infrastructure/prisma/settings-repository";
+import { nodeProcessControl } from "@/infrastructure/process-control";
 
 /**
  * Composition root for the settings screen: the one place the real adapters are chosen.
@@ -52,4 +56,19 @@ export const campaignReminderDeps: {
   customers: new PrismaCustomerRepository(prisma),
   audit: new PrismaAuditLog(prisma),
   clock: systemClock,
+};
+
+/** The Datensicherung section: a backup handed out, and a restore staged for the next start. */
+export const backupDeps: {
+  readonly backups: DatabaseBackups;
+  readonly audit: AuditLog;
+  readonly clock: Clock;
+  readonly process: ProcessControl;
+  readonly softwareVersion: string;
+} = {
+  backups: databaseBackupsFor(prisma),
+  audit: new PrismaAuditLog(prisma),
+  clock: systemClock,
+  process: nodeProcessControl,
+  softwareVersion,
 };

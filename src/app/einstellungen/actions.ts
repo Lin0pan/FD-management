@@ -8,12 +8,18 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { stageRestore } from "@/application/backup/stage-restore";
 import { endCampaignReminder } from "@/application/campaign/end-campaign-reminder";
 import { renameCampaignReminder } from "@/application/campaign/rename-campaign-reminder";
 import { startCampaignReminder } from "@/application/campaign/start-campaign-reminder";
 import { updateCertificateTypes } from "@/application/settings/update-certificate-types";
 import { updateSettings } from "@/application/settings/update-settings";
 import {
+  BackupDamaged,
+  BackupFromNewerVersion,
+  BackupIncompatible,
+  BackupMigrationFailed,
+  BackupNotADatabase,
   CampaignReminderAlreadyActive,
   CampaignReminderNameTooLong,
   CampaignReminderNotActive,
@@ -31,8 +37,9 @@ import { parseEuros } from "@/domain/money";
 import { de, settingsFormFieldLabel } from "@/i18n/de";
 import { summarise, type FormRefusal } from "../field-refusal";
 import { tierOf } from "../notice-tier";
+import type { RestoreActionState } from "./backup-state";
 import type { CampaignReminderActionState } from "./campaign-reminder-state";
-import { campaignReminderDeps, settingsDeps } from "./deps";
+import { backupDeps, campaignReminderDeps, settingsDeps } from "./deps";
 import type { SaveCertificateTypesState } from "./save-certificate-types-state";
 import type { SaveSettingsState, SubmittedSettings } from "./save-settings-state";
 
@@ -479,4 +486,50 @@ export async function endCampaignReminderAction(
 
   revalidateCampaignReminder();
   return { status: "saved" };
+}
+
+/** Turn a typed refusal from `stageRestore` into the section's words. */
+function restoreRefusal(error: unknown): string {
+  const words = de.settings.backup.errors;
+  if (error instanceof BackupNotADatabase) {
+    return words.notADatabase;
+  }
+  if (error instanceof BackupDamaged) {
+    return words.damaged;
+  }
+  if (error instanceof BackupFromNewerVersion) {
+    return words.newerVersion;
+  }
+  if (error instanceof BackupIncompatible) {
+    return words.incompatible;
+  }
+  if (error instanceof BackupMigrationFailed) {
+    return words.migrationFailed;
+  }
+  return words.unknown;
+}
+
+/**
+ * Check the uploaded backup and stage it for the next start — all of it `stageRestore`'s, which also
+ * restarts the software. The answer has to reach the browser first, so it is returned, not
+ * redirected.
+ */
+export async function stageRestoreAction(
+  _previous: RestoreActionState,
+  formData: FormData,
+): Promise<RestoreActionState> {
+  const file = formData.get("backup");
+  if (!(file instanceof File) || file.size === 0) {
+    return { status: "error", message: de.settings.backup.errors.noFile, tier: "refusal" };
+  }
+  try {
+    const staged = await stageRestore(backupDeps, new Uint8Array(await file.arrayBuffer()));
+    return {
+      status: "staged",
+      restartingFrom: staged.restartingFrom,
+      supervised: staged.supervised,
+    };
+  } catch (error: unknown) {
+    return { status: "error", message: restoreRefusal(error), tier: tierOf(error) };
+  }
 }
