@@ -36,7 +36,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ageInYears, composition } from "@/domain/customer/householdComposition";
+import { composition } from "@/domain/customer/householdComposition";
 import { formatEuros } from "@/domain/money";
 import { eggsFor } from "@/domain/policy/eggs";
 import { priceFor, type AllowanceValues } from "@/domain/policy/settings";
@@ -45,7 +45,7 @@ import { guardEnter } from "../../enter-guard";
 import { useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { Stat } from "../../stat";
-import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
+import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT, typedAge } from "../household-row";
 import { updateHouseholdAction } from "./actions";
 import { FormFooter, RecordRejection, SaveButton, SaveFeedback } from "./record-forms";
 import { initialRecordFormState } from "./record-state";
@@ -282,7 +282,7 @@ export function HouseholdEditor({
         </TableHeader>
         <TableBody>
           {rows.map((row, index) => {
-            const day = typedDay(row.birthDate);
+            const age = typedAge(row.birthDate, today);
             // Theirs by what it says, which is how the save finds it too — so what is locked here is
             // exactly what the domain would refuse to lose.
             const isCustomer = isCustomerRow(row, customer);
@@ -321,9 +321,12 @@ export function HouseholdEditor({
                 />
                 {/* Derived from the date in the field beside it, so the 13-year boundary follows a
                     correction immediately and a reissue can be anticipated (PRD §6). */}
-                <TableCell className="align-top whitespace-nowrap tabular-nums">
+                <TableCell
+                  className="align-top whitespace-nowrap tabular-nums"
+                  data-testid={`member-age-${index}`}
+                >
                   <div className={ROW_TEXT}>
-                    {day === null ? "—" : de.customers.card.memberAge(ageInYears(day, today))}
+                    {age === null ? "—" : de.customers.card.memberAge(age)}
                   </div>
                 </TableCell>
                 <TableCell className="align-top">

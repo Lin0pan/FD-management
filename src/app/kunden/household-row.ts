@@ -1,7 +1,12 @@
+import { parseCalendarDay } from "@/domain/calendarDay";
+import { ageInYears } from "@/domain/customer/householdComposition";
+import { BirthDateInFuture, InvalidCalendarDay } from "@/domain/errors";
+
 /**
- * What both household tables agree about a row: the shape it is held in while it is typed, and the
- * box its static text sits in. One module for both, for `MEMBER_INPUT`'s reason — two spellings of
- * one household-row decision is how the two tables come to behave differently, with nothing failing.
+ * What both household tables agree about a row: the shape it is held in while it is typed, the age
+ * shown beside it, and the box its static text sits in. One module for both, for `MEMBER_INPUT`'s
+ * reason — two spellings of one household-row decision is how the two tables come to behave
+ * differently, with nothing failing.
  */
 
 /** A household row as a form holds it: the raw strings, exactly as they were typed. */
@@ -32,6 +37,22 @@ export function isCustomerRow(row: MemberRow, customer: MemberRow): boolean {
   return (
     row.firstName.trim() === first && row.lastName.trim() === last && row.birthDate.trim() === born
   );
+}
+
+/**
+ * The age a row's birthdate gives as of `today`, or `null` while there is none to show: the text is
+ * still being typed, is no day at all, or is a day after today. This runs on every keystroke, so a
+ * refusal is the ordinary case — but only those two; anything else thrown is a fault and surfaces.
+ */
+export function typedAge(birthDate: string, today: Date): number | null {
+  try {
+    return ageInYears(parseCalendarDay(birthDate), today);
+  } catch (error) {
+    if (error instanceof InvalidCalendarDay || error instanceof BirthDateInFuture) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 /**

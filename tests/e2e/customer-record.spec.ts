@@ -459,6 +459,32 @@ test.describe("Kundenakte pflegen", () => {
   });
 
   /**
+   * A mistyped year is a typo to fix, not a fault: the age beside it used to throw mid-render and
+   * take the whole record down with it. The save still refuses the date, as it always did.
+   */
+  test("a future birthdate leaves the age blank and the page usable", async ({ page }) => {
+    await page.goto(`/kunden/${id}`);
+
+    await fillSticky(page.getByTestId("member-birth-date-1"), "01.01.2099");
+
+    await expect(page.getByTestId("member-age-1")).toHaveText("—");
+    await expect(page.getByTestId("member-age-0")).not.toHaveText("—");
+    await expectDerived(page, {
+      grownUps: de.customers.derived.unknown,
+      children: de.customers.derived.unknown,
+      price: de.customers.derived.unknown,
+    });
+
+    await page.getByTestId("household-submit").click();
+    await expect(page.getByTestId("household-error")).toHaveText(
+      de.customers.errors.birthDateInFuture,
+    );
+
+    await page.goto(`/kunden/${id}`);
+    await expectDerived(page, AFTER);
+  });
+
+  /**
    * The other half of the naming, on the personal-data form: a refusal the **domain** raised.
    *
    * A blank ZIP is a well-formed submission — `z.string()` accepts it — so it reaches
