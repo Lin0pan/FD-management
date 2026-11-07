@@ -40,7 +40,7 @@ it accepts a day after `today`, and `ageInYears` throws `BirthDateInFuture` for 
       **Alter** cell, and the page stays usable.
 - [ ] The derived figures above the table (Erwachsene, Kinder, Preis, Eier) behave as they do today
       for such a row. `derived` already catches the throw, so do not change it.
-- [ ] Saving with that date is still refused at the birthdate field, as today.
+- [ ] Saving with that date is still refused with the household error (`household-error`), as today.
 - [ ] The mapping from a typed birthdate to the displayed age lives in **one** place, and US-43.2
       reuses it (see Technical Considerations).
 - [ ] An e2e test in `tests/e2e/customer-record.spec.ts` covers the case: a future birthdate typed in
