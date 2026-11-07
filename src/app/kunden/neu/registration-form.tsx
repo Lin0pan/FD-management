@@ -55,6 +55,7 @@ import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
+import { AgeCell } from "../age-cell";
 import { EMPTY_ROW, isCustomerRow, type MemberRow, ROW_TEXT } from "../household-row";
 import { Notice } from "../../notice";
 import { submitRegistration } from "./actions";
@@ -582,6 +583,7 @@ export function RegistrationForm({
               <TableHead>{de.customers.fields.firstName}</TableHead>
               <TableHead>{de.customers.fields.lastName}</TableHead>
               <TableHead>{de.customers.fields.birthDate}</TableHead>
+              <TableHead className="whitespace-nowrap">{de.customers.record.ageColumn}</TableHead>
               <TableHead className="w-0" />
             </TableRow>
           </TableHeader>
@@ -617,6 +619,7 @@ export function RegistrationForm({
                   problem={problem(memberPath(index, "birthDate"))}
                   readOnly={index === customerRow}
                 />
+                <AgeCell index={index} birthDate={row.birthDate} today={proposal.today} />
                 <TableCell className="align-top">
                   {/* The household editor's control, verbatim — the same act on the same table, so
                       it is the same shape: `aria-label` because the column heading is empty (§9),
