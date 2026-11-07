@@ -458,10 +458,7 @@ test.describe("Kundenakte pflegen", () => {
     await expectDerived(page, AFTER);
   });
 
-  /**
-   * A mistyped year is a typo to fix, not a fault: the age beside it used to throw mid-render and
-   * take the whole record down with it. The save still refuses the date, as it always did.
-   */
+  /** A mistyped year is a typo to fix, not a fault: the save refuses it, the render must not. */
   test("a future birthdate leaves the age blank and the page usable", async ({ page }) => {
     await page.goto(`/kunden/${id}`);
 
