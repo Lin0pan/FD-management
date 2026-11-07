@@ -50,7 +50,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Out of scope (PRD §Non-Goals): no age beside the birthdate in Person & Anschrift, no months, no child highlighting, no hint text (CLAUDE.md „Don't explain the screen on the screen\"). No docs/handout change."
     }
   ]

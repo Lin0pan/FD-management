@@ -602,3 +602,27 @@ keystroke, not only on blur. A spec that needs a fixed today pins it the way `ag
   - `playwright-cli snapshot`'s yml path is printed by the command; `ls -t .playwright-cli/*.yml`
     can pick an older file. Prefer `--raw eval` for reading values back.
 ---
+
+## 2026-11-07 - US-002 (US-43.2)
+- `src/app/kunden/age-cell.tsx`: `AgeCell` — the Alter `<TableCell>` (testid `member-age-${index}`,
+  „—" or `memberAge`) over `typedAge`. Landed first as its own `refactor(app)` commit with the record
+  editor switched to it, so the two tables cannot spell the cell differently.
+- `registration-form.tsx`: Alter header between Geburtsdatum and the ✕ column; `AgeCell` per row
+  from `members` (row 1 already swapped for Person & Anschrift) against `proposal.today`.
+- e2e `registration.spec.ts` › „Alter" (nested describe pinning `SHARED.now` to 2026-01-08, removed
+  in `afterAll`): the age appears on the completing keystroke with the field still focused,
+  08.01.2013 → 13 Jahre, 09.01.2013 → 12 Jahre, half-typed → „—", add/remove moves ages with rows;
+  row 1 follows `#birthDate`. Both engines green (WebKit's known nav-bar flake hit once, green on
+  rerun).
+- playwright-cli on `npm run start`: household of four → 38 Jahre / 13 Jahre / — (11.0) / 0 Jahre.
+  Overflow: none at 1024 and 1280; at 390 the table container already scrolled before the column
+  (365 > 292 px measured with the Alter cells removed from the DOM), now 453 > 292 — no *new*
+  scrollbar. The prefilled form was not driven: the cells render from the same `members`
+  server-side, so a draft's rows show their ages on first paint by construction.
+- No docs mention the household table's columns; no handout change (PRD).
+- **Learnings for future iterations:**
+  - **„Did this add a scrollbar?" is answerable without a second build**: measure the container's
+    `scrollWidth`, then `remove()` the new column's cells in the same `eval` and measure again.
+  - A nested `test.describe` with its own `beforeAll`/`afterAll` writing and `rmSync`ing `SHARED.now`
+    pins the clock for only those tests inside an otherwise real-clock serial spec.
+---
