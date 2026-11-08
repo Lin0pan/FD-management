@@ -1,7 +1,8 @@
 /**
- * The Kundenliste's nine columns, shared by `/kunden` and the household list under the counter's mask
+ * The Kundenliste's columns, shared by `/kunden` and the household list under the counter's mask
  * (US-41.8) — one component, so the two lists cannot come to show one household differently. Each
- * screen owns its `<tr>` and whatever columns it adds; only where the name links to differs.
+ * screen owns its `<tr>` and whatever columns it adds. The last column is the one deliberate
+ * difference: `/kunden` states the latest hand-out where the counter keeps the reminders (US-45).
  */
 
 import Link from "next/link";
@@ -33,7 +34,6 @@ export function CustomerHeads(): React.ReactElement {
       <TableHead className="text-right">{de.customerList.table.household}</TableHead>
       <TableHead className="text-right">{de.customerList.table.price}</TableHead>
       <TableHead>{de.customerList.table.certificate}</TableHead>
-      <TableHead className="text-right">{de.customerList.table.reminders}</TableHead>
     </>
   );
 }
@@ -116,12 +116,36 @@ export function CustomerCells({
           chrome={CERTIFICATE_CHROME[row.certificateState]}
         />
       </TableCell>
-      <TableCell
-        data-testid="customer-row-reminders"
-        className={`text-right tabular-nums ${row.reminderCount === 0 ? "text-muted-foreground" : ""}`}
-      >
-        {row.reminderCount === 0 ? de.customerList.table.noReminders : row.reminderCount}
-      </TableCell>
     </>
+  );
+}
+
+export function RemindersHead(): React.ReactElement {
+  return <TableHead className="text-right">{de.customerList.table.reminders}</TableHead>;
+}
+
+export function RemindersCell({ row }: { row: CustomerListRow }): React.ReactElement {
+  return (
+    <TableCell
+      data-testid="customer-row-reminders"
+      className={`text-right tabular-nums ${row.reminderCount === 0 ? "text-muted-foreground" : ""}`}
+    >
+      {row.reminderCount === 0 ? de.customerList.table.none : row.reminderCount}
+    </TableCell>
+  );
+}
+
+export function LastHandoutHead(): React.ReactElement {
+  return <TableHead>{de.customerList.table.lastHandout}</TableHead>;
+}
+
+export function LastHandoutCell({ row }: { row: CustomerListRow }): React.ReactElement {
+  return (
+    <TableCell
+      data-testid="customer-row-last-handout"
+      className={`tabular-nums ${row.lastHandoutAt === null ? "text-muted-foreground" : ""}`}
+    >
+      {row.lastHandoutAt === null ? de.customerList.table.none : germanDate(row.lastHandoutAt)}
+    </TableCell>
   );
 }

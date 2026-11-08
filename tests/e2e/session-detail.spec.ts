@@ -274,7 +274,7 @@ async function expectRow(page: Page, household: Household, expected: RowState): 
   );
   await expect(row.getByTestId("session-household-certificate")).toHaveText(expected.certificate);
   await expect(row.getByTestId("session-household-reminders")).toHaveText(
-    de.customerList.table.noReminders,
+    de.customerList.table.none,
   );
   await expect(row.getByTestId("session-household-paid")).toHaveText(
     formatEuros(expected.paidCents),

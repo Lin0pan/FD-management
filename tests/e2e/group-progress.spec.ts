@@ -258,6 +258,21 @@ test.describe("Gruppenfortschritt", () => {
     await expect(page.getByTestId("session-households-table")).toBeVisible();
   });
 
+  test("keeps the reminders where the customer list states the latest hand-out", async ({
+    page,
+  }) => {
+    // The one column the two lists do not share (US-45).
+    await page.goto("/ausgabe");
+    const table = page.getByTestId("session-households-table");
+
+    await expect(
+      table.getByRole("columnheader", { name: de.customerList.table.reminders }),
+    ).toHaveCount(1);
+    await expect(
+      table.getByRole("columnheader", { name: de.customerList.table.lastHandout }),
+    ).toHaveCount(0);
+  });
+
   test("lists the group in customer-number order, marking the blocked household", async ({
     page,
   }) => {

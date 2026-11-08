@@ -39,7 +39,7 @@ import { selectClass } from "../select";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
 import { H1, SHELL } from "../shell";
-import { CustomerCells, CustomerHeads } from "./customer-cells";
+import { CustomerCells, CustomerHeads, LastHandoutCell, LastHandoutHead } from "./customer-cells";
 
 /**
  * Half of what the list shows changes at midnight with nothing being written — a 13th birthday, a
@@ -121,6 +121,7 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
         row={row}
         link={{ href: `/kunden/${row.customerId}`, testId: "customer-row-link" }}
       />
+      <LastHandoutCell row={row} />
     </TableRow>
   );
 }
@@ -375,6 +376,7 @@ function CustomerTable({ rows }: { rows: ReadonlyArray<CustomerListRow> }): Reac
       <TableHeader className="z-10 bg-card xl:sticky xl:top-[52px]">
         <TableRow className="hover:bg-transparent">
           <CustomerHeads />
+          <LastHandoutHead />
         </TableRow>
       </TableHeader>
       <TableBody>

@@ -432,7 +432,7 @@ test.describe("Erinnerungskette bis zur dritten Erinnerung", () => {
       de.customerList.certificateStates.VALID,
     );
     await expect(listed.getByTestId("customer-row-reminders")).toHaveText(
-      de.customerList.table.noReminders,
+      de.customerList.table.none,
     );
 
     // A fresh lookup: the prompt is gone with the reminder action, and the count reads 0. The
