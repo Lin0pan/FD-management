@@ -1,10 +1,10 @@
 # Ralph Progress Log
-Started: Sat Nov 07 2026 (batch 43 — US-43, members' ages while a household is registered)
+Started: Sun Nov 08 2026 (batch 44 — US-46, more filters on the customer list)
 
 The `## Codebase Patterns` block below is CARRIED OVER from earlier batches on purpose
-(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-42-specific
-bullets that sat under „Where batch 42 starts" are not carried over — they are in
-`scripts/ralph/archive/2026-10-13-us-42-shorter-messages/progress.txt`.
+(`scripts/ralph/prds/README.md` point 2). Add to it; do not reset it. The batch-43-specific
+bullets that sat under „Where batch 43 starts" are not carried over — they are in
+`scripts/ralph/archive/2026-11-07-us-43-age-on-registration/progress.txt`.
 
 ## Codebase Patterns
 - **A PRD saying a helper „moves to `<path>`" is not a promise that `<path>` is free.**
@@ -565,64 +565,13 @@ bullets that sat under „Where batch 42 starts" are not carried over — they a
   where it is most expensive — DF read it away from the code that would contradict it.
 - **`playwright-cli` must run from the repo root**: started from `/tmp` it crashes on launch.
 
-### Where batch 43 starts
+### Where batch 44 starts
 
-Two small UI stories. The household editor on `/kunden/[id]` already has an **Alter** column
-(`household-editor.tsx`, `ageInYears` called straight in the render); `/kunden/neu` does not.
-US-001 moves the „typed text + today → age or „—"" mapping into `src/app/kunden/household-row.ts`,
-makes a future birthdate show „—" instead of throwing `BirthDateInFuture` mid-render, and points the
-record editor at it. US-002 gives the registration form's table the same column through the same
-piece, rendered from `members` so the customer's own row follows Person & Anschrift.
-
-The form's counts already update per keystroke (`derivedCounts`); the age must appear on that same
-keystroke, not only on blur. A spec that needs a fixed today pins it the way `age-13.spec.ts` does.
-
-## 2026-11-07 - US-001 (US-43.1)
-- Reproduced first with playwright-cli on the demo register (`/kunden/141`): typing 01.01.2099 into
-  member 2's birthdate threw `BirthDateInFuture` in render and Next replaced the **whole page** with
-  „This page couldn't load" (Reload / Back). Not a contained error — the record was gone.
-- `typedAge(birthDate, today)` in `src/app/kunden/household-row.ts`: `ageInYears(parseCalendarDay())`,
-  `null` on `InvalidCalendarDay` / `BirthDateInFuture` only (instanceof), rethrows anything else.
-  A function, not an `AgeCell` component — `household-row.ts` is `.ts`, and the cell markup is four
-  lines. The record editor's Alter cell renders through it and carries `member-age-${index}`.
-- After the fix, driven in the browser: valid → „44 Jahre", half-typed `11.0` → „—", future → „—";
-  the four Stats show „—" for the future date exactly as before (`derived` untouched).
-- Saving the future date: refused with the form-level `household-error` „Ein Geburtsdatum liegt in
-  der Zukunft." and **no field mark** — `BirthDateInFuture` carries no path, so `customerErrorField`
-  returns null. That is today's behaviour; the AC asked it to stay, so it stayed.
-- e2e: `customer-record.spec.ts` „a future birthdate leaves the age blank and the page usable".
-- Files: household-row.ts, [id]/household-editor.tsx, tests/e2e/customer-record.spec.ts.
-- **Learnings for future iterations:**
-  - **Customer ids in the demo register are not stable** — this one had 128–142, not 1–10 as the
-    Codebase Patterns bullet says. Read them off `/kunden` with one `--raw eval` over
-    `a[href^="/kunden/"]` before driving a record.
-  - **`npm run typecheck` can fail on `.next/dev/types/validator.ts`** naming a route that only
-    exists on another branch (here `einstellungen/datensicherung`). It is a stale generated cache:
-    `rm -rf .next/dev` and re-run. Not a regression in the story.
-  - `playwright-cli snapshot`'s yml path is printed by the command; `ls -t .playwright-cli/*.yml`
-    can pick an older file. Prefer `--raw eval` for reading values back.
----
-
-## 2026-11-07 - US-002 (US-43.2)
-- `src/app/kunden/age-cell.tsx`: `AgeCell` — the Alter `<TableCell>` (testid `member-age-${index}`,
-  „—" or `memberAge`) over `typedAge`. Landed first as its own `refactor(app)` commit with the record
-  editor switched to it, so the two tables cannot spell the cell differently.
-- `registration-form.tsx`: Alter header between Geburtsdatum and the ✕ column; `AgeCell` per row
-  from `members` (row 1 already swapped for Person & Anschrift) against `proposal.today`.
-- e2e `registration.spec.ts` › „Alter" (nested describe pinning `SHARED.now` to 2026-01-08, removed
-  in `afterAll`): the age appears on the completing keystroke with the field still focused,
-  08.01.2013 → 13 Jahre, 09.01.2013 → 12 Jahre, half-typed → „—", add/remove moves ages with rows;
-  row 1 follows `#birthDate`. Both engines green (WebKit's known nav-bar flake hit once, green on
-  rerun).
-- playwright-cli on `npm run start`: household of four → 38 Jahre / 13 Jahre / — (11.0) / 0 Jahre.
-  Overflow: none at 1024 and 1280; at 390 the table container already scrolled before the column
-  (365 > 292 px measured with the Alter cells removed from the DOM), now 453 > 292 — no *new*
-  scrollbar. The prefilled form was not driven: the cells render from the same `members`
-  server-side, so a draft's rows show their ages on first paint by construction.
-- No docs mention the household table's columns; no handout change (PRD).
-- **Learnings for future iterations:**
-  - **„Did this add a scrollbar?" is answerable without a second build**: measure the container's
-    `scrollWidth`, then `remove()` the new column's cells in the same `eval` and measure again.
-  - A nested `test.describe` with its own `beforeAll`/`afterAll` writing and `rmSync`ing `SHARED.now`
-    pins the clock for only those tests inside an otherwise real-clock serial spec.
----
+Five stories, inside-out as usual: two application stories first, then two UI stories, then docs.
+`listCustomers` (`src/application/customers/list-customers.ts`) already applies `group` in the use
+case and the certificate state as a `ValidUntilRange` in the store; the new count and hand-out
+filters follow the `group` pattern, the certificate-end day joins the range. `lastHandoutAt` is
+already on every row (US-45). The filter form in `src/app/kunden/page.tsx` is a JS-free GET form —
+keep it that way: the count dropdowns are native `<details>`, and „all ticked" / „none ticked" are
+made canonical by a server redirect (PRD §US-46.4). `statusesFor`'s „empty means all" must NOT be
+reused for the count lists, where empty means nothing.
