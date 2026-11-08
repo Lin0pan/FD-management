@@ -13,6 +13,7 @@ import {
   expectTruncated,
   expectWithin,
 } from "./layout";
+import { fillDay, typedDay } from "./day";
 import { SHARED } from "./registers";
 import { releaseNumbers, seedEndedSession } from "./seeding";
 
@@ -137,6 +138,9 @@ interface Seed {
   readonly reminderCount: number;
   /** The instants of the household's hand-outs, each at an ended afternoon of its own. */
   readonly handouts?: ReadonlyArray<string>;
+  /** The household's size, the customer counted among the grown-ups. One and one when absent. */
+  readonly grownUps?: number;
+  readonly children?: number;
 }
 
 /**
@@ -157,6 +161,18 @@ const LONG_NAME_SEED: Seed = {
   cards: 1,
   reminderCount: 0,
 };
+
+/** One household of {@link LONG_NAME_SEED}'s kind, for a block that seeds and removes its own. */
+function countSeed(customerNumber: number, status: Seed["status"]): Seed {
+  return {
+    customerNumber,
+    status,
+    lastName: faker.person.lastName(),
+    certificateValidUntil: CERTIFICATES.valid,
+    cards: 1,
+    reminderCount: 0,
+  };
+}
 
 /** The name as the row writes it, which is the string the cut-off cell must still carry whole. */
 const LONG_NAME = `${LONG_NAME_SEED.lastName}, ${LONG_NAME_SEED.firstName}`;
@@ -228,7 +244,8 @@ const SEEDED_BALANCE = { red: 3, blue: 1 } as const;
 /** Insert one household with a grown-up, a child, its certificate and its cards. */
 async function seedHousehold(seed: Seed): Promise<void> {
   const firstName = seed.firstName ?? faker.person.firstName();
-  const childFirstName = faker.person.firstName();
+  const grownUps = seed.grownUps ?? 1;
+  const children = seed.children ?? 1;
   const grownUpBirthDate = new Date(`${GROWN_UP_BIRTH_DATE}T00:00:00.000Z`);
   const archived = seed.status === "ARCHIVED";
 
@@ -261,11 +278,16 @@ async function seedHousehold(seed: Seed): Promise<void> {
       householdMembers: {
         create: [
           { firstName, lastName: seed.lastName, birthDate: grownUpBirthDate },
-          {
-            firstName: childFirstName,
+          ...Array.from({ length: grownUps - 1 }, () => ({
+            firstName: faker.person.firstName(),
+            lastName: seed.lastName,
+            birthDate: grownUpBirthDate,
+          })),
+          ...Array.from({ length: children }, () => ({
+            firstName: faker.person.firstName(),
             lastName: seed.lastName,
             birthDate: new Date(`${CHILD_BIRTH_DATE}T00:00:00.000Z`),
-          },
+          })),
         ],
       },
       certificates: {
@@ -284,8 +306,8 @@ async function seedHousehold(seed: Seed): Promise<void> {
           issuedAt: new Date("2025-01-02T00:00:00.000Z"),
           printedAt: new Date("2025-01-02T00:00:00.000Z"),
           reason: index === 0 ? "FIRST_ISSUE" : "LOST",
-          grownUpsAtIssue: 1,
-          childrenAtIssue: 1,
+          grownUpsAtIssue: grownUps,
+          childrenAtIssue: children,
         })),
       },
     },
@@ -757,6 +779,299 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     await expect(page.getByTestId("customer-search")).toHaveValue("");
     await expect(page.getByTestId("status-filter")).toHaveValue("");
     await expect(page.getByTestId("archived-toggle")).not.toBeChecked();
+  });
+
+  /**
+   * The two day filters (US-46.3). Both are strict: a day names the households *before* it, and the
+   * one the boundary falls on is the one each test steps across. Every day is read off this file's
+   * own fixtures around {@link TODAY}.
+   */
+  test.describe("„Letzte Ausgabe vor“ und „Nachweis endet vor“", () => {
+    const lastHandout = (page: Page): Locator => page.getByTestId("last-handout-filter");
+    const certificateEnd = (page: Page): Locator => page.getByTestId("certificate-end-filter");
+    /** The day {@link HANDOUTS.latest} fell on, and the one after it. */
+    const servedOn = HANDOUTS.latest.slice(0, 10);
+    const dayAfterServed = "2025-12-19";
+
+    test("eine Ausgabe vor dem Tag zählt, eine am Tag selbst nicht, keine Ausgabe nie", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await fillDay(lastHandout(page), dayAfterServed);
+      await applyFilters(page);
+      // 282, 283 and 285 were never served, and the archived 284 is hidden by default.
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.searched)]);
+      await expect(page.getByTestId("customer-list-filters")).toContainText(
+        de.customerList.filterClauses.lastHandoutBefore(typedDay(dayAfterServed)),
+      );
+
+      await page.goto(`/kunden?ausgabe-vor=${typedDay(servedOn)}`);
+      expect(await shownSeeded(page)).toEqual([]);
+    });
+
+    test("ein Nachweis, der am Vortag endet, zählt, einer, der am Tag endet, nicht", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await fillDay(certificateEnd(page), CERTIFICATES.expiringSoon);
+      await applyFilters(page);
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.expired)]);
+      await expect(page.getByTestId("customer-list-filters")).toContainText(
+        de.customerList.filterClauses.certificateEndsBefore(typedDay(CERTIFICATES.expiringSoon)),
+      );
+
+      await page.goto("/kunden?nachweis-vor=21.01.2026");
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.blue), String(NUMBERS.expired)]);
+    });
+
+    test("der Tag steht so in der URL, wie er getippt wurde, und übersteht einen Reload", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await fillDay(lastHandout(page), dayAfterServed);
+      await applyFilters(page);
+      expect(new URL(page.url()).searchParams.get("ausgabe-vor")).toBe(typedDay(dayAfterServed));
+
+      await page.reload();
+      await expect(lastHandout(page)).toHaveValue(typedDay(dayAfterServed));
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.searched)]);
+    });
+
+    test("ein unlesbarer Tag bleibt stehen, wird markiert und filtert nichts", async ({ page }) => {
+      await page.goto("/kunden?ausgabe-vor=31.02.2026");
+
+      await expect(lastHandout(page)).toHaveValue("31.02.2026");
+      await expect(lastHandout(page)).toHaveAttribute("aria-invalid", "true");
+      const mark = page.getByTestId("last-handout-filter-error");
+      await expect(mark).toHaveText(de.customers.errors.notADate);
+      await expect(lastHandout(page)).toHaveAttribute(
+        "aria-describedby",
+        (await mark.getAttribute("id")) ?? "",
+      );
+      // Nothing filtered: every non-archived household of this file is still listed.
+      expect(await shownSeeded(page)).toEqual(
+        [NUMBERS.searched, NUMBERS.blue, NUMBERS.blocked, NUMBERS.expired].map(String),
+      );
+      await expect(page.getByTestId("customer-list-filters")).toHaveCount(0);
+      await expect(certificateEnd(page)).not.toHaveAttribute("aria-invalid", "true");
+    });
+
+    test("„Zurücksetzen“ leert beide Tagesfelder", async ({ page }) => {
+      await page.goto(`/kunden?ausgabe-vor=${typedDay(dayAfterServed)}&nachweis-vor=21.01.2026`);
+      await expect(lastHandout(page)).toHaveValue(typedDay(dayAfterServed));
+
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === "/kunden" && url.search === ""),
+        page.getByRole("link", { name: de.customerList.filters.reset }).click(),
+      ]);
+      await expect(lastHandout(page)).toHaveValue("");
+      await expect(certificateEnd(page)).toHaveValue("");
+    });
+
+    /** The second row stands under the selects, as wide as they are, at both sides of `lg`. */
+    for (const width of [BELOW_BREAKPOINT.width, GATE_WIDTH]) {
+      test(`bei ${width}px steht die zweite Filterzeile unter den Auswahlfeldern`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto("/kunden");
+        await expectNoHorizontalOverflow(page.locator("html"), "die Seite");
+        await expectNoHorizontalOverflow(page.locator('form[method="get"]'), "das Filterformular");
+
+        for (const [day, select] of [
+          [lastHandout(page), page.getByTestId("group-filter")],
+          [certificateEnd(page), page.getByTestId("certificate-filter")],
+        ] as const) {
+          const [below, above] = await Promise.all([day.boundingBox(), select.boundingBox()]);
+          expect(below).not.toBeNull();
+          expect(above).not.toBeNull();
+          expect(Math.abs((below?.x ?? 0) - (above?.x ?? 0))).toBeLessThanOrEqual(1);
+          expect(Math.abs((below?.width ?? 0) - (above?.width ?? 0))).toBeLessThanOrEqual(1);
+          expect(below?.y ?? 0).toBeGreaterThan(above?.y ?? 0);
+        }
+      });
+    }
+  });
+
+  /**
+   * The two count dropdowns (US-46.4). The boxes are whatever counts the register holds, which on
+   * the shared register is every spec's households — so the boxes are compared with the table's own
+   * „Erw. + Kinder“ column on the same page load, never with a list written here. Three households
+   * of unusual sizes are seeded for the duration and removed again, so the rest of this file's
+   * numbers stay where they are.
+   */
+  test.describe("„Erwachsene“ und „Kinder“", () => {
+    /** 13 children occurs nowhere else; only the archived household brings it to the boxes. */
+    const COUNT_SEEDS: ReadonlyArray<Seed> = [
+      { ...countSeed(287, "ACTIVE"), grownUps: 3, children: 7 },
+      { ...countSeed(288, "ACTIVE"), grownUps: 1, children: 0 },
+      { ...countSeed(289, "ARCHIVED"), grownUps: 2, children: 13 },
+    ];
+    const ARCHIVED_ONLY = 13;
+    /** The collapsed label with every box ticked. */
+    const UNSET =
+      de.customerList.filters.countLead(de.customerList.filters.children) +
+      de.customerList.filters.countChoice(undefined);
+
+    const summary = (page: Page): Locator => page.getByTestId("children-filter-summary");
+    const box = (page: Page, count: number): Locator =>
+      page.getByTestId(`children-filter-${count}`);
+
+    /** The counts a dropdown offers, as numbers. */
+    async function boxes(page: Page, testId: string): Promise<ReadonlyArray<number>> {
+      return page
+        .getByTestId(testId)
+        .locator('input[type="checkbox"]')
+        .evaluateAll((inputs) => inputs.map((input) => Number((input as HTMLInputElement).value)));
+    }
+
+    /** The distinct counts in one of the table's two „Erw. + Kinder“ spans, ascending. */
+    async function column(page: Page, testId: string): Promise<ReadonlyArray<number>> {
+      const shown = await page
+        .getByTestId(testId)
+        .evaluateAll((spans) => spans.map((span) => Number(span.textContent)));
+      return [...new Set(shown)].sort((a, b) => a - b);
+    }
+
+    /** Press „Filtern“ and wait for the page the redirect settles on. */
+    async function filterTo(page: Page, settled: (url: URL) => boolean): Promise<void> {
+      await Promise.all([
+        page.waitForURL((url) => url.searchParams.has("suche") && settled(url)),
+        page.getByRole("button", { name: de.customerList.filters.submit }).click(),
+      ]);
+    }
+
+    test.beforeAll(async () => {
+      for (const seed of COUNT_SEEDS) {
+        await seedHousehold(seed);
+      }
+    });
+
+    test.afterAll(async () => {
+      await releaseNumbers(prisma, ...COUNT_SEEDS.map((seed) => seed.customerNumber));
+    });
+
+    test("nur die vorkommenden Zahlen stehen zur Wahl, archivierte nur mit „Archivierte“", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      const offered = await boxes(page, "children-filter");
+      expect(offered).toEqual(await column(page, "customer-row-children"));
+      expect(offered).toContain(7);
+      expect(offered).not.toContain(ARCHIVED_ONLY);
+      const grownUps = await boxes(page, "grown-ups-filter");
+      expect(grownUps).toEqual(await column(page, "customer-row-grown-ups"));
+
+      await page.goto("/kunden?archiv=1");
+      expect(await boxes(page, "children-filter")).toEqual(
+        await column(page, "customer-row-children"),
+      );
+      expect(await boxes(page, "children-filter")).toContain(ARCHIVED_ONLY);
+
+      // Status and group narrow the table, never the boxes.
+      await page.goto("/kunden?status=BLOCKED&gruppe=BLUE");
+      expect(await boxes(page, "children-filter")).toEqual(offered);
+      expect(await boxes(page, "grown-ups-filter")).toEqual(grownUps);
+    });
+
+    test("ohne die 0 bei „Kinder“ bleiben nur Haushalte mit Kindern, auch nach einem Reload", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await expect(summary(page)).toHaveText(UNSET);
+      const ticked = (await boxes(page, "children-filter")).filter((count) => count !== 0);
+
+      await summary(page).click();
+      await box(page, 0).uncheck();
+      // Nothing moves until „Filtern“.
+      await expect(page.getByTestId("customer-list-filters")).toHaveCount(0);
+      await filterTo(page, (url) => url.searchParams.has("kinder"));
+
+      const url = new URL(page.url());
+      expect(url.searchParams.getAll("kinder")).toEqual(ticked.map(String));
+      expect(url.searchParams.has("erwachsene")).toBe(false);
+      expect(await column(page, "customer-row-children")).not.toContain(0);
+      await expect(row(page, 287)).toHaveCount(1);
+      await expect(row(page, 288)).toHaveCount(0);
+      const clause = de.customerList.filterClauses.children(ticked);
+      await expect(page.getByTestId("customer-list-filters")).toContainText(clause);
+      await expect(summary(page)).toHaveText(clause);
+      await expect(summary(page)).toHaveAttribute("data-set", "true");
+      await expect(page.getByTestId("grown-ups-filter-summary")).toHaveAttribute(
+        "data-set",
+        "false",
+      );
+
+      await page.reload();
+      await expect(summary(page)).toHaveText(clause);
+      await expect(box(page, 0)).not.toBeChecked();
+      await expect(box(page, 7)).toBeChecked();
+    });
+
+    test("kein Kästchen angehakt heißt kein Treffer, und die Meldung nennt „Kinder: keine“", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await summary(page).click();
+      for (const count of await boxes(page, "children-filter")) {
+        await box(page, count).uncheck();
+      }
+      await filterTo(page, (url) => url.searchParams.has("kinder"));
+
+      expect(new URL(page.url()).searchParams.getAll("kinder")).toEqual(["keine"]);
+      await expect(page.getByTestId("customer-row")).toHaveCount(0);
+      await expect(page.getByTestId("customer-list-empty")).toContainText(
+        de.customerList.filterClauses.children([]),
+      );
+      await expect(summary(page)).toHaveText(de.customerList.filterClauses.children([]));
+    });
+
+    test("alle wieder angehakt ist kein Filter, und die URL sagt es auch", async ({ page }) => {
+      await page.goto("/kunden?kinder=7");
+      await expect(summary(page)).toHaveText(de.customerList.filterClauses.children([7]));
+
+      await summary(page).click();
+      for (const count of await boxes(page, "children-filter")) {
+        await box(page, count).check();
+      }
+      await filterTo(page, (url) => !url.searchParams.has("kinder"));
+
+      await expect(summary(page)).toHaveText(UNSET);
+      await expect(summary(page)).toHaveAttribute("data-set", "false");
+      await expect(page.getByTestId("customer-list-filters")).toHaveCount(0);
+      await expect(row(page, 288)).toHaveCount(1);
+    });
+
+    test("„Zurücksetzen“ hakt jedes Kästchen wieder an", async ({ page }) => {
+      await page.goto("/kunden?kinder=keine&erwachsene=3");
+      await expect(box(page, 0)).not.toBeChecked();
+
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === "/kunden" && url.search === ""),
+        page.getByRole("link", { name: de.customerList.filters.reset }).click(),
+      ]);
+      for (const testId of ["children-filter", "grown-ups-filter"]) {
+        const unticked = page.getByTestId(testId).locator('input[type="checkbox"]:not(:checked)');
+        await expect(unticked).toHaveCount(0);
+      }
+    });
+
+    for (const width of [BELOW_BREAKPOINT.width, GATE_WIDTH]) {
+      test(`bei ${width}px passt die Liste, und offen liegt sie über der Tabelle`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto("/kunden?kinder=7");
+        await expectNoHorizontalOverflow(page.locator("html"), "die Seite");
+        await expectNoHorizontalOverflow(page.locator('form[method="get"]'), "das Filterformular");
+        await expectNothingCovers(page.getByTestId("customer-row").first(), "die erste Zeile");
+
+        await summary(page).click();
+        const last = page.getByTestId("children-filter").locator("label").last();
+        await expectNothingCovers(last, "das letzte Kästchen");
+        await expectNoHorizontalOverflow(page.locator("html"), "die Seite mit offener Liste");
+      });
+    }
   });
 
   /**

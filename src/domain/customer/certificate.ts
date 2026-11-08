@@ -90,3 +90,13 @@ export function certificateState(certificate: NeedsCertificate, today: Date): Ce
     ? "EXPIRING_SOON"
     : "VALID";
 }
+
+/**
+ * `range` narrowed to certificates ending strictly before `day` (US-46.1). A certificate is still
+ * valid on its last day, so one ending on `day` itself is out. The earlier upper bound wins.
+ */
+export function endingBefore(range: ValidUntilRange | undefined, day: Date): ValidUntilRange {
+  const before = utcDay(day);
+  const earlier = range?.before === undefined ? before : Math.min(before, range.before.getTime());
+  return { ...range, before: new Date(earlier) };
+}

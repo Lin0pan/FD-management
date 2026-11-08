@@ -16,6 +16,7 @@
 
 import { IdCard, Search, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { countCardsDueForReissue } from "@/application/customers/cards-due-for-reissue";
 import {
@@ -29,14 +30,28 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table";
+import { isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { EXPIRING_SOON_DAYS, type CertificateState } from "@/domain/customer/certificate";
-import { DomainError } from "@/domain/errors";
+import { DomainError, InvalidCalendarDay } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { germanDate } from "@/i18n/format";
+import { cn } from "@/lib/utils";
 import { FREE_SLOT_ACCENT } from "../accents";
+import { FoldChevron } from "../disclosure";
+import { FieldRejection } from "../field-mark";
+import { marking } from "../field-refusal";
 import { selectClass } from "../select";
 import { waitingListDeps } from "../warteliste/deps";
+import {
+  canonicalQuery,
+  canonicalCounts,
+  NO_COUNT,
+  readCounts,
+  type CountFilter,
+} from "./count-filter";
 import { customerDeps } from "./deps";
 import { H1, SHELL } from "../shell";
 import { CustomerCells, CustomerHeads, LastHandoutCell, LastHandoutHead } from "./customer-cells";
@@ -52,6 +67,40 @@ const GROUP_OPTIONS = ["RED", "BLUE"] as const;
 const CERTIFICATE_OPTIONS = ["VALID", "EXPIRING_SOON", "EXPIRED"] as const;
 
 /**
+ * A day filter as typed, and the day it names — `null` when the text names none. The text is kept
+ * either way: an unreadable day is shown back and marked rather than swallowed, whether it was typed
+ * into the field or into the URL. Blank is "not filtered", like every other parameter here.
+ */
+interface DayFilter {
+  readonly text: string;
+  readonly day: Date | null;
+}
+
+const dayParam = z
+  .string()
+  .optional()
+  .catch(undefined)
+  .transform((text): DayFilter | undefined => {
+    if (text === undefined || isBlankDay(text)) {
+      return undefined;
+    }
+    try {
+      return { text, day: parseCalendarDay(text) };
+    } catch (error: unknown) {
+      if (error instanceof InvalidCalendarDay) {
+        return { text, day: null };
+      }
+      throw error;
+    }
+  });
+
+const countParam = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .catch(undefined)
+  .transform(readCounts);
+
+/**
  * The filters as the URL carries them, in German like every other query parameter. Every field falls
  * back to "not filtered" rather than refusing the page: a query string is typed and copied by hand,
  * and an unreadable `status=foo` is a filter nobody set, not a broken register.
@@ -63,6 +112,11 @@ const filterParams = z.object({
   nachweis: z.enum(CERTIFICATE_OPTIONS).optional().catch(undefined),
   /** A checkbox: present and `1` when ticked, absent otherwise — so the default is a clean URL. */
   archiv: z.literal("1").optional().catch(undefined),
+  /** Repeated, one per ticked box (`kinder=1&kinder=7`) — see `count-filter.ts`. */
+  erwachsene: countParam,
+  kinder: countParam,
+  "ausgabe-vor": dayParam,
+  "nachweis-vor": dayParam,
 });
 
 type Filters = z.infer<typeof filterParams>;
@@ -101,6 +155,20 @@ function activeFilters(filters: Filters, search: string): ReadonlyArray<string> 
   if (filters.nachweis !== undefined) {
     named.push(clauses.certificate(certificateFilterLabel(filters.nachweis)));
   }
+  if (filters.erwachsene !== undefined) {
+    named.push(clauses.grownUps(filters.erwachsene));
+  }
+  if (filters.kinder !== undefined) {
+    named.push(clauses.children(filters.kinder));
+  }
+  const lastHandoutBefore = filters["ausgabe-vor"]?.day ?? null;
+  if (lastHandoutBefore !== null) {
+    named.push(clauses.lastHandoutBefore(germanDate(lastHandoutBefore)));
+  }
+  const certificateEndsBefore = filters["nachweis-vor"]?.day ?? null;
+  if (certificateEndsBefore !== null) {
+    named.push(clauses.certificateEndsBefore(germanDate(certificateEndsBefore)));
+  }
   named.push(filters.archiv === "1" ? clauses.archivedIncluded : clauses.archivedHidden);
   return named;
 }
@@ -134,18 +202,137 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
 function FilterField({
   id,
   label,
+  refused = false,
+  className,
   children,
 }: {
   id: string;
   label: string;
+  /** Reddens the label, as on every refused field (`ui_styling_guide.md` §7). */
+  refused?: boolean;
+  className?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <label htmlFor={id} className={cn("text-sm font-medium", refused && "text-destructive")}>
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+/**
+ * A day filter: the text as typed, and an unreadable one marked under the field. It still filters
+ * nothing — the page has nothing to refuse, only a day it could not read.
+ */
+function DayFilterField({
+  id,
+  name,
+  label,
+  value,
+  testId,
+  className,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  value: DayFilter | undefined;
+  testId: string;
+  className?: string;
+}): React.ReactElement {
+  const problem = value?.day === null ? de.customers.errors.notADate : null;
+  return (
+    <FilterField id={id} label={label} refused={problem !== null} className={className}>
+      <DateInput
+        id={id}
+        name={name}
+        data-testid={testId}
+        placeholder={de.day.placeholder}
+        defaultValue={value?.text ?? ""}
+        {...marking(name, id, problem)}
+      />
+      {problem === null ? null : (
+        <FieldRejection id={id} problem={problem} testId={`${testId}-error`} />
+      )}
+    </FilterField>
+  );
+}
+
+/**
+ * An Excel-style count filter: a native `<details>` holding one native checkbox per count that
+ * occurs. Not Radix `DropdownMenu`, which portals out of the `<form>` so its boxes would submit
+ * nothing; and a tick waits for „Filtern“ like every other control here.
+ *
+ * The summary states the filter **in force** — the URL's, not the boxes' — and its visible part is
+ * the choice alone, the label standing above it as over every other field. A set filter also wears
+ * the primary edge: the word and the colour together (`ui_styling_guide.md` §5).
+ */
+function CountFilterField({
+  id,
+  name,
+  label,
+  counts,
+  filter,
+  className,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  counts: ReadonlyArray<number>;
+  filter: CountFilter;
+  className?: string;
+}): React.ReactElement {
+  const labelId = `${id}-label`;
+  const set = filter !== undefined;
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      {/* A `<summary>` is not labelable (guide §6): the label names the boxes' group instead. */}
+      <span id={labelId} className="text-sm font-medium">
+        {label}
+      </span>
+      <details className="group relative" data-testid={id}>
+        <summary
+          data-testid={`${id}-summary`}
+          data-set={set ? "true" : "false"}
+          className={cn(
+            FILTER_SELECT,
+            "flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden",
+            set && "border-primary font-semibold ring-1 ring-primary ring-inset",
+          )}
+        >
+          <span className="truncate">
+            <span className="sr-only">{de.customerList.filters.countLead(label)}</span>
+            {de.customerList.filters.countChoice(filter)}
+          </span>
+          <FoldChevron />
+        </summary>
+        {/* Above the sticky table header (`z-10`), and over the content rather than pushing the
+            table down. */}
+        <fieldset
+          aria-labelledby={labelId}
+          className="absolute top-full left-0 z-20 mt-1 flex max-h-72 min-w-full flex-col gap-1 overflow-y-auto rounded-[10px] border border-input bg-card p-2 shadow-card"
+        >
+          <input type="hidden" name={name} value={NO_COUNT} />
+          {counts.map((count) => (
+            <label
+              key={count}
+              className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-base tabular-nums hover:bg-muted"
+            >
+              <input
+                type="checkbox"
+                name={name}
+                value={count}
+                data-testid={`${id}-${count}`}
+                defaultChecked={filter === undefined || filter.includes(count)}
+                className="size-4 accent-primary"
+              />
+              {count}
+            </label>
+          ))}
+        </fieldset>
+      </details>
     </div>
   );
 }
@@ -163,11 +350,25 @@ function FilterField({
  * still showing the old filters. A document navigation rebuilds the form. Submitting is already one,
  * which is why only the reset ever showed this.
  */
-function FilterForm({ filters, search }: { filters: Filters; search: string }): React.ReactElement {
+function FilterForm({
+  filters,
+  search,
+  view,
+}: {
+  filters: Filters;
+  search: string;
+  view: CustomerListView;
+}): React.ReactElement {
   return (
     <form method="get" className="flex flex-col gap-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2.2fr)_repeat(3,minmax(0,1fr))]">
-        <FilterField id="filter-search" label={de.customerList.search.label}>
+      {/* Five columns on a wide screen so the second row's controls are as wide as the selects and
+          line up under them; the search spans the first two. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_repeat(4,minmax(0,1fr))]">
+        <FilterField
+          id="filter-search"
+          label={de.customerList.search.label}
+          className="lg:col-span-2"
+        >
           <div className="relative">
             <Search
               aria-hidden="true"
@@ -237,6 +438,36 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
             ))}
           </select>
         </FilterField>
+
+        <CountFilterField
+          id="grown-ups-filter"
+          name="erwachsene"
+          label={de.customerList.filters.grownUps}
+          counts={view.grownUpCounts}
+          filter={filters.erwachsene}
+          className="lg:col-start-2"
+        />
+        <CountFilterField
+          id="children-filter"
+          name="kinder"
+          label={de.customerList.filters.children}
+          counts={view.childCounts}
+          filter={filters.kinder}
+        />
+        <DayFilterField
+          id="filter-last-handout-before"
+          name="ausgabe-vor"
+          label={de.customerList.filters.lastHandoutBefore}
+          value={filters["ausgabe-vor"]}
+          testId="last-handout-filter"
+        />
+        <DayFilterField
+          id="filter-certificate-ends-before"
+          name="nachweis-vor"
+          label={de.customerList.filters.certificateEndsBefore}
+          value={filters["nachweis-vor"]}
+          testId="certificate-end-filter"
+        />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -412,7 +643,8 @@ export default async function CustomerListPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }): Promise<React.ReactElement> {
-  const filters = filterParams.parse(await searchParams);
+  const params = await searchParams;
+  const filters = filterParams.parse(params);
   const search = filters.suche?.trim() ?? "";
 
   let view: CustomerListView;
@@ -424,13 +656,28 @@ export default async function CustomerListPage({
       status: filters.status === undefined ? undefined : [filters.status],
       group: filters.gruppe,
       certificate: filters.nachweis,
+      grownUps: filters.erwachsene,
+      children: filters.kinder,
       includeArchived: filters.archiv === "1",
+      // An unreadable day filters nothing; the field says so (`DayFilterField`).
+      lastHandoutBefore: filters["ausgabe-vor"]?.day ?? undefined,
+      certificateEndsBefore: filters["nachweis-vor"]?.day ?? undefined,
     });
   } catch (error: unknown) {
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
       return <NoSettings />;
     }
     throw error;
+  }
+
+  // Every box ticked is no filter, and the link should say so (`count-filter.ts`). Outside the
+  // `try`: `redirect` throws, and the catch above is for settings.
+  const canonical = canonicalQuery(params, {
+    erwachsene: canonicalCounts(filters.erwachsene, view.grownUpCounts),
+    kinder: canonicalCounts(filters.kinder, view.childCounts),
+  });
+  if (canonical !== null) {
+    redirect(canonical === "" ? "/kunden" : `/kunden?${canonical}`);
   }
 
   // The hub's two signals, neither of which the list can show: cards fallen behind, and applicants
@@ -498,7 +745,7 @@ export default async function CustomerListPage({
           )}
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <FilterForm filters={filters} search={search} />
+          <FilterForm filters={filters} search={search} view={view} />
           {view.rows.length === 0 ? (
             <Alert role="status">
               <AlertDescription data-testid="customer-list-empty">

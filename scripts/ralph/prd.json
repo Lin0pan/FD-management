@@ -22,7 +22,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Application + domain only; no src/app change in this story. ls src/domain/customer/certificate.ts before editing — it holds isExpired, certificateState, validUntilRangeFor already."
     },
     {
@@ -42,7 +42,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Application only; no src/app change in this story (the page still compiles — the new view fields are simply unread until US-004)."
     },
     {
@@ -66,7 +66,7 @@
         "Lint passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {
@@ -92,7 +92,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "If a chevron icon is added to the summary it is aria-hidden lucide-react and registered in docs/guideline/ui_styling_guide.md §12."
     },
     {
@@ -110,7 +110,7 @@
         "Lint passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": ""
     }
   ]

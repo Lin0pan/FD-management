@@ -575,3 +575,108 @@ already on every row (US-45). The filter form in `src/app/kunden/page.tsx` is a 
 keep it that way: the count dropdowns are native `<details>`, and „all ticked" / „none ticked" are
 made canonical by a server redirect (PRD §US-46.4). `statusesFor`'s „empty means all" must NOT be
 reused for the count lists, where empty means nothing.
+
+## 2026-11-08 18:35 - US-001
+- `listCustomers` gains `lastHandoutBefore` and `certificateEndsBefore`. The hand-out filter is
+  applied in the use case beside `group`, off the `latestHandoutByCustomer()` map already loaded
+  (strictly before midnight UTC of the day; a never-served household never matches). The
+  certificate end goes to the store inside the existing `ValidUntilRange` via the new pure
+  `endingBefore(range, day)` in `src/domain/customer/certificate.ts` (earlier `before` wins,
+  `from` kept). No port, no schema, no audit entry.
+- Files: src/domain/customer/certificate.ts(+test), src/application/customers/list-customers.ts(+test)
+- **Learnings for future iterations:**
+  - `startOfUtcDay` (`src/domain/calendarDay.ts`) is the exported day-floor; `certificate.ts` has
+    its own private `utcDay` returning a number. Use the exported one from `application/`.
+  - `npm run lint` reports 3 warnings in `local_only/us42/many-archived.ts` and `format:check`
+    flags `tasks/prd-us-39-…` and `tasks/prd-us-46-…` — all pre-existing on `main`, not this
+    batch's to fix (the tasks PRDs are records; the hook evidently only checks staged files).
+  - `listCustomers` now always runs `matched.filter(...)`, so `found` is a new array even with no
+    filter — harmless, the repository result is never mutated.
+---
+
+## 2026-11-08 18:40 - US-002
+- `listCustomers` gains `grownUps` / `children` (absent = unfiltered, **empty = nothing**), applied
+  in the use case off `composition(members, today)` beside `group`. `CustomerListView` gains
+  `grownUpCounts` / `childCounts`: distinct, ascending, read off ONE extra
+  `customers.list({ statuses })` (ACTIVE+BLOCKED, ARCHIVED only with `includeArchived`) and
+  unioned with the request's own counts. No port, no audit entry, no src/app change.
+- Files: src/application/customers/list-customers.ts(+test)
+- **Learnings for future iterations:**
+  - The fake `FakeCustomerRepository` now keeps `queries[]`; its `lastQuery` getter returns the
+    FIRST query (the list's own), because the counts' register-wide query is asked second inside
+    the same `Promise.all`. Keep the list's `list(...)` first in that array.
+  - The statuses for the counts reuse `statusesFor({ includeArchived })` rather than a second
+    constant — a request naming ARCHIVED in `status` does not add archived counts (PRD reads
+    „only when includeArchived").
+  - `household(grownUps, children)` in the test file builds a composition as of TODAY.
+  - US-004 needs the page to read `view.grownUpCounts` / `view.childCounts`; nothing reads them yet.
+---
+
+## 2026-11-08 19:05 - US-003
+- /kunden's filter form gains „Letzte Ausgabe vor“ and „Nachweis endet vor“ (uncontrolled
+  `DateInput`s in `FilterField`), URL params `ausgabe-vor` / `nachweis-vor` read by a Zod `dayParam`
+  that keeps the typed text and yields `{ text, day: Date | null }`. An unreadable day filters nothing
+  and is marked with `marking()` + `FieldRejection` (`de.customers.errors.notADate`), label reddened
+  via a new `refused` prop on `FilterField`. Readable days are named in the summary
+  (`de.customerList.filterClauses.lastHandoutBefore` / `certificateEndsBefore`).
+- Grid: `lg:grid-cols-[minmax(0,1.2fr)_repeat(4,minmax(0,1fr))]`, search `lg:col-span-2`, so the
+  second row's cells are exactly select-wide. The day fields sit in cols 4–5
+  (`lg:col-start-4` on the first); **US-004's two dropdowns go in cols 2–3** — give the first
+  dropdown `lg:col-start-2` and drop the `lg:col-start-4` from the day field, order Erwachsene,
+  Kinder, Letzte Ausgabe vor, Nachweis endet vor.
+- e2e: new describe block in tests/e2e/customer-list.spec.ts (7 tests, incl. alignment at 1100 and
+  1280 by boundingBox). Both engines green (294 passed each). Reviewed with playwright-cli at 1280,
+  1100 and 700 (screenshots in local_only/us46/).
+- Files: src/app/kunden/page.tsx, src/i18n/de.ts, tests/e2e/customer-list.spec.ts
+- **Learnings for future iterations:**
+  - `DateInput` holds its own `useState`, so even "uncontrolled" it is React-owned: use `fillDay`
+    (`tests/e2e/day.ts`) right after a `goto`, not plain `fill`.
+  - A server component may render `FieldRejection` (from the `"use client"` `field-mark.tsx`) and
+    spread `marking()` (no directive) — that pair is the whole refused-field look outside a form
+    action.
+  - The masked `DateInput` drops non-digits on the way in, so `ausgabe-vor=abc` shows an empty
+    field while still being marked; `31.02.2026` round-trips intact. Assert on the latter.
+  - playwright-cli prints a "skill does not match the tool version" banner on every call; harmless.
+---
+
+## 2026-11-08 20:10 - US-004
+- /kunden gains „Erwachsene“ and „Kinder“: native `<details>` (`CountFilterField` in page.tsx) with
+  native checkboxes over `view.grownUpCounts` / `view.childCounts`, cols 2–3 of the second row
+  (`lg:col-start-2` moved from the day field to the first dropdown). Each submits a hidden
+  `name=<param> value=keine` sentinel. URL reading and canonicalisation live in the new
+  `src/app/kunden/count-filter.ts` (`readCounts`, `canonicalCounts`, `canonicalQuery`); the page
+  `redirect`s after `listCustomers` (outside its try) when the count params are not canonical.
+- Summary: visible choice („alle“ / „1, 7“ / „keine“) with an sr-only `countLead` before it, so its
+  text and accessible name are „Kinder: …“ while the visible label „Kinder“ stands above like every
+  other field; the boxes' `<fieldset aria-labelledby>` points at that label. Set = `data-set="true"`,
+  `border-primary ring-1 ring-inset ring-primary font-semibold` — recorded in guide §5.
+- de.ts: `filters.grownUps/children/countLead/countChoice`, `filterClauses.grownUps/children`.
+- e2e: new describe „„Erwachsene“ und „Kinder““ in customer-list.spec.ts, seeding 287/288/289
+  (sizes 3+7, 1+0, archived 2+13) and releasing them in afterAll; `Seed` gained optional
+  `grownUps`/`children`. Both engines: 301 passed each. Reviewed with playwright-cli at 1280 and
+  1100 (closed, open, set, none ticked, keyboard) — screenshots in local_only/us46/.
+- Files: src/app/kunden/page.tsx, src/app/kunden/count-filter.ts, src/i18n/de.ts,
+  tests/e2e/customer-list.spec.ts, docs/guideline/ui_styling_guide.md
+- **Learnings for future iterations:**
+  - On the shared register, assert a register-derived list (the boxes) against the table on the
+    same page load rather than against a literal — other specs' households are in it.
+  - A server-side `redirect` (307) never commits the intermediate URL, so `waitForURL` resolves on
+    the settled one; every „Filtern“ on /kunden now redirects (the sentinel is always submitted).
+  - Controls inside a closed `<details>` still submit with the form — the dropdowns rely on it.
+  - US-005 should mention in the handout that a tick counts only after „Filtern“ and that
+    re-ticking every box removes the filter.
+---
+
+## 2026-11-08 20:40 - US-005
+- docs/handout/betriebsanleitung.md: new „Die Kundenliste filtern" section (before „Karten
+  drucken") with DF's four example questions and both non-obvious rules; README's purpose row names it.
+- docs/architecture/: no chapter names the filter set (ch. 5 says only "search, filters"), so none
+  gained text. But ch. 9's 2026-07-28 row „Filtering happens in SQL, never in JavaScript" was
+  contradicted by the code (group since ADR-017, counts and latest hand-out since US-46) — marked
+  ⚠️ „No longer the whole truth" in the row, not resolved. arc42.py check green.
+- Files: docs/handout/betriebsanleitung.md, docs/handout/README.md,
+  docs/architecture/09-architectural-decisions.md
+- **Learnings for future iterations:**
+  - Prettier reflows the whole ch. 9 table when one row grows; a 50-line diff there is expected.
+  - Docs-only story: build and e2e not re-run (no src change since US-004's green run).
+---

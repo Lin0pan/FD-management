@@ -287,6 +287,10 @@ radio-group select table textarea`. Anything else: `npx shadcn@latest add <name>
 - To give one `Card` a coloured edge: `<Card className="border-…">`. `Card` already brings a
   `border`, so only its colour changes.
 - `Badge` `variant="outline"` when layering an accent on it; `default` paints the text white.
+- **A filter that is set wears the `--primary` edge** — `border-primary` plus an inset 1px ring, and
+  its choice in semibold — on `/kunden`'s count dropdowns (US-46.4). A theme token rather than an
+  accent: a filter is neither good news nor a fault (`customerList.filterSummary` is muted for the
+  same reason), and every literal in `accents.ts` already means one of those.
 
 ## 6. Controls
 

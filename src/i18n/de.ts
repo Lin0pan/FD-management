@@ -148,6 +148,25 @@ function endedAt(instant: string): string {
   return `Beendet: ${instant}`;
 }
 
+/**
+ * The ticked counts of a count filter on `/kunden` (US-46.4): `undefined` is every box ticked, an
+ * empty list none. Lifted so the collapsed dropdown and the filter summary say one thing.
+ */
+function countChoice(counts: ReadonlyArray<number> | undefined): string {
+  if (counts === undefined) {
+    return "alle";
+  }
+  return counts.length === 0 ? "keine" : counts.join(", ");
+}
+
+const GROWN_UPS_FILTER = "Erwachsene";
+const CHILDREN_FILTER = "Kinder";
+
+/** What precedes {@link countChoice}: „Kinder: “. */
+function countLead(label: string): string {
+  return `${label}: `;
+}
+
 export const de = {
   app: {
     name: "Füllhorn Delbrück – Verwaltung",
@@ -852,6 +871,13 @@ export const de = {
       status: "Status",
       group: "Gruppe",
       certificate: "Bedarfsnachweis",
+      lastHandoutBefore: "Letzte Ausgabe vor",
+      certificateEndsBefore: "Nachweis endet vor",
+      grownUps: GROWN_UPS_FILTER,
+      children: CHILDREN_FILTER,
+      /** A count dropdown's collapsed label is `countLead(label)` + `countChoice(counts)`. */
+      countLead,
+      countChoice,
       /** The unset option of every filter — "no filter", never "no results". */
       all: "Alle",
       includeArchived: "Archivierte Haushalte anzeigen",
@@ -917,6 +943,12 @@ export const de = {
       status: (label: string): string => `Status: ${label}`,
       group: (label: string): string => `Gruppe: ${label}`,
       certificate: (label: string): string => `Bedarfsnachweis: ${label}`,
+      grownUps: (counts: ReadonlyArray<number>): string =>
+        countLead(GROWN_UPS_FILTER) + countChoice(counts),
+      children: (counts: ReadonlyArray<number>): string =>
+        countLead(CHILDREN_FILTER) + countChoice(counts),
+      lastHandoutBefore: (day: string): string => `Letzte Ausgabe vor ${day}`,
+      certificateEndsBefore: (day: string): string => `Nachweis endet vor ${day}`,
       archivedIncluded: "einschließlich archivierter Haushalte",
       archivedHidden: "ohne archivierte Haushalte",
     },
