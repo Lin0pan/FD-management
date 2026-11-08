@@ -8,7 +8,11 @@ import { groupOf, type Group } from "@/domain/customer/group";
 import { customerFieldLabel, de } from "@/i18n/de";
 import { SHARED } from "./registers";
 import { fillDay, fillSticky, hydrated, typedDay } from "./day";
-import { fillPersonalData as fillPersonalDataOn, type Person } from "./registration-form";
+import {
+  fillCertificateType,
+  fillPersonalData as fillPersonalDataOn,
+  type Person,
+} from "./registration-form";
 import { releaseNumbers } from "./seeding";
 
 /**
@@ -302,6 +306,54 @@ test.describe("Kundenaufnahme", () => {
     // Nothing is derived from a day that cannot be read; the panel shows its empty mark rather than
     // a figure computed from a date nobody typed.
     await expect(page.getByTestId("grown-ups")).toHaveText("—");
+  });
+
+  /**
+   * PLZ and Ort start out as Delbrück (US-44.1). Saved from the boxes untouched — filling them with
+   * the same words would pass whether the default reached the save or not.
+   */
+  test("a new household starts out in 33129 Delbrück and is saved there", async ({ page }) => {
+    const applicant = person(faker.person.lastName());
+    await page.goto("/kunden/neu");
+
+    await expect(page.locator("#zip")).toHaveValue("33129");
+    await expect(page.locator("#city")).toHaveValue("Delbrück");
+
+    await fillSticky(page.locator("#firstName"), applicant.firstName);
+    await fillSticky(page.locator("#lastName"), applicant.lastName);
+    await fillDay(page.locator("#birthDate"), GROWN_UP_BIRTH_DATE);
+    await fillSticky(page.locator("#street"), faker.location.street());
+    await fillSticky(page.locator("#houseNumber"), faker.location.buildingNumber());
+    await fillCertificateType(page, ELIGIBILITY.certificateType);
+    await fillDay(page.locator("#certificateValidUntil"), CERTIFICATE_VALID_UNTIL);
+
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+    await page.waitForURL(/\/kunden\/\d+(\?|$)/);
+
+    const saved = await prisma.customer.findFirstOrThrow({
+      where: { lastName: applicant.lastName, firstName: applicant.firstName },
+      select: { zip: true, city: true },
+    });
+    expect(saved).toEqual({ zip: "33129", city: "Delbrück" });
+  });
+
+  test("a household from elsewhere types over Delbrück, and an emptied Ort is refused", async ({
+    page,
+  }) => {
+    await page.goto("/kunden/neu");
+    await fillPersonalData(page, person(faker.person.lastName()));
+    await fillSticky(page.locator("#zip"), "33100");
+    await expect(page.locator("#zip")).toHaveValue("33100");
+
+    await fillSticky(page.locator("#city"), "");
+    await page.getByRole("button", { name: de.customers.new.submit, exact: true }).click();
+
+    await expect(page.getByTestId("registration-error")).toHaveText(
+      de.customers.errors.missingField(customerFieldLabel("address.city")),
+    );
+    await expect(page.locator("#city")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.locator("#zip")).toHaveValue("33100");
+    await expect(page).toHaveURL(/\/kunden\/neu$/);
   });
 
   /**

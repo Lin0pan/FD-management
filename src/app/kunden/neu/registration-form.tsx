@@ -52,6 +52,7 @@ import { CertificateTypeField } from "../../certificate-type-field";
 import { guardEnter } from "../../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../../field-mark";
 import { marking, MEMBER_INPUT, memberPath, problemAt, type MemberPart } from "../../field-refusal";
+import { HOME_TOWN } from "../../home-town";
 import { selectClass } from "../../select";
 import { Stat } from "../../stat";
 import { AgeCell } from "../age-cell";
@@ -86,13 +87,13 @@ interface DetailsDraft {
   readonly notes: string;
 }
 
-/** The address and note the form starts out with — the draft's, or blank. */
+/** The address and note the form starts out with — the draft's, or blank in {@link HOME_TOWN}. */
 function initialDetails(draft: PrefillDraft | null): DetailsDraft {
   return {
     street: draft?.street ?? "",
     houseNumber: draft?.houseNumber ?? "",
-    zip: draft?.zip ?? "",
-    city: draft?.city ?? "",
+    zip: draft?.zip ?? HOME_TOWN.zip,
+    city: draft?.city ?? HOME_TOWN.city,
     certificateValidUntil: draft?.certificateValidUntil ?? "",
     notes: draft?.notes ?? "",
   };

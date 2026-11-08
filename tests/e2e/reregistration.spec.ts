@@ -413,15 +413,18 @@ test.describe("Wiederaufnahme aus dem Archiv", () => {
     await expect(page.getByTestId("customer-number-select")).toHaveValue(offered);
 
     // Every pre-filled field is a field, not a display: a household that has moved is typed over.
-    await fillSticky(page.locator("#city"), "Delbrück");
-    await expect(page.locator("#city")).toHaveValue("Delbrück");
+    await fillSticky(page.locator("#city"), "Paderborn");
+    await expect(page.locator("#city")).toHaveValue("Paderborn");
 
     // And the whole pre-fill can be dropped — including the edit just made, because half a household
-    // left behind from the wrong record is the one thing "leer beginnen" must not mean.
+    // left behind from the wrong record is the one thing "leer beginnen" must not mean. What is left
+    // is a fresh form, which starts out in Delbrück (US-44.1).
     await page.getByTestId("archive-prefill-clear").click();
     await expect(page.getByTestId("archive-prefill-notice")).toHaveCount(0);
     await expect(page.locator("#firstName")).toHaveValue("");
-    await expect(page.locator("#city")).toHaveValue("");
+    await expect(page.locator("#street")).toHaveValue("");
+    await expect(page.locator("#zip")).toHaveValue("33129");
+    await expect(page.locator("#city")).toHaveValue("Delbrück");
     await expect(page.getByTestId("household-row")).toHaveCount(1);
   });
 
