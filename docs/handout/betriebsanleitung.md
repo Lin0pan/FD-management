@@ -208,6 +208,31 @@ werden müssen. Ein Klick führt zur
 selben Liste wie in den Übersichten, mit derselben Zahl. Der Block erscheint **nur, wenn etwas
 ansteht**, und verschwindet von selbst, sobald alles erledigt ist.
 
+## Die Kundenliste filtern
+
+Unter **Kunden verwalten** stehen über der Tabelle die Filter. Alle gesetzten Filter gelten
+zugleich; welche gerade gelten, steht in der Zeile **„Gefiltert: …"** über der Tabelle. **Filter
+zurücksetzen** hebt alle auf.
+
+**Erwachsene und Kinder.** Ein Klick öffnet eine Liste mit Kästchen — eine Zahl für jede Größe, die
+es bei Ihren Haushalten gibt. Anfangs ist alles angehakt, also wird nichts gefiltert. Beispiele:
+
+- **Mehr als 5 Kinder:** bei **Kinder** die Häkchen von 0 bis 5 entfernen.
+- **Keine Kinder:** bei **Kinder** nur die 0 angehakt lassen.
+- **Mit Kindern:** bei **Kinder** das Häkchen bei 0 entfernen.
+
+> **Ein Häkchen zählt erst nach „Filtern".** Bis dahin ändert sich die Tabelle nicht. Wer alle
+> Kästchen wieder anhakt und **Filtern** klickt, hebt den Filter auf.
+
+**Letzte Ausgabe vor.** Ein Datum eingeben (TT.MM.JJJJ) zeigt die Haushalte, die zuletzt **vor**
+diesem Tag etwas abgeholt haben — so finden Sie, wer **seit einem bestimmten Tag nicht mehr da**
+war. Wer an diesem Tag selbst abgeholt hat, zählt nicht dazu.
+
+> **Wer noch nie abgeholt hat, erscheint hier nie** — gleich welches Datum Sie eingeben.
+
+**Nachweis endet vor.** Zeigt die Haushalte, deren Nachweis **vor** dem eingegebenen Tag endet —
+etwa alle, die bis Jahresende einen neuen bringen müssen.
+
 ## Karten drucken
 
 Die Software druckt keine Karten. Manchmal bekommt ein Haushalt erst eine vorläufige Karte und die
