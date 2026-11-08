@@ -593,3 +593,21 @@ reused for the count lists, where empty means nothing.
   - `listCustomers` now always runs `matched.filter(...)`, so `found` is a new array even with no
     filter — harmless, the repository result is never mutated.
 ---
+
+## 2026-11-08 18:40 - US-002
+- `listCustomers` gains `grownUps` / `children` (absent = unfiltered, **empty = nothing**), applied
+  in the use case off `composition(members, today)` beside `group`. `CustomerListView` gains
+  `grownUpCounts` / `childCounts`: distinct, ascending, read off ONE extra
+  `customers.list({ statuses })` (ACTIVE+BLOCKED, ARCHIVED only with `includeArchived`) and
+  unioned with the request's own counts. No port, no audit entry, no src/app change.
+- Files: src/application/customers/list-customers.ts(+test)
+- **Learnings for future iterations:**
+  - The fake `FakeCustomerRepository` now keeps `queries[]`; its `lastQuery` getter returns the
+    FIRST query (the list's own), because the counts' register-wide query is asked second inside
+    the same `Promise.all`. Keep the list's `list(...)` first in that array.
+  - The statuses for the counts reuse `statusesFor({ includeArchived })` rather than a second
+    constant — a request naming ARCHIVED in `status` does not add archived counts (PRD reads
+    „only when includeArchived").
+  - `household(grownUps, children)` in the test file builds a composition as of TODAY.
+  - US-004 needs the page to read `view.grownUpCounts` / `view.childCounts`; nothing reads them yet.
+---

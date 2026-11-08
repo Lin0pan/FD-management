@@ -42,7 +42,7 @@
         "Lint passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Application only; no src/app change in this story (the page still compiles — the new view fields are simply unread until US-004)."
     },
     {
