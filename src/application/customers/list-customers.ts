@@ -6,11 +6,14 @@
  * to. A **read** throughout, with no audit entry, because nothing changed (PRD FR-7).
  */
 
+import { startOfUtcDay } from "@/domain/calendarDay";
 import { counterQueryOrNull, formatCardNumber } from "@/domain/card/cardNumber";
 import {
   certificateState,
+  endingBefore,
   validUntilRangeFor,
   type CertificateState,
+  type ValidUntilRange,
 } from "@/domain/customer/certificate";
 import type { CustomerStatus, RegisteredCustomer } from "@/domain/customer/customer";
 import { countByGroup, groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
@@ -53,6 +56,13 @@ export interface ListCustomersInput {
    */
   readonly group?: Group;
   readonly certificate?: CertificateState;
+  /**
+   * Households whose latest hand-out fell on a day strictly before this one. A household never
+   * served has no such day and is never kept — „not since" is not „never" (US-46.1).
+   */
+  readonly lastHandoutBefore?: Date;
+  /** Households whose certificate ends strictly before this day; it counts on its last day. */
+  readonly certificateEndsBefore?: Date;
   /**
    * Whether households that have left are shown. **Defaults to false**: an archived household turning
    * up invites a second registration of someone no longer there (US-11, FR-6). Naming `ARCHIVED` in
@@ -125,6 +135,20 @@ function statusesFor(input: ListCustomersInput): ReadonlyArray<CustomerStatus> {
   return (asked ?? ALL_STATUSES).filter((status) => status !== "ARCHIVED" || wantsArchived);
 }
 
+/** The `validUntil` range the store is asked for: the certificate state, cut at the end day. */
+function certificateRangeFor(input: ListCustomersInput, today: Date): ValidUntilRange | undefined {
+  const state =
+    input.certificate === undefined ? undefined : validUntilRangeFor(input.certificate, today);
+  return input.certificateEndsBefore === undefined
+    ? state
+    : endingBefore(state, input.certificateEndsBefore);
+}
+
+/** Whether a latest hand-out lies before midnight UTC of `dayStart`; never if there is none. */
+function servedBefore(lastHandoutAt: Date | undefined, dayStart: Date): boolean {
+  return lastHandoutAt !== undefined && lastHandoutAt.getTime() < dayStart.getTime();
+}
+
 /**
  * The customers matching what staff asked for, lowest customer number first, with the group balance.
  *
@@ -141,17 +165,21 @@ export async function listCustomers(
     deps.customers.list({
       statuses: statusesFor(input),
       search: readSearch(input.search),
-      certificate:
-        input.certificate === undefined ? undefined : validUntilRangeFor(input.certificate, today),
+      certificate: certificateRangeFor(input, today),
     }),
     deps.customers.takenActiveNumbers(),
     deps.records.latestHandoutByCustomer(),
   ]);
   // The group is narrowed here and nowhere else, for the reason `ListCustomersInput.group` gives.
-  const found =
-    input.group === undefined
-      ? matched
-      : matched.filter((customer) => groupOf(customer.customerNumber) === input.group);
+  // The latest hand-out is too: it is the map the column already reads, not a column of the row.
+  const lastHandoutBefore =
+    input.lastHandoutBefore === undefined ? undefined : startOfUtcDay(input.lastHandoutBefore);
+  const found = matched.filter(
+    (customer) =>
+      (input.group === undefined || groupOf(customer.customerNumber) === input.group) &&
+      (lastHandoutBefore === undefined ||
+        servedBefore(latestHandouts.get(customer.id), lastHandoutBefore)),
+  );
   // Off the numbers the register holds, never off `found` — see `CustomerListView.groupCounts`.
   const groupCounts = countByGroup(takenNumbers);
 

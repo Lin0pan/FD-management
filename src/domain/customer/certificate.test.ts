@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { NeedsCertificate } from "./customer";
-import { certificateState, EXPIRING_SOON_DAYS, isExpired, validUntilRangeFor } from "./certificate";
+import {
+  certificateState,
+  endingBefore,
+  EXPIRING_SOON_DAYS,
+  isExpired,
+  validUntilRangeFor,
+} from "./certificate";
 
 function certificateValidUntil(isoDate: string): NeedsCertificate {
   return { type: "Jobcenter", validUntil: new Date(`${isoDate}T00:00:00.000Z`) };
@@ -119,5 +125,53 @@ describe("validUntilRangeFor", () => {
     expect(certificateState({ type: "Jobcenter", validUntil: on("2026-09-01") }, today)).toBe(
       "VALID",
     );
+  });
+});
+
+describe("endingBefore", () => {
+  /** Whether a certificate ending on `isoDate` falls inside the half-open range. */
+  function inside(range: { from?: Date; before?: Date }, isoDate: string): boolean {
+    const validUntil = on(isoDate).getTime();
+    return (
+      (range.from === undefined || validUntil >= range.from.getTime()) &&
+      (range.before === undefined || validUntil < range.before.getTime())
+    );
+  }
+
+  it("keeps a certificate ending the day before, not one ending on the day", () => {
+    const range = endingBefore(undefined, on("2026-12-01"));
+    expect(inside(range, "2026-11-30")).toBe(true);
+    expect(inside(range, "2026-12-01")).toBe(false);
+    expect(inside(range, "2026-12-02")).toBe(false);
+  });
+
+  it("bounds at midnight of the day, whatever time of day it was asked with", () => {
+    expect(endingBefore(undefined, new Date("2026-12-01T18:45:00.000Z"))).toEqual({
+      before: on("2026-12-01"),
+    });
+  });
+
+  it("keeps a certificate ending 29 February under 1 March, not under the 29th", () => {
+    expect(inside(endingBefore(undefined, on("2028-03-01")), "2028-02-29")).toBe(true);
+    expect(inside(endingBefore(undefined, on("2028-02-29")), "2028-02-29")).toBe(false);
+  });
+
+  it("intersects with the certificate state, the earlier end winning", () => {
+    const soon = validUntilRangeFor("EXPIRING_SOON", on("2026-08-01"));
+    expect(endingBefore(soon, on("2026-08-15"))).toEqual({
+      from: on("2026-08-01"),
+      before: on("2026-08-15"),
+    });
+    expect(endingBefore(soon, on("2026-12-01"))).toEqual({
+      from: on("2026-08-01"),
+      before: on("2026-09-01"),
+    });
+  });
+
+  it("keeps the state's lower bound when the state has no upper one", () => {
+    expect(endingBefore(validUntilRangeFor("VALID", on("2026-08-01")), on("2026-10-01"))).toEqual({
+      from: on("2026-08-01"),
+      before: on("2026-10-01"),
+    });
   });
 });

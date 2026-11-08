@@ -556,6 +556,106 @@ describe("listCustomers", () => {
     ]);
   });
 
+  it("keeps a household served the day before", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+    records.handouts.push({ customerId: 1, date: new Date("2026-06-30T23:59:00.000Z") });
+
+    const result = await listCustomers(deps(), { lastHandoutBefore: new Date("2026-07-01") });
+
+    expect(result.rows.map((row) => row.customerNumber)).toEqual([7]);
+  });
+
+  it("drops a household served on the day itself", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+    records.handouts.push({ customerId: 1, date: new Date("2026-07-01T00:00:00.000Z") });
+
+    const result = await listCustomers(deps(), { lastHandoutBefore: new Date("2026-07-01") });
+
+    expect(result.rows).toEqual([]);
+  });
+
+  it("judges a household by its latest hand-out, not an earlier one", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+    records.handouts.push(
+      { customerId: 1, date: new Date("2026-06-04T13:00:00.000Z") },
+      { customerId: 1, date: new Date("2026-07-23T13:00:00.000Z") },
+    );
+
+    const result = await listCustomers(deps(), { lastHandoutBefore: new Date("2026-07-01") });
+
+    expect(result.rows).toEqual([]);
+  });
+
+  it("never keeps a household never served", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+
+    const result = await listCustomers(deps(), { lastHandoutBefore: new Date("2099-01-01") });
+
+    expect(result.rows).toEqual([]);
+  });
+
+  it("accepts a future day for the latest hand-out", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+    records.handouts.push({ customerId: 1, date: new Date("2026-07-23T13:00:00.000Z") });
+
+    const result = await listCustomers(deps(), { lastHandoutBefore: new Date("2026-12-24") });
+
+    expect(result.rows.map((row) => row.customerNumber)).toEqual([7]);
+  });
+
+  it("keeps a certificate ending the day before, not one ending on the day", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, certificateValidUntil: "2026-11-30" }),
+      customerRecord({ id: 2, customerNumber: 8, certificateValidUntil: "2026-12-01" }),
+    );
+
+    const result = await listCustomers(deps(), { certificateEndsBefore: new Date("2026-12-01") });
+
+    expect(result.rows.map((row) => row.customerNumber)).toEqual([7]);
+    expect(customers.lastQuery?.certificate).toEqual({
+      before: new Date("2026-12-01T00:00:00.000Z"),
+    });
+  });
+
+  it("intersects the certificate end with the state, the earlier end winning", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, certificateValidUntil: "2026-07-01" }),
+      customerRecord({ id: 2, customerNumber: 8, certificateValidUntil: "2026-08-20" }),
+      customerRecord({ id: 3, customerNumber: 9, certificateValidUntil: "2026-10-01" }),
+    );
+
+    const result = await listCustomers(deps(), {
+      certificate: "VALID",
+      certificateEndsBefore: new Date("2026-09-01"),
+    });
+
+    expect(result.rows.map((row) => row.customerNumber)).toEqual([8]);
+  });
+
+  it("combines both day filters with each other and with the group", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, certificateValidUntil: "2026-08-20" }),
+      customerRecord({ id: 2, customerNumber: 8, certificateValidUntil: "2026-08-20" }),
+      customerRecord({ id: 3, customerNumber: 10, certificateValidUntil: "2026-08-20" }),
+      customerRecord({ id: 4, customerNumber: 12, certificateValidUntil: "2027-01-31" }),
+    );
+    records.handouts.push(
+      { customerId: 1, date: new Date("2026-06-04T13:00:00.000Z") },
+      { customerId: 2, date: new Date("2026-06-11T13:00:00.000Z") },
+      { customerId: 3, date: new Date("2026-07-23T13:00:00.000Z") },
+      { customerId: 4, date: new Date("2026-06-11T13:00:00.000Z") },
+    );
+
+    const result = await listCustomers(deps(), {
+      group: "BLUE",
+      lastHandoutBefore: new Date("2026-07-01"),
+      certificateEndsBefore: new Date("2026-09-01"),
+    });
+
+    expect(result.rows.map((row) => row.customerNumber)).toEqual([8]);
+    expect(result.groupCounts).toEqual({ red: 1, blue: 3 });
+  });
+
   it("counts the register's groups off its numbers", async () => {
     customers.holders.push(
       customerRecord({ id: 1, customerNumber: 7 }),

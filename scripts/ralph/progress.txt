@@ -575,3 +575,21 @@ already on every row (US-45). The filter form in `src/app/kunden/page.tsx` is a 
 keep it that way: the count dropdowns are native `<details>`, and „all ticked" / „none ticked" are
 made canonical by a server redirect (PRD §US-46.4). `statusesFor`'s „empty means all" must NOT be
 reused for the count lists, where empty means nothing.
+
+## 2026-11-08 18:35 - US-001
+- `listCustomers` gains `lastHandoutBefore` and `certificateEndsBefore`. The hand-out filter is
+  applied in the use case beside `group`, off the `latestHandoutByCustomer()` map already loaded
+  (strictly before midnight UTC of the day; a never-served household never matches). The
+  certificate end goes to the store inside the existing `ValidUntilRange` via the new pure
+  `endingBefore(range, day)` in `src/domain/customer/certificate.ts` (earlier `before` wins,
+  `from` kept). No port, no schema, no audit entry.
+- Files: src/domain/customer/certificate.ts(+test), src/application/customers/list-customers.ts(+test)
+- **Learnings for future iterations:**
+  - `startOfUtcDay` (`src/domain/calendarDay.ts`) is the exported day-floor; `certificate.ts` has
+    its own private `utcDay` returning a number. Use the exported one from `application/`.
+  - `npm run lint` reports 3 warnings in `local_only/us42/many-archived.ts` and `format:check`
+    flags `tasks/prd-us-39-…` and `tasks/prd-us-46-…` — all pre-existing on `main`, not this
+    batch's to fix (the tasks PRDs are records; the hook evidently only checks staged files).
+  - `listCustomers` now always runs `matched.filter(...)`, so `found` is a new array even with no
+    filter — harmless, the repository result is never mutated.
+---

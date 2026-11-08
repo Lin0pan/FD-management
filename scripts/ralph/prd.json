@@ -22,7 +22,7 @@
         "Lint passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Application + domain only; no src/app change in this story. ls src/domain/customer/certificate.ts before editing — it holds isExpired, certificateState, validUntilRangeFor already."
     },
     {
