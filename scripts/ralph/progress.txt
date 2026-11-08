@@ -611,3 +611,30 @@ reused for the count lists, where empty means nothing.
   - `household(grownUps, children)` in the test file builds a composition as of TODAY.
   - US-004 needs the page to read `view.grownUpCounts` / `view.childCounts`; nothing reads them yet.
 ---
+
+## 2026-11-08 19:05 - US-003
+- /kunden's filter form gains „Letzte Ausgabe vor“ and „Nachweis endet vor“ (uncontrolled
+  `DateInput`s in `FilterField`), URL params `ausgabe-vor` / `nachweis-vor` read by a Zod `dayParam`
+  that keeps the typed text and yields `{ text, day: Date | null }`. An unreadable day filters nothing
+  and is marked with `marking()` + `FieldRejection` (`de.customers.errors.notADate`), label reddened
+  via a new `refused` prop on `FilterField`. Readable days are named in the summary
+  (`de.customerList.filterClauses.lastHandoutBefore` / `certificateEndsBefore`).
+- Grid: `lg:grid-cols-[minmax(0,1.2fr)_repeat(4,minmax(0,1fr))]`, search `lg:col-span-2`, so the
+  second row's cells are exactly select-wide. The day fields sit in cols 4–5
+  (`lg:col-start-4` on the first); **US-004's two dropdowns go in cols 2–3** — give the first
+  dropdown `lg:col-start-2` and drop the `lg:col-start-4` from the day field, order Erwachsene,
+  Kinder, Letzte Ausgabe vor, Nachweis endet vor.
+- e2e: new describe block in tests/e2e/customer-list.spec.ts (7 tests, incl. alignment at 1100 and
+  1280 by boundingBox). Both engines green (294 passed each). Reviewed with playwright-cli at 1280,
+  1100 and 700 (screenshots in local_only/us46/).
+- Files: src/app/kunden/page.tsx, src/i18n/de.ts, tests/e2e/customer-list.spec.ts
+- **Learnings for future iterations:**
+  - `DateInput` holds its own `useState`, so even "uncontrolled" it is React-owned: use `fillDay`
+    (`tests/e2e/day.ts`) right after a `goto`, not plain `fill`.
+  - A server component may render `FieldRejection` (from the `"use client"` `field-mark.tsx`) and
+    spread `marking()` (no directive) — that pair is the whole refused-field look outside a form
+    action.
+  - The masked `DateInput` drops non-digits on the way in, so `ausgabe-vor=abc` shows an empty
+    field while still being marked; `31.02.2026` round-trips intact. Assert on the latter.
+  - playwright-cli prints a "skill does not match the tool version" banner on every call; harmless.
+---
