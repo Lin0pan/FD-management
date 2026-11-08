@@ -67,15 +67,23 @@ class FakeSettingsRepository implements SettingsRepository {
 class FakeCustomerRepository implements CustomerRepository {
   readonly holders: RegisteredCustomer[] = [];
   writes = 0;
-  /** The last query the use case built — what the translation of the input is asserted against. */
-  lastQuery: CustomerListQuery | null = null;
+  /** Every query the use case built, in the order it asked them. */
+  readonly queries: CustomerListQuery[] = [];
+
+  /**
+   * The list's own query — what the translation of the input is asserted against. It is asked
+   * first; the second is the register-wide one the occurring counts are read from (US-46.2).
+   */
+  get lastQuery(): CustomerListQuery | undefined {
+    return this.queries.at(0);
+  }
 
   constructor(...holders: RegisteredCustomer[]) {
     this.holders.push(...holders);
   }
 
   list(query: CustomerListQuery): Promise<ReadonlyArray<RegisteredCustomer>> {
-    this.lastQuery = query;
+    this.queries.push(query);
     const matches = this.holders.filter(
       (customer) =>
         query.statuses.includes(customer.status) &&
@@ -241,6 +249,14 @@ function member(birthDate: string): HouseholdMemberDetails {
     lastName: faker.person.lastName(),
     birthDate: new Date(birthDate),
   };
+}
+
+/** A household of `grownUps` adults and `children` children as of {@link TODAY}. */
+function household(grownUps: number, children: number): HouseholdMemberDetails[] {
+  return [
+    ...Array.from({ length: grownUps }, () => member(GROWN_UP)),
+    ...Array.from({ length: children }, () => member(CHILD)),
+  ];
 }
 
 interface CustomerOverrides {
@@ -654,6 +670,178 @@ describe("listCustomers", () => {
 
     expect(result.rows.map((row) => row.customerNumber)).toEqual([8]);
     expect(result.groupCounts).toEqual({ red: 1, blue: 3 });
+  });
+
+  it("lists the children counts that occur, ascending", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, householdMembers: household(1, 3) }),
+      customerRecord({ id: 2, customerNumber: 8, householdMembers: household(2, 0) }),
+      customerRecord({ id: 3, customerNumber: 9, householdMembers: household(1, 3) }),
+      customerRecord({ id: 4, customerNumber: 10, householdMembers: household(3, 1) }),
+    );
+
+    const result = await listCustomers(deps(), {});
+
+    expect(result.childCounts).toEqual([0, 1, 3]);
+    expect(result.grownUpCounts).toEqual([1, 2, 3]);
+  });
+
+  it("leaves archived households out of the listed counts unless they are shown", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, householdMembers: household(1, 0) }),
+      customerRecord({
+        id: 2,
+        customerNumber: 8,
+        status: "BLOCKED",
+        householdMembers: household(2, 1),
+      }),
+      customerRecord({
+        id: 3,
+        customerNumber: 9,
+        status: "ARCHIVED",
+        householdMembers: household(4, 7),
+      }),
+    );
+
+    const hidden = await listCustomers(deps(), {});
+    const shown = await listCustomers(deps(), { includeArchived: true });
+
+    expect(hidden.childCounts).toEqual([0, 1]);
+    expect(hidden.grownUpCounts).toEqual([1, 2]);
+    expect(shown.childCounts).toEqual([0, 1, 7]);
+    expect(shown.grownUpCounts).toEqual([1, 2, 4]);
+  });
+
+  it("does not narrow the listed counts by the other filters", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, householdMembers: household(1, 0) }),
+      customerRecord({
+        id: 2,
+        customerNumber: 8,
+        lastName: "Brandt",
+        certificateValidUntil: "2026-07-01T00:00:00.000Z",
+        householdMembers: household(2, 5),
+      }),
+    );
+
+    const result = await listCustomers(deps(), {
+      search: "Brandt",
+      status: ["BLOCKED"],
+      group: "RED",
+      certificate: "EXPIRED",
+      lastHandoutBefore: new Date("2026-07-01T00:00:00.000Z"),
+      certificateEndsBefore: new Date("2026-06-01T00:00:00.000Z"),
+      grownUps: [2],
+      children: [5],
+    });
+
+    expect(result.rows).toEqual([]);
+    expect(result.grownUpCounts).toEqual([1, 2]);
+    expect(result.childCounts).toEqual([0, 5]);
+  });
+
+  it("reads the listed counts with one more query over the register, not one per household", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7 }),
+      customerRecord({ id: 2, customerNumber: 8 }),
+      customerRecord({ id: 3, customerNumber: 9 }),
+    );
+
+    await listCustomers(deps(), { search: "Aalto", includeArchived: true });
+
+    expect(customers.queries).toHaveLength(2);
+    expect(customers.queries.at(1)).toEqual({ statuses: ["ACTIVE", "BLOCKED", "ARCHIVED"] });
+  });
+
+  it("shows only the ticked counts", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, householdMembers: household(1, 0) }),
+      customerRecord({ id: 2, customerNumber: 8, householdMembers: household(2, 1) }),
+      customerRecord({ id: 3, customerNumber: 9, householdMembers: household(1, 7) }),
+      customerRecord({ id: 4, customerNumber: 10, householdMembers: household(2, 3) }),
+    );
+
+    const children = await listCustomers(deps(), { children: [1, 7] });
+    const grownUps = await listCustomers(deps(), { grownUps: [2] });
+
+    expect(children.rows.map((row) => row.customerNumber)).toEqual([8, 9]);
+    expect(grownUps.rows.map((row) => row.customerNumber)).toEqual([8, 10]);
+  });
+
+  it("combines the two count lists with each other and with the other filters", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, householdMembers: household(2, 1) }),
+      customerRecord({ id: 2, customerNumber: 8, householdMembers: household(2, 1) }),
+      customerRecord({ id: 3, customerNumber: 9, householdMembers: household(1, 1) }),
+      customerRecord({ id: 4, customerNumber: 11, householdMembers: household(2, 0) }),
+    );
+
+    const result = await listCustomers(deps(), { grownUps: [2], children: [1], group: "RED" });
+
+    expect(result.rows.map((row) => row.customerNumber)).toEqual([7]);
+  });
+
+  it("shows nothing when no count is ticked", async () => {
+    // Unlike the status filter, where an empty list means „every status": here staff unticked
+    // every box, and an empty table is what they asked for.
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, householdMembers: household(1, 0) }),
+      customerRecord({ id: 2, customerNumber: 8, householdMembers: household(2, 1) }),
+    );
+
+    const children = await listCustomers(deps(), { children: [] });
+    const grownUps = await listCustomers(deps(), { grownUps: [] });
+
+    expect(children.rows).toEqual([]);
+    expect(grownUps.rows).toEqual([]);
+    expect(children.childCounts).toEqual([0, 1]);
+  });
+
+  it("counts a child who turns 13 today as a grown-up", async () => {
+    customers.holders.push(
+      customerRecord({
+        id: 1,
+        customerNumber: 7,
+        householdMembers: [member(GROWN_UP), member("2013-07-29T00:00:00.000Z")],
+      }),
+      customerRecord({
+        id: 2,
+        customerNumber: 8,
+        householdMembers: [member(GROWN_UP), member("2013-07-30T00:00:00.000Z")],
+      }),
+    );
+
+    const grownUps = await listCustomers(deps(), { grownUps: [2] });
+    const children = await listCustomers(deps(), { children: [1] });
+
+    expect(grownUps.rows.map((row) => row.customerNumber)).toEqual([7]);
+    expect(children.rows.map((row) => row.customerNumber)).toEqual([8]);
+    expect(grownUps.grownUpCounts).toEqual([1, 2]);
+  });
+
+  it("keeps a filtered count listed after its last household left", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7, householdMembers: household(1, 1) }),
+      customerRecord({
+        id: 2,
+        customerNumber: 8,
+        status: "ARCHIVED",
+        householdMembers: household(9, 7),
+      }),
+    );
+
+    const result = await listCustomers(deps(), { children: [1, 7], grownUps: [9] });
+
+    expect(result.childCounts).toEqual([1, 7]);
+    expect(result.grownUpCounts).toEqual([1, 9]);
+    expect(result.rows.map((row) => row.customerNumber)).toEqual([]);
+  });
+
+  it("answers an empty register with no counts to tick", async () => {
+    const result = await listCustomers(deps(), {});
+
+    expect(result.grownUpCounts).toEqual([]);
+    expect(result.childCounts).toEqual([]);
   });
 
   it("counts the register's groups off its numbers", async () => {

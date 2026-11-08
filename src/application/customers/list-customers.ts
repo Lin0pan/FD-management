@@ -17,6 +17,7 @@ import {
 } from "@/domain/customer/certificate";
 import type { CustomerStatus, RegisteredCustomer } from "@/domain/customer/customer";
 import { countByGroup, groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
+import { composition } from "@/domain/customer/householdComposition";
 import type { Cents } from "@/domain/money";
 import { describeAllowances, type Allowance } from "../allowance/describe-allowance";
 import type {
@@ -64,6 +65,14 @@ export interface ListCustomersInput {
   /** Households whose certificate ends strictly before this day; it counts on its last day. */
   readonly certificateEndsBefore?: Date;
   /**
+   * Households with exactly one of these numbers of grown-ups, as of today. Absent means „not
+   * filtered", but **an empty list matches nothing**: unlike `status`, it is staff unticking every
+   * box, and an empty table is the answer they asked for (US-46.2).
+   */
+  readonly grownUps?: ReadonlyArray<number>;
+  /** The same for the number of children, empty likewise matching nothing. */
+  readonly children?: ReadonlyArray<number>;
+  /**
    * Whether households that have left are shown. **Defaults to false**: an archived household turning
    * up invites a second registration of someone no longer there (US-11, FR-6). Naming `ARCHIVED` in
    * `status` says the same more precisely and is honoured on its own.
@@ -106,6 +115,15 @@ export interface CustomerListRow {
 export interface CustomerListView {
   readonly rows: ReadonlyArray<CustomerListRow>;
   readonly groupCounts: GroupCounts;
+  /**
+   * The numbers of grown-ups that occur, ascending — the boxes staff can tick. Taken over the
+   * households the list could show at all (archived ones only when `includeArchived`), never
+   * narrowed by the other filters, and always holding any number the request itself named, so a
+   * filter in force is one staff can see and undo (US-46.2).
+   */
+  readonly grownUpCounts: ReadonlyArray<number>;
+  /** The same for the number of children. */
+  readonly childCounts: ReadonlyArray<number>;
 }
 
 /**
@@ -144,6 +162,19 @@ function certificateRangeFor(input: ListCustomersInput, today: Date): ValidUntil
     : endingBefore(state, input.certificateEndsBefore);
 }
 
+/** Whether `count` passes a count filter: absent passes everything, empty passes nothing. */
+function countMatches(asked: ReadonlyArray<number> | undefined, count: number): boolean {
+  return asked === undefined || asked.includes(count);
+}
+
+/** The distinct numbers among `occurring` and `asked`, ascending. */
+function distinctAscending(
+  occurring: ReadonlyArray<number>,
+  asked: ReadonlyArray<number> = [],
+): ReadonlyArray<number> {
+  return [...new Set([...occurring, ...asked])].sort((a, b) => a - b);
+}
+
 /** Whether a latest hand-out lies before midnight UTC of `dayStart`; never if there is none. */
 function servedBefore(lastHandoutAt: Date | undefined, dayStart: Date): boolean {
   return lastHandoutAt !== undefined && lastHandoutAt.getTime() < dayStart.getTime();
@@ -161,12 +192,15 @@ export async function listCustomers(
 ): Promise<CustomerListView> {
   const today = deps.clock.now();
   // One instant for the whole list, so no two rows can be described on different days.
-  const [matched, takenNumbers, latestHandouts] = await Promise.all([
+  const [matched, register, takenNumbers, latestHandouts] = await Promise.all([
     deps.customers.list({
       statuses: statusesFor(input),
       search: readSearch(input.search),
       certificate: certificateRangeFor(input, today),
     }),
+    // What the count boxes offer, read off the register rather than off `matched`, so a filter in
+    // force never takes its own way back out of the list (`CustomerListView.grownUpCounts`).
+    deps.customers.list({ statuses: statusesFor({ includeArchived: input.includeArchived }) }),
     deps.customers.takenActiveNumbers(),
     deps.records.latestHandoutByCustomer(),
   ]);
@@ -174,11 +208,19 @@ export async function listCustomers(
   // The latest hand-out is too: it is the map the column already reads, not a column of the row.
   const lastHandoutBefore =
     input.lastHandoutBefore === undefined ? undefined : startOfUtcDay(input.lastHandoutBefore);
-  const found = matched.filter(
-    (customer) =>
+  // So are the counts, which only exist once the birthdates are read against today.
+  const found = matched.filter((customer) => {
+    const counts = composition(customer.details.householdMembers, today);
+    return (
       (input.group === undefined || groupOf(customer.customerNumber) === input.group) &&
       (lastHandoutBefore === undefined ||
-        servedBefore(latestHandouts.get(customer.id), lastHandoutBefore)),
+        servedBefore(latestHandouts.get(customer.id), lastHandoutBefore)) &&
+      countMatches(input.grownUps, counts.grownUps) &&
+      countMatches(input.children, counts.children)
+    );
+  });
+  const occurring = register.map((customer) =>
+    composition(customer.details.householdMembers, today),
   );
   // Off the numbers the register holds, never off `found` — see `CustomerListView.groupCounts`.
   const groupCounts = countByGroup(takenNumbers);
@@ -193,6 +235,14 @@ export async function listCustomers(
   // The order the repository answered in is the list's order (FR-6); nothing here re-sorts it.
   return {
     groupCounts,
+    grownUpCounts: distinctAscending(
+      occurring.map((counts) => counts.grownUps),
+      input.grownUps,
+    ),
+    childCounts: distinctAscending(
+      occurring.map((counts) => counts.children),
+      input.children,
+    ),
     rows: found.map((customer, index) =>
       toRow(customer, allowances[index], latestHandouts.get(customer.id) ?? null, today),
     ),
