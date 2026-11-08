@@ -143,6 +143,9 @@ async function register(page: Page): Promise<Household> {
  */
 async function addToWaitingList(page: Page, person: Applicant): Promise<void> {
   await page.goto("/warteliste");
+  // A fresh form starts out in Delbrück (US-44.2) — before any typing, and again after the save below.
+  await expect(page.locator("#zip")).toHaveValue("33129");
+  await expect(page.locator("#city")).toHaveValue("Delbrück");
   await fillPersonalData(page, person);
   await page.getByTestId("waiting-list-add-submit").click();
   await expect(page.getByTestId("waiting-list-add-saved")).toHaveText(
@@ -154,6 +157,8 @@ async function addToWaitingList(page: Page, person: Applicant): Promise<void> {
   // are React state under the `savedCount` key, so the remount empties them — and state moved *above*
   // the key would leave the saved applicant in the boxes, which is what this catches.
   await expect(page.locator("#firstName")).toHaveValue("");
+  await expect(page.locator("#zip")).toHaveValue("33129");
+  await expect(page.locator("#city")).toHaveValue("Delbrück");
   await expectCertificateTypeBlank(page);
   await expect(page.locator("#certificateValidUntil")).toHaveValue("");
 }
@@ -294,6 +299,11 @@ test.describe("Warteliste", () => {
     await page.locator("#birthDate").fill("");
     await fillSticky(page.locator("#certificateValidUntil"), "99.99.9999");
 
+    // Read back rather than asserted non-empty: PLZ and Ort start out filled (US-44.2), so only the
+    // typed values can tell a kept field from one reset to its default.
+    const ADDRESS = ["street", "houseNumber", "zip", "city"];
+    const typed = await Promise.all(ADDRESS.map((name) => page.locator(`#${name}`).inputValue()));
+
     await page.getByTestId("waiting-list-add-submit").click();
 
     // Both named, rather than the first of them. One round trip per day field is how an intake with
@@ -319,8 +329,8 @@ test.describe("Warteliste", () => {
     await expect(page.locator("#lastName")).toHaveValue(person.lastName);
     await expect(page.locator("#certificateType")).toHaveValue(CERTIFICATE_TYPE);
     await expect(page.locator("#contactNote")).toHaveValue(note);
-    for (const name of ["street", "houseNumber", "zip", "city"]) {
-      await expect(page.locator(`#${name}`)).not.toHaveValue("");
+    for (const [at, name] of ADDRESS.entries()) {
+      await expect(page.locator(`#${name}`)).toHaveValue(typed[at] ?? "");
     }
 
     // Nothing was written. The two applicants above are still the whole list.

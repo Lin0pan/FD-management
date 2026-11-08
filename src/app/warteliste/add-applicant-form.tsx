@@ -31,6 +31,7 @@ import { CertificateTypeField } from "../certificate-type-field";
 import { guardEnter } from "../enter-guard";
 import { FieldRejection, useFocusFirstRefusal } from "../field-mark";
 import { marking, problemAt, type FieldRefusal } from "../field-refusal";
+import { HOME_TOWN } from "../home-town";
 import { Notice } from "../notice";
 
 /** The nine text fields as the form holds them: raw strings, keyed by the `name` each input carries. */
@@ -40,7 +41,7 @@ type ApplicationField = (typeof APPLICATION_FIELDS)[number];
 
 /**
  * Every field the form submits as a raw string, in reading order. Listed once and used three times —
- * the blank state, the grid, and the lookup that marks them — because a field missing from any one of
+ * the fresh state, the grid, and the lookup that marks them — because a field missing from any one of
  * the three fails silently: not submitted, not cleared, or not markable.
  *
  * `certificateType` is not among them: `CertificateTypeField` (US-33.6) holds its own selection and
@@ -58,9 +59,11 @@ const APPLICATION_FIELDS = [
   "contactNote",
 ] as const;
 
-const BLANK: Application = Object.fromEntries(
-  APPLICATION_FIELDS.map((name) => [name, ""]),
-) as Application;
+/** What a fresh form holds: nothing, except the address most applicants have ({@link HOME_TOWN}). */
+const FRESH: Application = {
+  ...(Object.fromEntries(APPLICATION_FIELDS.map((name) => [name, ""])) as Application),
+  ...HOME_TOWN,
+};
 
 /**
  * The plain text/date boxes of the grid, in reading order — everything except the Art des
@@ -150,7 +153,7 @@ function Fields({
   certificateTypes: CertificateTypeList;
   fields: ReadonlyArray<FieldRefusal> | undefined;
 }): React.ReactElement {
-  const [values, setValues] = useState<Application>(BLANK);
+  const [values, setValues] = useState<Application>(FRESH);
   const set = (name: ApplicationField, value: string): void =>
     setValues((current) => ({ ...current, [name]: value }));
 
