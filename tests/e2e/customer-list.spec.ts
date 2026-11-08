@@ -13,6 +13,7 @@ import {
   expectTruncated,
   expectWithin,
 } from "./layout";
+import { fillDay, typedDay } from "./day";
 import { SHARED } from "./registers";
 import { releaseNumbers, seedEndedSession } from "./seeding";
 
@@ -757,6 +758,118 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     await expect(page.getByTestId("customer-search")).toHaveValue("");
     await expect(page.getByTestId("status-filter")).toHaveValue("");
     await expect(page.getByTestId("archived-toggle")).not.toBeChecked();
+  });
+
+  /**
+   * The two day filters (US-46.3). Both are strict: a day names the households *before* it, and the
+   * one the boundary falls on is the one each test steps across. Every day is read off this file's
+   * own fixtures around {@link TODAY}.
+   */
+  test.describe("„Letzte Ausgabe vor“ und „Nachweis endet vor“", () => {
+    const lastHandout = (page: Page): Locator => page.getByTestId("last-handout-filter");
+    const certificateEnd = (page: Page): Locator => page.getByTestId("certificate-end-filter");
+    /** The day {@link HANDOUTS.latest} fell on, and the one after it. */
+    const servedOn = HANDOUTS.latest.slice(0, 10);
+    const dayAfterServed = "2025-12-19";
+
+    test("eine Ausgabe vor dem Tag zählt, eine am Tag selbst nicht, keine Ausgabe nie", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await fillDay(lastHandout(page), dayAfterServed);
+      await applyFilters(page);
+      // 282, 283 and 285 were never served, and the archived 284 is hidden by default.
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.searched)]);
+      await expect(page.getByTestId("customer-list-filters")).toContainText(
+        de.customerList.filterClauses.lastHandoutBefore(typedDay(dayAfterServed)),
+      );
+
+      await page.goto(`/kunden?ausgabe-vor=${typedDay(servedOn)}`);
+      expect(await shownSeeded(page)).toEqual([]);
+    });
+
+    test("ein Nachweis, der am Vortag endet, zählt, einer, der am Tag endet, nicht", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await fillDay(certificateEnd(page), CERTIFICATES.expiringSoon);
+      await applyFilters(page);
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.expired)]);
+      await expect(page.getByTestId("customer-list-filters")).toContainText(
+        de.customerList.filterClauses.certificateEndsBefore(typedDay(CERTIFICATES.expiringSoon)),
+      );
+
+      await page.goto("/kunden?nachweis-vor=21.01.2026");
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.blue), String(NUMBERS.expired)]);
+    });
+
+    test("der Tag steht so in der URL, wie er getippt wurde, und übersteht einen Reload", async ({
+      page,
+    }) => {
+      await page.goto("/kunden");
+      await fillDay(lastHandout(page), dayAfterServed);
+      await applyFilters(page);
+      expect(new URL(page.url()).searchParams.get("ausgabe-vor")).toBe(typedDay(dayAfterServed));
+
+      await page.reload();
+      await expect(lastHandout(page)).toHaveValue(typedDay(dayAfterServed));
+      expect(await shownSeeded(page)).toEqual([String(NUMBERS.searched)]);
+    });
+
+    test("ein unlesbarer Tag bleibt stehen, wird markiert und filtert nichts", async ({ page }) => {
+      await page.goto("/kunden?ausgabe-vor=31.02.2026");
+
+      await expect(lastHandout(page)).toHaveValue("31.02.2026");
+      await expect(lastHandout(page)).toHaveAttribute("aria-invalid", "true");
+      const mark = page.getByTestId("last-handout-filter-error");
+      await expect(mark).toHaveText(de.customers.errors.notADate);
+      await expect(lastHandout(page)).toHaveAttribute(
+        "aria-describedby",
+        (await mark.getAttribute("id")) ?? "",
+      );
+      // Nothing filtered: every non-archived household of this file is still listed.
+      expect(await shownSeeded(page)).toEqual(
+        [NUMBERS.searched, NUMBERS.blue, NUMBERS.blocked, NUMBERS.expired].map(String),
+      );
+      await expect(page.getByTestId("customer-list-filters")).toHaveCount(0);
+      await expect(certificateEnd(page)).not.toHaveAttribute("aria-invalid", "true");
+    });
+
+    test("„Zurücksetzen“ leert beide Tagesfelder", async ({ page }) => {
+      await page.goto(`/kunden?ausgabe-vor=${typedDay(dayAfterServed)}&nachweis-vor=21.01.2026`);
+      await expect(lastHandout(page)).toHaveValue(typedDay(dayAfterServed));
+
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === "/kunden" && url.search === ""),
+        page.getByRole("link", { name: de.customerList.filters.reset }).click(),
+      ]);
+      await expect(lastHandout(page)).toHaveValue("");
+      await expect(certificateEnd(page)).toHaveValue("");
+    });
+
+    /** The second row stands under the selects, as wide as they are, at both sides of `lg`. */
+    for (const width of [BELOW_BREAKPOINT.width, GATE_WIDTH]) {
+      test(`bei ${width}px steht die zweite Filterzeile unter den Auswahlfeldern`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.goto("/kunden");
+        await expectNoHorizontalOverflow(page.locator("html"), "die Seite");
+        await expectNoHorizontalOverflow(page.locator('form[method="get"]'), "das Filterformular");
+
+        for (const [day, select] of [
+          [lastHandout(page), page.getByTestId("group-filter")],
+          [certificateEnd(page), page.getByTestId("certificate-filter")],
+        ] as const) {
+          const [below, above] = await Promise.all([day.boundingBox(), select.boundingBox()]);
+          expect(below).not.toBeNull();
+          expect(above).not.toBeNull();
+          expect(Math.abs((below?.x ?? 0) - (above?.x ?? 0))).toBeLessThanOrEqual(1);
+          expect(Math.abs((below?.width ?? 0) - (above?.width ?? 0))).toBeLessThanOrEqual(1);
+          expect(below?.y ?? 0).toBeGreaterThan(above?.y ?? 0);
+        }
+      });
+    }
   });
 
   /**

@@ -852,6 +852,8 @@ export const de = {
       status: "Status",
       group: "Gruppe",
       certificate: "Bedarfsnachweis",
+      lastHandoutBefore: "Letzte Ausgabe vor",
+      certificateEndsBefore: "Nachweis endet vor",
       /** The unset option of every filter — "no filter", never "no results". */
       all: "Alle",
       includeArchived: "Archivierte Haushalte anzeigen",
@@ -917,6 +919,8 @@ export const de = {
       status: (label: string): string => `Status: ${label}`,
       group: (label: string): string => `Gruppe: ${label}`,
       certificate: (label: string): string => `Bedarfsnachweis: ${label}`,
+      lastHandoutBefore: (day: string): string => `Letzte Ausgabe vor ${day}`,
+      certificateEndsBefore: (day: string): string => `Nachweis endet vor ${day}`,
       archivedIncluded: "einschließlich archivierter Haushalte",
       archivedHidden: "ohne archivierte Haushalte",
     },

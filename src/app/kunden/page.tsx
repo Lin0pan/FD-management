@@ -29,12 +29,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableHeader, TableRow } from "@/components/ui/table";
+import { isBlankDay, parseCalendarDay } from "@/domain/calendarDay";
 import { EXPIRING_SOON_DAYS, type CertificateState } from "@/domain/customer/certificate";
-import { DomainError } from "@/domain/errors";
+import { DomainError, InvalidCalendarDay } from "@/domain/errors";
 import { de } from "@/i18n/de";
+import { germanDate } from "@/i18n/format";
+import { cn } from "@/lib/utils";
 import { FREE_SLOT_ACCENT } from "../accents";
+import { FieldRejection } from "../field-mark";
+import { marking } from "../field-refusal";
 import { selectClass } from "../select";
 import { waitingListDeps } from "../warteliste/deps";
 import { customerDeps } from "./deps";
@@ -52,6 +58,34 @@ const GROUP_OPTIONS = ["RED", "BLUE"] as const;
 const CERTIFICATE_OPTIONS = ["VALID", "EXPIRING_SOON", "EXPIRED"] as const;
 
 /**
+ * A day filter as typed, and the day it names — `null` when the text names none. The text is kept
+ * either way: an unreadable day is shown back and marked rather than swallowed, whether it was typed
+ * into the field or into the URL. Blank is "not filtered", like every other parameter here.
+ */
+interface DayFilter {
+  readonly text: string;
+  readonly day: Date | null;
+}
+
+const dayParam = z
+  .string()
+  .optional()
+  .catch(undefined)
+  .transform((text): DayFilter | undefined => {
+    if (text === undefined || isBlankDay(text)) {
+      return undefined;
+    }
+    try {
+      return { text, day: parseCalendarDay(text) };
+    } catch (error: unknown) {
+      if (error instanceof InvalidCalendarDay) {
+        return { text, day: null };
+      }
+      throw error;
+    }
+  });
+
+/**
  * The filters as the URL carries them, in German like every other query parameter. Every field falls
  * back to "not filtered" rather than refusing the page: a query string is typed and copied by hand,
  * and an unreadable `status=foo` is a filter nobody set, not a broken register.
@@ -63,6 +97,8 @@ const filterParams = z.object({
   nachweis: z.enum(CERTIFICATE_OPTIONS).optional().catch(undefined),
   /** A checkbox: present and `1` when ticked, absent otherwise — so the default is a clean URL. */
   archiv: z.literal("1").optional().catch(undefined),
+  "ausgabe-vor": dayParam,
+  "nachweis-vor": dayParam,
 });
 
 type Filters = z.infer<typeof filterParams>;
@@ -101,6 +137,14 @@ function activeFilters(filters: Filters, search: string): ReadonlyArray<string> 
   if (filters.nachweis !== undefined) {
     named.push(clauses.certificate(certificateFilterLabel(filters.nachweis)));
   }
+  const lastHandoutBefore = filters["ausgabe-vor"]?.day ?? null;
+  if (lastHandoutBefore !== null) {
+    named.push(clauses.lastHandoutBefore(germanDate(lastHandoutBefore)));
+  }
+  const certificateEndsBefore = filters["nachweis-vor"]?.day ?? null;
+  if (certificateEndsBefore !== null) {
+    named.push(clauses.certificateEndsBefore(germanDate(certificateEndsBefore)));
+  }
   named.push(filters.archiv === "1" ? clauses.archivedIncluded : clauses.archivedHidden);
   return named;
 }
@@ -134,19 +178,61 @@ function CustomerRow({ row }: { row: CustomerListRow }): React.ReactElement {
 function FilterField({
   id,
   label,
+  refused = false,
+  className,
   children,
 }: {
   id: string;
   label: string;
+  /** Reddens the label, as on every refused field (`ui_styling_guide.md` §7). */
+  refused?: boolean;
+  className?: string;
   children: React.ReactNode;
 }): React.ReactElement {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-sm font-medium">
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <label htmlFor={id} className={cn("text-sm font-medium", refused && "text-destructive")}>
         {label}
       </label>
       {children}
     </div>
+  );
+}
+
+/**
+ * A day filter: the text as typed, and an unreadable one marked under the field. It still filters
+ * nothing — the page has nothing to refuse, only a day it could not read.
+ */
+function DayFilterField({
+  id,
+  name,
+  label,
+  value,
+  testId,
+  className,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  value: DayFilter | undefined;
+  testId: string;
+  className?: string;
+}): React.ReactElement {
+  const problem = value?.day === null ? de.customers.errors.notADate : null;
+  return (
+    <FilterField id={id} label={label} refused={problem !== null} className={className}>
+      <DateInput
+        id={id}
+        name={name}
+        data-testid={testId}
+        placeholder={de.day.placeholder}
+        defaultValue={value?.text ?? ""}
+        {...marking(name, id, problem)}
+      />
+      {problem === null ? null : (
+        <FieldRejection id={id} problem={problem} testId={`${testId}-error`} />
+      )}
+    </FilterField>
   );
 }
 
@@ -166,8 +252,14 @@ function FilterField({
 function FilterForm({ filters, search }: { filters: Filters; search: string }): React.ReactElement {
   return (
     <form method="get" className="flex flex-col gap-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2.2fr)_repeat(3,minmax(0,1fr))]">
-        <FilterField id="filter-search" label={de.customerList.search.label}>
+      {/* Five columns on a wide screen so the second row's controls are as wide as the selects and
+          line up under them; the search spans the first two. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_repeat(4,minmax(0,1fr))]">
+        <FilterField
+          id="filter-search"
+          label={de.customerList.search.label}
+          className="lg:col-span-2"
+        >
           <div className="relative">
             <Search
               aria-hidden="true"
@@ -237,6 +329,22 @@ function FilterForm({ filters, search }: { filters: Filters; search: string }): 
             ))}
           </select>
         </FilterField>
+
+        <DayFilterField
+          id="filter-last-handout-before"
+          name="ausgabe-vor"
+          label={de.customerList.filters.lastHandoutBefore}
+          value={filters["ausgabe-vor"]}
+          testId="last-handout-filter"
+          className="lg:col-start-4"
+        />
+        <DayFilterField
+          id="filter-certificate-ends-before"
+          name="nachweis-vor"
+          label={de.customerList.filters.certificateEndsBefore}
+          value={filters["nachweis-vor"]}
+          testId="certificate-end-filter"
+        />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -425,6 +533,9 @@ export default async function CustomerListPage({
       group: filters.gruppe,
       certificate: filters.nachweis,
       includeArchived: filters.archiv === "1",
+      // An unreadable day filters nothing; the field says so (`DayFilterField`).
+      lastHandoutBefore: filters["ausgabe-vor"]?.day ?? undefined,
+      certificateEndsBefore: filters["nachweis-vor"]?.day ?? undefined,
     });
   } catch (error: unknown) {
     if (error instanceof DomainError && error.code === "NoSettingsInForce") {
