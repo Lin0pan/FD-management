@@ -92,7 +92,7 @@
         "Lint passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "If a chevron icon is added to the summary it is aria-hidden lucide-react and registered in docs/guideline/ui_styling_guide.md §12."
     },
     {

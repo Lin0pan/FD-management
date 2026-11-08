@@ -638,3 +638,31 @@ reused for the count lists, where empty means nothing.
     field while still being marked; `31.02.2026` round-trips intact. Assert on the latter.
   - playwright-cli prints a "skill does not match the tool version" banner on every call; harmless.
 ---
+
+## 2026-11-08 20:10 - US-004
+- /kunden gains „Erwachsene“ and „Kinder“: native `<details>` (`CountFilterField` in page.tsx) with
+  native checkboxes over `view.grownUpCounts` / `view.childCounts`, cols 2–3 of the second row
+  (`lg:col-start-2` moved from the day field to the first dropdown). Each submits a hidden
+  `name=<param> value=keine` sentinel. URL reading and canonicalisation live in the new
+  `src/app/kunden/count-filter.ts` (`readCounts`, `canonicalCounts`, `canonicalQuery`); the page
+  `redirect`s after `listCustomers` (outside its try) when the count params are not canonical.
+- Summary: visible choice („alle“ / „1, 7“ / „keine“) with an sr-only `countLead` before it, so its
+  text and accessible name are „Kinder: …“ while the visible label „Kinder“ stands above like every
+  other field; the boxes' `<fieldset aria-labelledby>` points at that label. Set = `data-set="true"`,
+  `border-primary ring-1 ring-inset ring-primary font-semibold` — recorded in guide §5.
+- de.ts: `filters.grownUps/children/countLead/countChoice`, `filterClauses.grownUps/children`.
+- e2e: new describe „„Erwachsene“ und „Kinder““ in customer-list.spec.ts, seeding 287/288/289
+  (sizes 3+7, 1+0, archived 2+13) and releasing them in afterAll; `Seed` gained optional
+  `grownUps`/`children`. Both engines: 301 passed each. Reviewed with playwright-cli at 1280 and
+  1100 (closed, open, set, none ticked, keyboard) — screenshots in local_only/us46/.
+- Files: src/app/kunden/page.tsx, src/app/kunden/count-filter.ts, src/i18n/de.ts,
+  tests/e2e/customer-list.spec.ts, docs/guideline/ui_styling_guide.md
+- **Learnings for future iterations:**
+  - On the shared register, assert a register-derived list (the boxes) against the table on the
+    same page load rather than against a literal — other specs' households are in it.
+  - A server-side `redirect` (307) never commits the intermediate URL, so `waitForURL` resolves on
+    the settled one; every „Filtern“ on /kunden now redirects (the sentinel is always submitted).
+  - Controls inside a closed `<details>` still submit with the form — the dropdowns rely on it.
+  - US-005 should mention in the handout that a tick counts only after „Filtern“ and that
+    re-ticking every box removes the filter.
+---
