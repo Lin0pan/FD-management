@@ -372,6 +372,13 @@ test.describe("Warteliste", () => {
     await expect(page.getByTestId("promotion-intro")).toContainText(fullName(first));
     await expect(page.locator("#lastName")).toHaveValue(first.lastName);
     await expect(page.locator("#certificateType")).toHaveValue(CERTIFICATE_TYPE);
+    // Their own address, not the Delbrück a blank form starts out with (US-44.1).
+    const entry = await prisma.waitingListEntry.findFirstOrThrow({
+      where: { firstName: first.firstName, lastName: first.lastName },
+      select: { zip: true, city: true },
+    });
+    await expect(page.locator("#zip")).toHaveValue(entry.zip);
+    await expect(page.locator("#city")).toHaveValue(entry.city);
     // The draft holds the applicant alone, so the promoted household is one grown-up and no children.
     await expect(page.getByTestId("household-row")).toHaveCount(1);
     await expect(page.getByTestId("grown-ups")).toHaveText("1");
