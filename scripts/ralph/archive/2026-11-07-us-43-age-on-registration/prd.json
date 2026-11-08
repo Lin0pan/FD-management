@@ -1,0 +1,57 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-43-age-on-registration",
+  "description": "US-43 — MEMBERS' AGES WHILE A HOUSEHOLD IS REGISTERED. The Haushalt table on /kunden/neu gets the same „Alter\" column the household editor on /kunden/[id] already has, filled in as soon as a birthdate is a complete, valid TT.MM.JJJJ (the same keystroke that updates the Erwachsene/Kinder counts — not only on blur). On the way, the record's household editor stops crashing on a future birthdate (ageInYears throws BirthDateInFuture during render): the cell shows „—\" instead. One shared mapping „typed text + today → age or nothing\" serves both tables. Source: tasks/prd-us-43-age-on-registration.md. Out of scope (PRD §Non-Goals): age beside the birthdate in Person & Anschrift, months for babies, highlighting children, any new validation or message. No schema, use case, audit entry or ADR. Both e2e engines stay green.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "A future birthdate shows „—\" in the record's household editor",
+      "description": "As a staff member correcting a household on the customer record, I want a mistyped future birthdate to leave the age blank rather than break the page, so I can just fix the typo. Source: tasks/prd-us-43-age-on-registration.md §US-43.1",
+      "acceptanceCriteria": [
+        "FIRST reproduce it: with playwright-cli on /kunden/[id], open the household editor and type 01.01.2099 into a member's birthdate; record in progress.txt what actually happens today (render error or not). The fix below is needed either way",
+        "A shared mapping from a typed birthdate + today to the age shown lives in src/app/kunden/household-row.ts (beside EMPTY_ROW, ROW_TEXT, isCustomerRow): returns ageInYears(parseCalendarDay(text), today), or null when the text is empty, incomplete, invalid (InvalidCalendarDay) or after today (BirthDateInFuture). Either a function or a small shared AgeCell component rendering `<TableCell className=\"align-top whitespace-nowrap tabular-nums\"><div className={ROW_TEXT}>…</div></TableCell>` with „—\" for null and de.customers.card.memberAge(age) otherwise",
+        "Catch only the two typed domain errors (instanceof), not everything — any other throw still surfaces",
+        "src/app/kunden/[id]/household-editor.tsx renders its Alter cell through that shared piece; no direct ageInYears call remains in the render",
+        "The age cell carries data-testid member-age-${index}",
+        "Typing 01.01.2099 as a member's birthdate on /kunden/[id] shows „—\" in that row's Alter cell and the page stays usable; the derived figures above the table (Erwachsene, Kinder, Preis, Eier) behave exactly as before — `derived` is not changed",
+        "Saving with that date is still refused with the household error and today's message",
+        "e2e in tests/e2e/customer-record.spec.ts: a future birthdate typed in the household editor shows „—\" in member-age-<i>, asserted in the same page load",
+        "Committed as fix(app): … — one intent, no unrelated refactoring",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): the record's household editor with a valid, a half-typed and a future birthdate",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Saving a future date is refused with the form-level message „Ein Geburtsdatum liegt in der Zukunft.\", as before — BirthDateInFuture carries no field path, so no field mark (unchanged, out of scope)."
+    },
+    {
+      "id": "US-002",
+      "title": "An Alter column in the registration form's household table",
+      "description": "As a staff member registering a household, I want each member's age to appear beside their birthdate as soon as I have typed it, so I can tell the customer straight away without working it out. Source: tasks/prd-us-43-age-on-registration.md §US-43.2",
+      "acceptanceCriteria": [
+        "src/app/kunden/neu/registration-form.tsx: the Haushalt table gets a column headed de.customers.record.ageColumn („Alter\", header className whitespace-nowrap) between Geburtsdatum and the remove-✕ column — the same shape as the record editor",
+        "Each row's cell is rendered through the shared piece from US-001 (no second parse/catch written in the form), with data-testid member-age-${index}, computed against proposal.today — never new Date() in the browser",
+        "Rendered from `members` (row 1 already swapped for the Person & Anschrift values), not from `rows`, so the customer's own row shows the age of the birthdate typed in Person & Anschrift and follows it live",
+        "The age appears on the keystroke that completes a valid TT.MM.JJJJ, without leaving the field; empty, incomplete (11.0), invalid (31.02.1990) or future dates show „—\" with no new error mark or message",
+        "Under one year reads „0 Jahre\"; one year „1 Jahr\" (de.customers.card.memberAge)",
+        "Adding a row shows „—\"; removing a row removes its age and the rows below move up with their ages",
+        "A prefilled form (re-registration from the archive, promotion from the waiting list) shows every row's age on page load",
+        "No new German literals and no new de.ts keys — both strings already exist",
+        "e2e in tests/e2e/registration.spec.ts, each in one page load without navigating: a fully typed member birthdate shows the expected age before the field loses focus; the birthday exactly 13 years before the test clock's today shows „13 Jahre\" and the day after that date shows „12 Jahre\" (both dates must be relative to the app's today, not the test runner's: either pin it the way tests/e2e/age-13.spec.ts does with its NOW_FILE — and clean it up after, as that spec does — or derive it from what the app reports; type them via typedDay from tests/e2e/day.ts); an incomplete date shows „—\"; row 1 shows the age typed in Person & Anschrift",
+        "The table gains no horizontal scrollbar it did not have before at desktop and at narrow width",
+        "Committed as feat(app): … separate from US-001",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): register a household of four on /kunden/neu at desktop and narrow width",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Out of scope (PRD §Non-Goals): no age beside the birthdate in Person & Anschrift, no months, no child highlighting, no hint text (CLAUDE.md „Don't explain the screen on the screen\"). No docs/handout change."
+    }
+  ]
+}

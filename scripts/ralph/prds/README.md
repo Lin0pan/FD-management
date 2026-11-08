@@ -5,7 +5,7 @@ number). Each file is a complete, self-contained Ralph run: its own `branchName`
 starting at `US-001`, its own priorities `1..n`.
 
 [`../prd.json`](../prd.json) is what Ralph actually reads; these files are the batches you copy over
-it. It currently holds **batch 43**, the next one to run. `done/` holds the finished copy of each
+it. It currently holds **batch 44**, the next one to run. `done/` holds the finished copy of each
 batch that has run — the same file with every story's `passes` flipped to `true`.
 
 ## Workflow
@@ -122,8 +122,9 @@ harmless — rerun it and Ralph picks up the first story still marked `passes: f
 | 41  | `41-us-41-counter-screen-redesign.json`         | 12      | `ralph/us-41-counter-screen-redesign`         |
 | 42  | `42-us-42-shorter-messages.json`                | 6       | `ralph/us-42-shorter-messages`                |
 | 43  | `43-us-43-age-on-registration.json`             | 2       | `ralph/us-43-age-on-registration`             |
+| 44  | `44-us-46-more-customer-list-filters.json`      | 5       | `ralph/us-46-more-customer-list-filters`      |
 
-253 stories total — the rows sum to it. Every story cites its source PRD section in its
+258 stories total — the rows sum to it. Every story cites its source PRD section in its
 `description`, so an iteration can read the full context when a criterion is ambiguous.
 
 Batches 01–16 are the MVP user stories from `docs/user_stories_mvp.md`. **Batches 17 onwards are not

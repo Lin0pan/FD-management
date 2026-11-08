@@ -1,0 +1,117 @@
+{
+  "project": "FD-Management",
+  "branchName": "ralph/us-46-more-customer-list-filters",
+  "description": "US-46 — MORE FILTERS ON THE CUSTOMER LIST. Four new filters join the GET filter form on /kunden, ANDed with Suche/Status/Gruppe/Bedarfsnachweis/archived: Erwachsene and Kinder (Excel-style checkbox dropdowns over the counts that occur, OR within a list, all ticked = unset, none ticked = empty table), Letzte Ausgabe vor (lastHandoutAt strictly before a day; never-served households never match) and Nachweis endet vor (validUntil strictly before a day). All in the URL (erwachsene, kinder, ausgabe-vor, nachweis-vor), named in the filter summary, cleared by reset. Source: tasks/prd-us-46-more-customer-list-filters.md. Out of scope (PRD §Non-Goals): export/print/extra columns, date sorting, per-box counts, age/size filters, „between\", any filter on /ausgabe. No schema change, port method, audit entry or ADR. Both e2e engines stay green.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "listCustomers narrows by latest hand-out and certificate end",
+      "description": "As a staff member, I want to list the households not served since a given day, or whose certificate ends before a given day, so I can find who no longer comes and who needs to renew. Source: tasks/prd-us-46-more-customer-list-filters.md §US-46.1",
+      "acceptanceCriteria": [
+        "ListCustomersInput (src/application/customers/list-customers.ts) gains optional lastHandoutBefore?: Date and certificateEndsBefore?: Date; absent = not filtered",
+        "lastHandoutBefore keeps a household whose lastHandoutAt falls on a UTC calendar day (the day germanDate prints) strictly before the given day; a hand-out ON the day does not qualify, one the day before does",
+        "A household with lastHandoutAt === null is never kept by lastHandoutBefore, whatever the day",
+        "lastHandoutBefore reads the latestHandoutByCustomer() map already loaded for the column — no new query, no new port method",
+        "certificateEndsBefore keeps a household whose current certificate's validUntil lies strictly before midnight UTC of the given day: one ending 30.11. is kept under 01.12., not under 30.11.",
+        "certificateEndsBefore goes to the store inside the existing ValidUntilRange (a WHERE clause). A pure domain function in src/domain/customer/certificate.ts, written test-first (e.g. endingBefore(range: ValidUntilRange | undefined, day: Date): ValidUntilRange), intersects it with the certificate-state range: the earlier `before` wins, `from` is kept; `before` is utcDay(day), never a time of day",
+        "A future day is accepted by both filters",
+        "Both filters AND with every existing filter and with each other; sorting by customer number and groupCounts are unchanged; no audit entry",
+        "Tests written first, one named test per rule, e.g. `keeps a household served the day before`, `drops a household served on the day itself`, `never keeps a household never served`, `keeps a certificate ending the day before, not one ending on the day`, `intersects with the certificate state, the earlier end winning`; the domain function has day-before / day-of / day-after and a 29 February boundary test",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "Application + domain only; no src/app change in this story. ls src/domain/customer/certificate.ts before editing — it holds isExpired, certificateState, validUntilRangeFor already."
+    },
+    {
+      "id": "US-002",
+      "title": "listCustomers narrows by grown-up and child counts and lists the counts that occur",
+      "description": "As a staff member, I want to tick which numbers of grown-ups and of children to show, so I can find the large families, the households without children, and so on. Source: tasks/prd-us-46-more-customer-list-filters.md §US-46.2",
+      "acceptanceCriteria": [
+        "ListCustomersInput gains grownUps?: ReadonlyArray<number> and children?: ReadonlyArray<number>. Absent = not filtered; present = exactly these counts, OR within one list; an EMPTY array matches nothing — the one place the list does not follow statusesFor's „empty means all\"; the field's doc comment says so. statusesFor itself is not changed",
+        "Compared against the row's grownUps / children — the „Erw. + Kinder\" column's numbers, from composition(members, today) with the use case's single today; applied in the use case after composition, the way `group` already is",
+        "CustomerListView gains grownUpCounts and childCounts: ReadonlyArray<number>, the distinct counts that occur, ascending, over every ACTIVE and BLOCKED household plus ARCHIVED ones only when includeArchived is true — independent of search, status, group, certificate, the day filters and the count filters themselves",
+        "Any count named in the request's own grownUps / children is also in the matching list, even when no household has it any more (PRD §Open Questions 1)",
+        "The occurring counts come from ONE extra customers.list({ statuses }) and composition() per household — not one query per household, and not via describeAllowances",
+        "groupCounts and sorting unchanged; no audit entry; no new port method",
+        "Tests first against the hand-written fakes, one per rule, e.g. `lists the children counts that occur, ascending`, `leaves archived households out of the listed counts unless they are shown`, `does not narrow the listed counts by the other filters`, `shows only the ticked counts`, `shows nothing when no count is ticked`, `counts a child who turns 13 today as a grown-up`, `keeps a filtered count listed after its last household left`",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Application only; no src/app change in this story (the page still compiles — the new view fields are simply unread until US-004)."
+    },
+    {
+      "id": "US-003",
+      "title": "„Letzte Ausgabe vor\" and „Nachweis endet vor\" day fields on /kunden",
+      "description": "As a staff member on /kunden, I want two day fields in the filter form, so I can apply the day filters from the screen and pass the view on as a link. Source: tasks/prd-us-46-more-customer-list-filters.md §US-46.3",
+      "acceptanceCriteria": [
+        "src/app/kunden/page.tsx: the filter form gets a SECOND grid row below Suche/Status/Gruppe/Bedarfsnachweis, with the same column widths as the selects above; this story puts the two day fields in it (US-004 adds the dropdowns to the same row)",
+        "Two fields labelled „Letzte Ausgabe vor\" and „Nachweis endet vor\" (de.ts), each the existing DateInput (src/components/ui/date-input.tsx), uncontrolled with defaultValue from the URL, wrapped in FilterField (real <label htmlFor>), with the placeholder DateInput uses elsewhere",
+        "URL parameters `ausgabe-vor` and `nachweis-vor` carry the text as typed (ausgabe-vor=01.10.2026); parsed in the page's Zod schema with parseCalendarDay; empty/absent = not filtered; passed to listCustomers as lastHandoutBefore / certificateEndsBefore",
+        "An unreadable day (01.10., 31.02.2026, abc) does not filter: the field keeps the typed text, has aria-invalid=\"true\", its label is reddened like other refused fields, and „Kein gültiges Datum.\" stands under it joined by aria-describedby — reusing an existing de.ts key, not adding a third copy. The other filters still apply. Same behaviour for a mistyped field and a hand-typed URL",
+        "A readable day is named in the filter summary and the empty-state message as „Letzte Ausgabe vor 01.10.2026\" / „Nachweis endet vor 01.01.2027\" (new de.customerList.filterClauses entries, germanDate), after the existing clauses and before the archived clause, joined as the existing clauses are; an unreadable one is not named",
+        "„Filter zurücksetzen\" (the plain <a href=\"/kunden\">) leaves both fields empty",
+        "At BELOW_BREAKPOINT (1100px) and GATE_WIDTH from tests/e2e/layout.ts the form has no horizontal overflow (expectNoHorizontalOverflow) and the second row lines up under the selects; narrow widths wrap like row one",
+        "e2e in tests/e2e/customer-list.spec.ts: a household served before the day is listed, one served on the day is not, one never served is not; a certificate ending the day before is listed, one ending on the day is not; ausgabe-vor survives a reload; ausgabe-vor=31.02.2026 keeps the text, shows „Kein gültiges Datum.\", filters nothing and is absent from the summary; reset empties both fields. Days relative to the app's today (tests/e2e/day.ts)",
+        "No new German literals outside src/i18n/de.ts; no hint text (CLAUDE.md „Don't explain the screen on the screen\")",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): /kunden with a valid and an unreadable day, at desktop width and at 1100px",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "„Erwachsene\" and „Kinder\" checkbox dropdowns on /kunden",
+      "description": "As a staff member on /kunden, I want two Excel-style checkbox dropdowns, so I can apply the count filters from the screen and see at a glance, collapsed, whether one is set. Source: tasks/prd-us-46-more-customer-list-filters.md §US-46.4",
+      "acceptanceCriteria": [
+        "Two dropdowns „Erwachsene\" and „Kinder\" in the second filter row, one checkbox per count in view.grownUpCounts / view.childCounts, labelled with the number alone; no household counts beside the boxes",
+        "Native <details>/<summary> with native <input type=\"checkbox\"> inside — NOT Radix DropdownMenu (it portals out of the <form>, so its boxes would submit nothing). The form stays a server component with no JS of its own; the open panel is absolutely positioned above the content and the sticky table header, and keyboard-operable",
+        "A tick takes effect only on „Filtern\"; default and reset = every box ticked = not filtered",
+        "URL parameters `erwachsene` and `kinder`, repeated per ticked count (kinder=1&kinder=7); absent = not filtered; non-integer values dropped; a parameter with no readable value left = not filtered",
+        "Each dropdown also submits a hidden <input name=\"kinder\" value=\"keine\"> (resp. erwachsene). `kinder=keine` alone = no box ticked = empty table with de.customerList.empty.filtered naming the filters — never „show everything\"",
+        "The page redirects (next/navigation redirect) to the canonical URL when the count parameters differ from it: the sentinel is dropped when any count is ticked; a list with EVERY listed box ticked is removed entirely so the URL carries nothing for it. Only erwachsene/kinder are rewritten; every other parameter passes through as submitted, an unreadable day's text included",
+        "The collapsed <summary> reads „Kinder: alle\" (unset), „Kinder: 1, 7\" (set), „Kinder: keine\" (none ticked), likewise „Erwachsene: …\", reflecting the filter in force (the URL), not unsubmitted ticks. A set dropdown also gets a coloured border from an existing accent token (src/app/accents.ts / guide §5) — text and colour together, never colour alone",
+        "The filter summary and empty-state message name a set dropdown in the label's words („Kinder: 1, 7\", „Kinder: keine\") via new de.customerList.filterClauses entries, ordered Erwachsene, Kinder, then the day filters, then the archived clause; an unset dropdown is not named",
+        "Every new string in src/i18n/de.ts; no hint text in or beside the dropdowns",
+        "No horizontal overflow at 1100px and GATE_WIDTH; the open panel is not clipped by the card; closed, it covers nothing (expectNothingCovers on the first table row)",
+        "e2e in tests/e2e/customer-list.spec.ts: only occurring counts are listed; ticking „Archivierte Haushalte anzeigen\" adds an archived-only count; status/group filters do not change the boxes; unticking 0 under Kinder + „Filtern\" shows only households with children with matching summary and collapsed label; unticking every box shows the empty message naming „Kinder: keine\"; re-ticking every box + „Filtern\" leaves no kinder in the URL and the label reads „Kinder: alle\"; the filter survives a reload; reset ticks every box again",
+        "npm run test:e2e AND npm run test:e2e:webkit pass (stop any leftover next dev / next start first)",
+        "Driven and reviewed with the playwright-cli skill (accessibility snapshot, not only a screenshot): both dropdowns closed, open, set and with every box unticked, at desktop width and at 1100px",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "If a chevron icon is added to the summary it is aria-hidden lucide-react and registered in docs/guideline/ui_styling_guide.md §12."
+    },
+    {
+      "id": "US-005",
+      "title": "The handout and the architecture record describe the new filters",
+      "description": "As DF, I want the printed handout to say how to use the new filters; as the next developer, I want the architecture record to stay true. Source: tasks/prd-us-46-more-customer-list-filters.md §US-46.5",
+      "acceptanceCriteria": [
+        "docs/handout/betriebsanleitung.md gains a short German section on filtering the customer list (none exists yet), following docs/handout/README.md (no links, no paths, no npm scripts), with DF's typical questions as examples: „mehr als 5 Kinder\" (0–5 abwählen), „keine Kinder\" (nur 0), „mit Kindern\" (0 abwählen), „seit … nicht mehr da\" (Letzte Ausgabe vor)",
+        "It states the two non-obvious rules: a household never served never appears under „Letzte Ausgabe vor\", and a tick counts only after „Filtern\"",
+        "docs/architecture/ chapters that describe the customer list's filters (grep first, e.g. 05-building-block-view.md) are updated where they name the filter set; nothing is added where no chapter speaks of it; no ADR",
+        "python3 .claude/skills/arc42/scripts/arc42.py check passes (what CI runs)",
+        "Committed as docs(…): …",
+        "Full unit suite passes with coverage (domain and application stay at 100%): npm run test:coverage",
+        "Typecheck passes",
+        "Lint passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
