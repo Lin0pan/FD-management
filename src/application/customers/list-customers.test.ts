@@ -17,6 +17,7 @@ import type {
   Clock,
   CustomerListQuery,
   CustomerRepository,
+  DistributionRecordRepository,
   SettingsRepository,
 } from "../ports";
 import { listCustomers } from "./list-customers";
@@ -196,6 +197,26 @@ class FakeCustomerRepository implements CustomerRepository {
   }
 }
 
+/** The hand-outs, reduced to the one question the list asks of them (US-45). */
+class FakeRecordRepository implements Pick<
+  DistributionRecordRepository,
+  "latestHandoutByCustomer"
+> {
+  readonly handouts: Array<{ readonly customerId: number; readonly date: Date }> = [];
+  /** How often the latest hand-outs were read — the list must not ask once per row. */
+  reads = 0;
+
+  latestHandoutByCustomer(): Promise<ReadonlyMap<number, Date>> {
+    this.reads += 1;
+    const latest = new Map<number, Date>();
+    for (const { customerId, date } of this.handouts) {
+      const known = latest.get(customerId);
+      if (known === undefined || date > known) latest.set(customerId, date);
+    }
+    return Promise.resolve(latest);
+  }
+}
+
 function settingsInput(overrides: Partial<SettingsInput> = {}): SettingsInput {
   return {
     quotaN: 240,
@@ -274,14 +295,16 @@ function customerRecord(overrides: CustomerOverrides = {}): RegisteredCustomer {
 describe("listCustomers", () => {
   let customers: FakeCustomerRepository;
   let settings: FakeSettingsRepository;
+  let records: FakeRecordRepository;
 
   function deps(today = TODAY) {
-    return { customers, settings, clock: fakeClock(today) };
+    return { customers, settings, records, clock: fakeClock(today) };
   }
 
   beforeEach(() => {
     customers = new FakeCustomerRepository();
     settings = new FakeSettingsRepository(version());
+    records = new FakeRecordRepository();
   });
 
   it("lists the whole register in ascending customer number", async () => {
@@ -600,7 +623,58 @@ describe("listCustomers", () => {
       certificateState: "EXPIRING_SOON",
       reminderCount: 2,
       cardNumber: "50k3",
+      lastHandoutAt: null,
     });
+  });
+
+  it("states each household's latest hand-out, not its first", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+    records.handouts.push(
+      { customerId: 1, date: new Date("2026-07-23T13:30:00.000Z") },
+      { customerId: 1, date: new Date("2026-07-02T13:10:00.000Z") },
+    );
+
+    const [row] = await listCustomers(deps(), {}).then((result) => result.rows);
+
+    expect(row?.lastHandoutAt).toEqual(new Date("2026-07-23T13:30:00.000Z"));
+  });
+
+  it("leaves the latest hand-out empty for a household never served", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7 }),
+      customerRecord({ id: 2, customerNumber: 8 }),
+    );
+    records.handouts.push({ customerId: 1, date: new Date("2026-07-23T13:30:00.000Z") });
+
+    const rows = await listCustomers(deps(), {}).then((result) => result.rows);
+
+    expect(rows.map((row) => row.lastHandoutAt)).toEqual([
+      new Date("2026-07-23T13:30:00.000Z"),
+      null,
+    ]);
+  });
+
+  it("states an archived household's latest hand-out like anyone else's", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7, status: "ARCHIVED" }));
+    records.handouts.push({ customerId: 1, date: new Date("2026-05-14T12:00:00.000Z") });
+
+    const [row] = await listCustomers(deps(), { includeArchived: true }).then(
+      (result) => result.rows,
+    );
+
+    expect(row?.lastHandoutAt).toEqual(new Date("2026-05-14T12:00:00.000Z"));
+  });
+
+  it("reads the latest hand-outs once for the whole list, not once per row", async () => {
+    customers.holders.push(
+      customerRecord({ id: 1, customerNumber: 7 }),
+      customerRecord({ id: 2, customerNumber: 8 }),
+      customerRecord({ id: 3, customerNumber: 9 }),
+    );
+
+    await listCustomers(deps(), {});
+
+    expect(records.reads).toBe(1);
   });
 
   it("reads the settings history once for the whole list, not once per row", async () => {

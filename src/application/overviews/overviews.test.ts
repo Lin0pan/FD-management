@@ -169,6 +169,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.resolve(new Map<number, SessionSummary>());
   }
 
+  latestHandoutByCustomer(): Promise<never> {
+    return Promise.reject(new Error("The customer list has a suite of its own"));
+  }
+
   listForCustomer(): Promise<never> {
     return Promise.reject(new Error("The count never reads a hand-out"));
   }

@@ -385,6 +385,43 @@ describe("PrismaDistributionRecordRepository.summariseBySession", () => {
   });
 });
 
+describe("PrismaDistributionRecordRepository.latestHandoutByCustomer", () => {
+  it("states each household's latest hand-out across every session", async () => {
+    const one = await insertCustomer(50);
+    const other = await insertCustomer(51);
+    await repository.create(handOut(one, { sessionId: nextSession, date: NEXT_WEEK }));
+    await repository.create(handOut(one, { date: AFTERNOON }));
+    await repository.create(handOut(other, { date: MORNING }));
+
+    expect(await repository.latestHandoutByCustomer()).toEqual(
+      new Map([
+        [one, NEXT_WEEK],
+        [other, MORNING],
+      ]),
+    );
+  });
+
+  it("leaves a household never served out of the map", async () => {
+    const served = await insertCustomer(50);
+    const neverServed = await insertCustomer(51);
+    await repository.create(handOut(served));
+
+    expect((await repository.latestHandoutByCustomer()).has(neverServed)).toBe(false);
+  });
+
+  it("falls back to the hand-out before once the latest is removed", async () => {
+    const customerId = await insertCustomer(50);
+    await repository.create(handOut(customerId, { date: AFTERNOON }));
+    const latest = await repository.create(
+      handOut(customerId, { sessionId: nextSession, date: NEXT_WEEK }),
+    );
+
+    await repository.remove(latest.id);
+
+    expect((await repository.latestHandoutByCustomer()).get(customerId)).toEqual(AFTERNOON);
+  });
+});
+
 describe("PrismaDistributionRecordRepository freezing and thawing a session", () => {
   it("round-trips every captured detail of a household, unchanged", async () => {
     const customerId = await insertCustomer(50);

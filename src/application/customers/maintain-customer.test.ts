@@ -141,6 +141,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.reject(new Error("The overview of past afternoons has a suite of its own"));
   }
 
+  latestHandoutByCustomer(): Promise<never> {
+    return Promise.reject(new Error("The customer list has a suite of its own"));
+  }
+
   listFrozen(): Promise<never> {
     return Promise.reject(new Error("Reading a past afternoon back has a suite of its own"));
   }
