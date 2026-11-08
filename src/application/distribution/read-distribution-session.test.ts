@@ -140,6 +140,10 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.reject(new Error("The overview of past afternoons has a suite of its own"));
   }
 
+  latestHandoutByCustomer(): Promise<never> {
+    return Promise.reject(new Error("The customer list has a suite of its own"));
+  }
+
   findById(): Promise<DistributionRecord | null> {
     return Promise.reject(new Error("Correcting a hand-out has a suite of its own"));
   }

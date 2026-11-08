@@ -16,11 +16,18 @@ import type { CustomerStatus, RegisteredCustomer } from "@/domain/customer/custo
 import { countByGroup, groupOf, type Group, type GroupCounts } from "@/domain/customer/group";
 import type { Cents } from "@/domain/money";
 import { describeAllowances, type Allowance } from "../allowance/describe-allowance";
-import type { Clock, CustomerListSearch, CustomerRepository, SettingsRepository } from "../ports";
+import type {
+  Clock,
+  CustomerListSearch,
+  CustomerRepository,
+  DistributionRecordRepository,
+  SettingsRepository,
+} from "../ports";
 
 export interface ListCustomersDeps {
   readonly customers: CustomerRepository;
   readonly settings: SettingsRepository;
+  readonly records: Pick<DistributionRecordRepository, "latestHandoutByCustomer">;
   readonly clock: Clock;
 }
 
@@ -75,6 +82,8 @@ export interface CustomerListRow {
   readonly reminderCount: number;
   /** The number of the card the household holds today, e.g. `50k3`. */
   readonly cardNumber: string;
+  /** The household's latest hand-out, the running session's included, or `null` before their first. */
+  readonly lastHandoutAt: Date | null;
 }
 
 /**
@@ -128,7 +137,7 @@ export async function listCustomers(
 ): Promise<CustomerListView> {
   const today = deps.clock.now();
   // One instant for the whole list, so no two rows can be described on different days.
-  const [matched, takenNumbers] = await Promise.all([
+  const [matched, takenNumbers, latestHandouts] = await Promise.all([
     deps.customers.list({
       statuses: statusesFor(input),
       search: readSearch(input.search),
@@ -136,6 +145,7 @@ export async function listCustomers(
         input.certificate === undefined ? undefined : validUntilRangeFor(input.certificate, today),
     }),
     deps.customers.takenActiveNumbers(),
+    deps.records.latestHandoutByCustomer(),
   ]);
   // The group is narrowed here and nowhere else, for the reason `ListCustomersInput.group` gives.
   const found =
@@ -155,12 +165,19 @@ export async function listCustomers(
   // The order the repository answered in is the list's order (FR-6); nothing here re-sorts it.
   return {
     groupCounts,
-    rows: found.map((customer, index) => toRow(customer, allowances[index], today)),
+    rows: found.map((customer, index) =>
+      toRow(customer, allowances[index], latestHandouts.get(customer.id) ?? null, today),
+    ),
   };
 }
 
 /** One loaded customer as the list shows them. */
-function toRow(customer: RegisteredCustomer, allowance: Allowance, today: Date): CustomerListRow {
+function toRow(
+  customer: RegisteredCustomer,
+  allowance: Allowance,
+  lastHandoutAt: Date | null,
+  today: Date,
+): CustomerListRow {
   return {
     customerId: customer.id,
     customerNumber: customer.customerNumber,
@@ -175,5 +192,6 @@ function toRow(customer: RegisteredCustomer, allowance: Allowance, today: Date):
     certificateState: certificateState(customer.details.certificate, today),
     reminderCount: customer.reminderCount,
     cardNumber: formatCardNumber(customer.card.customerNumber, customer.card.index),
+    lastHandoutAt,
   };
 }

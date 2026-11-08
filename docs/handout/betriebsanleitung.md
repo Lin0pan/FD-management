@@ -190,9 +190,10 @@ es kommt nie ein weiterer Kasten hinzu.
   aufheben** und **Archivieren**. Jeder fragt vorher nach.
 
 **Die Haushalte dieser Ausgabe.** Unter der Maske steht die ganze Gruppe mit denselben Spalten wie
-unter **Kunden verwalten** und zusätzlich **Heute**: wer schon abgeholt hat, ist dort mit
-**abgeholt** markiert. Gesperrte Haushalte stehen mit in der Liste, archivierte nicht. Ein Klick auf
-einen Namen schlägt den Haushalt in der Maske nach.
+unter **Kunden verwalten** — nur steht hier **Erinnerungen**, wo dort **Letzte Ausgabe** steht — und
+zusätzlich **Heute**: wer schon abgeholt hat, ist dort mit **abgeholt** markiert. Gesperrte
+Haushalte stehen mit in der Liste, archivierte nicht. Ein Klick auf einen Namen schlägt den Haushalt
+in der Maske nach.
 
 ## Übersichten und „Zu erledigen"
 

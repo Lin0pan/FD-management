@@ -897,12 +897,14 @@ export const de = {
        * certificate was handed in.
        */
       certificate: "Nachweis bis",
+      /** The counter's list and a past session; `/kunden` shows `lastHandout` in its place (US-45). */
       reminders: "Erinnerungen",
+      lastHandout: "Letzte Ausgabe",
       /**
-       * A tally of nought as a dash: thirteen zeroes down a column of fifteen is noise to look past
-       * to find the two rows where somebody was reminded.
+       * Nothing to state, as a dash: no reminder, or no hand-out yet. Thirteen zeroes down a column
+       * of fifteen is noise to look past to find the two rows that say something.
        */
-      noReminders: "–",
+      none: "–",
     },
     /**
      * The filters in force, one clause each, read by two messages — the empty table's and

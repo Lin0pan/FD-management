@@ -23,7 +23,12 @@ import {
 } from "@/components/ui/table";
 import { de } from "@/i18n/de";
 import { CONFIRMATION_ACCENT } from "../accents";
-import { CustomerCells, CustomerHeads } from "../kunden/customer-cells";
+import {
+  CustomerCells,
+  CustomerHeads,
+  RemindersCell,
+  RemindersHead,
+} from "../kunden/customer-cells";
 
 /**
  * The header line's tally, one fraction per group the session serves (US-34.6, US-41.3), each
@@ -79,6 +84,7 @@ export function SessionHouseholds({ roster }: { roster: CounterRosterView }): Re
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <CustomerHeads />
+                <RemindersHead />
                 <TableHead>{words.today}</TableHead>
               </TableRow>
             </TableHeader>
@@ -96,6 +102,7 @@ export function SessionHouseholds({ roster }: { roster: CounterRosterView }): Re
                       testId: `group-member-${row.customerNumber}`,
                     }}
                   />
+                  <RemindersCell row={row} />
                   <TableCell>
                     {row.servedInSession ? (
                       <Badge variant="outline" className={CONFIRMATION_ACCENT}>

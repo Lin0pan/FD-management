@@ -92,6 +92,20 @@ export class PrismaDistributionRecordRepository implements DistributionRecordRep
     );
   }
 
+  async latestHandoutByCustomer(): Promise<ReadonlyMap<number, Date>> {
+    const groups = await this.prisma.distributionRecord.groupBy({
+      by: ["customerId"],
+      _max: { date: true },
+    });
+
+    // `_max` is nullable for an empty group, which a `groupBy` cannot produce.
+    return new Map(
+      groups.flatMap((group) =>
+        group._max.date === null ? [] : [[group.customerId, group._max.date] as const],
+      ),
+    );
+  }
+
   /** The record with this surrogate id, or `null` if the id belongs to none. */
   async findById(recordId: number): Promise<DistributionRecord | null> {
     const row = await this.prisma.distributionRecord.findUnique({ where: { id: recordId } });

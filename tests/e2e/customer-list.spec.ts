@@ -14,7 +14,7 @@ import {
   expectWithin,
 } from "./layout";
 import { SHARED } from "./registers";
-import { releaseNumbers } from "./seeding";
+import { releaseNumbers, seedEndedSession } from "./seeding";
 
 /**
  * Browsing and searching the register at /kunden (`tasks/prd-us-15-customer-list.md` §US-15.4).
@@ -102,6 +102,13 @@ const CERTIFICATES = {
   expired: "2025-12-31",
 } as const;
 
+/** Hand-outs at afternoons before {@link TODAY}, and the dates the list states for them. */
+const HANDOUTS = {
+  earlier: "2025-12-04T14:00:00.000Z",
+  latest: "2025-12-18T14:30:00.000Z",
+  beforeArchiving: "2025-10-23T14:00:00.000Z",
+} as const;
+
 /**
  * The database the built app is running against — the same file, opened a second time.
  *
@@ -128,6 +135,8 @@ interface Seed {
   /** How many cards the household has been issued. The current one is the highest index. */
   readonly cards: number;
   readonly reminderCount: number;
+  /** The instants of the household's hand-outs, each at an ended afternoon of its own. */
+  readonly handouts?: ReadonlyArray<string>;
 }
 
 /**
@@ -168,6 +177,8 @@ const SEEDS: ReadonlyArray<Seed> = [
     // typing the old number must still find them, which is what the second card is here to prove.
     cards: 2,
     reminderCount: 0,
+    // Latest first, so a column showing the first hand-out it read would show the wrong one.
+    handouts: [HANDOUTS.latest, HANDOUTS.earlier],
   },
   {
     customerNumber: NUMBERS.blue,
@@ -192,6 +203,7 @@ const SEEDS: ReadonlyArray<Seed> = [
     certificateValidUntil: CERTIFICATES.valid,
     cards: 1,
     reminderCount: 0,
+    handouts: [HANDOUTS.beforeArchiving],
   },
   {
     customerNumber: NUMBERS.expired,
@@ -226,7 +238,7 @@ async function seedHousehold(seed: Seed): Promise<void> {
 
   await releaseNumbers(prisma, seed.customerNumber);
 
-  await prisma.customer.create({
+  const { id } = await prisma.customer.create({
     data: {
       customerNumber: seed.customerNumber,
       firstName,
@@ -277,7 +289,20 @@ async function seedHousehold(seed: Seed): Promise<void> {
         })),
       },
     },
+    select: { id: true },
   });
+  for (const at of seed.handouts ?? []) {
+    await prisma.distributionRecord.create({
+      data: {
+        customerId: id,
+        sessionId: await seedEndedSession(prisma, { at: new Date(at) }),
+        date: new Date(at),
+        showedUp: true,
+        paidCents: 300,
+        priceCents: 300,
+      },
+    });
+  }
 }
 
 /**
@@ -472,7 +497,6 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     await expect(expired.getByTestId("customer-row-certificate-state")).toHaveText(
       de.customerList.certificateStates.EXPIRED,
     );
-    await expect(expired.getByTestId("customer-row-reminders")).toHaveText("2");
 
     // The other two states are stated on their own rows, unfiltered — the same date read three ways.
     await page.goto("/kunden");
@@ -497,18 +521,37 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
     await expect(household.getByTestId("customer-row-children")).toHaveText("1");
   });
 
-  test("eine Erinnerungszahl von null steht als Strich, eine gezählte als Zahl", async ({
+  test("„Letzte Ausgabe“ steht an Stelle der Erinnerungen und nennt das Datum der jüngsten Ausgabe", async ({
     page,
   }) => {
-    // Thirteen noughts down a column of fifteen is noise a reader has to look past to find the rows
-    // where somebody was actually reminded. The dash says "nothing here" without competing for the
-    // eye — but only if a real tally still reads as its number.
+    // DF read the reminders off the counter and the record, not off the register (US-45).
     await page.goto("/kunden");
 
-    await expect(row(page, NUMBERS.searched).getByTestId("customer-row-reminders")).toHaveText(
-      de.customerList.table.noReminders,
+    const table = page.getByTestId("customer-table");
+    await expect(
+      table.getByRole("columnheader", { name: de.customerList.table.lastHandout }),
+    ).toHaveCount(1);
+    await expect(
+      table.getByRole("columnheader", { name: de.customerList.table.reminders }),
+    ).toHaveCount(0);
+    await expect(row(page, NUMBERS.searched).getByTestId("customer-row-last-handout")).toHaveText(
+      "18.12.2025",
     );
-    await expect(row(page, NUMBERS.expired).getByTestId("customer-row-reminders")).toHaveText("2");
+  });
+
+  test("ein Haushalt ohne Ausgabe steht als Strich, ein archivierter mit seinem Datum", async ({
+    page,
+  }) => {
+    await page.goto("/kunden");
+    await expect(row(page, NUMBERS.blue).getByTestId("customer-row-last-handout")).toHaveText(
+      de.customerList.table.none,
+    );
+
+    await page.getByTestId("archived-toggle").check();
+    await applyFilters(page);
+    await expect(row(page, NUMBERS.archived).getByTestId("customer-row-last-handout")).toHaveText(
+      "23.10.2025",
+    );
   });
 
   test("beide Karten der Seite tragen eine echte Überschrift", async ({ page }) => {
@@ -721,8 +764,8 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
    *
    * Every cell in this table is `whitespace-nowrap`, so before this was fixed a long
    * „Nachname, Vorname“ could neither wrap nor be cut — it widened the column, and with it the whole
-   * table. Below `xl` the container absorbed that by scrolling sideways, which took „Erinnerungen“
-   * off the screen; at `xl` and above the container does not scroll, so the table simply grew out of
+   * table. Below `xl` the container absorbed that by scrolling sideways, which took the last
+   * column off the screen; at `xl` and above the container does not scroll, so the table simply grew out of
    * its card. Both halves are asserted, because the screen has two of them.
    *
    * Seeded and removed here rather than in the file's own `beforeAll`: an extra household in the
@@ -745,9 +788,9 @@ test.describe("Kundenliste durchsuchen und filtern", () => {
       const container = page.locator('[data-slot="table-container"]');
       await expectNoHorizontalOverflow(container, "die Kundenliste");
       await expectWithin(
-        row(page, LONG_NAME_SEED.customerNumber).getByTestId("customer-row-reminders"),
+        row(page, LONG_NAME_SEED.customerNumber).getByTestId("customer-row-last-handout"),
         container,
-        "die Spalte „Erinnerungen“",
+        "die Spalte „Letzte Ausgabe“",
       );
     });
 

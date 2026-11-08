@@ -103,7 +103,7 @@ function HouseholdRow({ row }: { row: CollectedHousehold }): React.ReactElement 
         data-testid="session-household-reminders"
         className={`text-right tabular-nums ${row.reminderCount === 0 ? "text-muted-foreground" : ""}`}
       >
-        {row.reminderCount === 0 ? de.customerList.table.noReminders : row.reminderCount}
+        {row.reminderCount === 0 ? de.customerList.table.none : row.reminderCount}
       </TableCell>
       <TableCell data-testid="session-household-price" className="text-right tabular-nums">
         {formatEuros(row.priceCents)}

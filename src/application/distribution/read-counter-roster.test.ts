@@ -184,6 +184,11 @@ class FakeDistributionRecordRepository implements DistributionRecordRepository {
     return Promise.reject(new Error("The overview of past afternoons has a suite of its own"));
   }
 
+  /** The counter's list reads the column off the same use case as `/kunden` (US-45). */
+  latestHandoutByCustomer(): Promise<ReadonlyMap<number, Date>> {
+    return Promise.resolve(new Map<number, Date>());
+  }
+
   listFrozen(): Promise<never> {
     return Promise.reject(new Error("Reading a past afternoon back has a suite of its own"));
   }

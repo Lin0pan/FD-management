@@ -391,6 +391,12 @@ export interface DistributionRecordRepository {
    * written down for every afternoon ever held is not; callers read the absence as an empty summary.
    */
   summariseBySession(): Promise<ReadonlyMap<number, SessionSummary>>;
+  /**
+   * Every household's latest hand-out instant, keyed by customer id, in **one** aggregate query —
+   * the customer list states it for the whole register (US-45), and `listForCustomer` per row is a
+   * round trip per household. A customer **absent** from the map has never been served.
+   */
+  latestHandoutByCustomer(): Promise<ReadonlyMap<number, Date>>;
   /** The record with this surrogate id, or `null` if the id belongs to none. */
   findById(recordId: number): Promise<DistributionRecord | null>;
   /**
