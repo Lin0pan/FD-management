@@ -590,6 +590,28 @@ describe("listCustomers", () => {
     expect(result.rows).toEqual([]);
   });
 
+  it("drops a household served the day after", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+    records.handouts.push({ customerId: 1, date: new Date("2026-07-02T08:00:00.000Z") });
+
+    const result = await listCustomers(deps(), { lastHandoutBefore: new Date("2026-07-01") });
+
+    expect(result.rows).toEqual([]);
+  });
+
+  it("keeps a household served on 29 February when asked for the 1 March, not when asked for the 29th", async () => {
+    customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
+    records.handouts.push({ customerId: 1, date: new Date("2028-02-29T13:00:00.000Z") });
+
+    const beforeMarch = await listCustomers(deps(), { lastHandoutBefore: new Date("2028-03-01") });
+    const beforeLeapDay = await listCustomers(deps(), {
+      lastHandoutBefore: new Date("2028-02-29"),
+    });
+
+    expect(beforeMarch.rows.map((row) => row.customerNumber)).toEqual([7]);
+    expect(beforeLeapDay.rows).toEqual([]);
+  });
+
   it("judges a household by its latest hand-out, not an earlier one", async () => {
     customers.holders.push(customerRecord({ id: 1, customerNumber: 7 }));
     records.handouts.push(
