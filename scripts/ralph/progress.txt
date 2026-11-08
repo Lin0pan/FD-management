@@ -666,3 +666,17 @@ reused for the count lists, where empty means nothing.
   - US-005 should mention in the handout that a tick counts only after „Filtern“ and that
     re-ticking every box removes the filter.
 ---
+
+## 2026-11-08 20:40 - US-005
+- docs/handout/betriebsanleitung.md: new „Die Kundenliste filtern" section (before „Karten
+  drucken") with DF's four example questions and both non-obvious rules; README's purpose row names it.
+- docs/architecture/: no chapter names the filter set (ch. 5 says only "search, filters"), so none
+  gained text. But ch. 9's 2026-07-28 row „Filtering happens in SQL, never in JavaScript" was
+  contradicted by the code (group since ADR-017, counts and latest hand-out since US-46) — marked
+  ⚠️ „No longer the whole truth" in the row, not resolved. arc42.py check green.
+- Files: docs/handout/betriebsanleitung.md, docs/handout/README.md,
+  docs/architecture/09-architectural-decisions.md
+- **Learnings for future iterations:**
+  - Prettier reflows the whole ch. 9 table when one row grows; a 50-line diff there is expected.
+  - Docs-only story: build and e2e not re-run (no src change since US-004's green run).
+---
